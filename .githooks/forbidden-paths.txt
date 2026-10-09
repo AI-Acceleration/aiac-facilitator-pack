@@ -1,0 +1,8 @@
+# Exact repo-relative paths that must never be committed.
+# Path-anchored, NOT basename: `00E — ES Edition Diff Table (FACILITATOR ONLY).md`
+# exists in BOTH `Trainer Pack (ES)/` and `Co-Facilitator Kit (ES)/`, and only the
+# Trainer Pack copy is maintainer-only. The Kit's own 00E/00W/00V MUST ship —
+# trainers ARE facilitators; the restriction banner is about PARTICIPANTS.
+Trainer Pack (ES)/00E — ES Edition Diff Table (FACILITATOR ONLY).md
+Co-Facilitator Kit (EN)/00 — Design Spec.md
+Co-Facilitator Kit (ES)/00 — Design Spec.md

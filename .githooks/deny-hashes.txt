@@ -1,0 +1,9 @@
+# SHA-256 of lowercased addresses that must fail unconditionally, even if a
+# later edit allowlists them. Hashes, not plaintext: a deny list of real
+# addresses that ships in the repo IS the leak it exists to prevent.
+#
+# Public edition: the only entry is the gate's own synthetic canary
+# (canary.probe at example-invalid dot test, a reserved-invalid TLD), so the
+# list is never empty. Detection of real addresses comes from the allowlist:
+# any address not explicitly permitted fails, known or not.
+bf35e3803f87c696a4431da35b3e35a2d4e993b73c6298ff4b85d034ede9536a

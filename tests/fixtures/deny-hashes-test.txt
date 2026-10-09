@@ -1,0 +1,8 @@
+# TEST FIXTURE — sha256 of SYNTHETIC addresses at the reserved-invalid TLD
+# `.test` (RFC 2606). No real address is hashed here, and nothing in this file
+# may ever be copied into `.githooks/deny-hashes.txt`.
+#
+# local part `trainer.private`, domain `example-invalid.test`
+2b23c5ee7c391db8834485a2b9190a1d2a257c52dc7e0e7b50f927290f7a2672
+# local part `fifth.trainer`, domain `example-invalid.test`
+242dae77438707e90d330c94345eee2bd9e7fb1208fe854e7c77f49e3ee3dbe7

@@ -1,0 +1,11 @@
+# The maintainers team reviews everything in this repo.
+*       @AI-Acceleration/maintainers
+
+# Security-relevant surface. A change here alters what the gate can see:
+#   .githooks/**        pattern lists and the hooks that run the gate
+#   bin/gate_scan.py    the gate itself
+#   .github/**          the CI that runs the gate
+# Review these as security changes, not docs changes.
+/.githooks/             @wildbuffaloman
+/bin/                   @wildbuffaloman
+/.github/               @wildbuffaloman

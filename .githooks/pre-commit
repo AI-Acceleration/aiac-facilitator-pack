@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Delegates to the single gate implementation shared with CI, so the two
+# can never drift. Do not inline scanning logic here.
+set -euo pipefail
+exec python3 "$(git rev-parse --show-toplevel)/bin/gate_scan.py"

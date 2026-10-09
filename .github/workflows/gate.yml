@@ -1,0 +1,101 @@
+name: gate
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # --history needs the full object store
+
+      - name: Private-data gate (working tree)
+        run: python3 bin/gate_scan.py --tree
+
+      - name: Private-data gate (full history)
+        run: python3 bin/gate_scan.py --history
+
+      - name: Assert the withheld files are absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Case-INSENSITIVE (-ipath / -iname) on purpose. The runner is
+          # case-sensitive ext4, but most contributors clone onto
+          # case-insensitive APFS/NTFS, where a case-variant of a withheld
+          # filename is the same file.
+          fail=0
+          while IFS= read -r p; do
+            [ -z "$p" ] && continue
+            case "$p" in \#*) continue ;; esac
+            if find . -ipath "./$p" -print -quit | grep -q .; then
+              echo "FORBIDDEN PATH PRESENT: $p"; fail=1
+            fi
+          done < .githooks/forbidden-paths.txt
+          while IFS= read -r b; do
+            [ -z "$b" ] && continue
+            case "$b" in \#*) continue ;; esac
+            if find . -iname "$b" -print -quit | grep -q .; then
+              echo "FORBIDDEN BASENAME PRESENT: $b"; fail=1
+            fi
+          done < .githooks/forbidden-basenames.txt
+          exit $fail
+
+      - name: Unit tests
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Pin the gate surface against main
+        shell: bash
+        run: |
+          set -euo pipefail
+          # On a pull_request run GitHub executes the PR's OWN copy of this
+          # workflow and of bin/gate_scan.py, so a PR that edits them can
+          # neuter its own checks. This step makes any such edit fail loudly:
+          # the gate surface may not change on a branch at all -- changing it
+          # is a main-side decision, reviewed on its own. A PR can delete this
+          # step too, which is why main is protected by required code-owner
+          # review; this step turns an honest edit red and makes a dishonest
+          # one show up as a workflow diff the reviewer has to approve.
+          surface=(.githooks bin .github)
+          f='.githooks/allow-patterns.txt'
+          if [ ! -f "$f" ]; then
+            echo "GATE ERROR: $f is missing from the checkout."
+            echo "Refusing to certify: the pin cannot be measured."
+            exit 1
+          fi
+          base=''
+          for r in origin/main refs/remotes/origin/main main; do
+            if git rev-parse --verify --quiet "$r^{commit}" >/dev/null; then
+              base="$r"; break
+            fi
+          done
+          if [ -z "$base" ]; then
+            git fetch --no-tags --quiet origin main || true
+            if git rev-parse --verify --quiet 'FETCH_HEAD^{commit}' >/dev/null; then
+              base=FETCH_HEAD
+            fi
+          fi
+          if [ -z "$base" ]; then
+            echo "GATE ERROR: cannot resolve main -- tried origin/main, main, and an explicit fetch."
+            echo "Refusing to certify: a check that cannot run never reports clean."
+            exit 1
+          fi
+          if ! git cat-file -e "$base:$f" 2>/dev/null; then
+            # Not an error: main genuinely predates the gate. Said out loud so
+            # nobody reads a silent pass as "the pin compared and matched".
+            echo "gate surface pin: $f does not exist at $base."
+            echo "Treating this as the gate's FIRST INTRODUCTION, which is legitimate."
+            echo "Nothing was compared -- review every line of it by hand before merging."
+            exit 0
+          fi
+          changed=$(git diff --name-only "$base" -- "${surface[@]}")
+          if [ -n "$changed" ]; then
+            echo "BLOCKED: the gate surface differs from $base:"
+            printf '  %s\n' $changed
+            echo "Changes under .githooks/, bin/ and .github/ alter what the gate"
+            echo "can see. Land them on main on their own, as a security review."
+            exit 1
+          fi
+          echo "gate surface pin: ${surface[*]} byte-identical to $base."

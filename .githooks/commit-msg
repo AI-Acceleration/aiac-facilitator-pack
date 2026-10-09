@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Commit MESSAGES are as permanent as commit content, and nothing else reads
+# them. Delegates to the single gate implementation shared with CI.
+# Do not inline scanning logic here.
+set -euo pipefail
+exec python3 "$(git rev-parse --show-toplevel)/bin/gate_scan.py" --message "$1"

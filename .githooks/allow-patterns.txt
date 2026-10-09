@@ -1,0 +1,5 @@
+# Addresses permitted to ship. Anything else trips the generic detector.
+# Git trailer address on the assistant-attribution Co-Authored-By line.
+# Not a person's routing address; appears in commit messages, which the
+# commit-msg hook and `--history` scan.
+noreply@anthropic.com

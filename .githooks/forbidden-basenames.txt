@@ -1,0 +1,2 @@
+# Exact basenames that must never be committed, at any path.
+00 — Trainer Registry (ALBERT ONLY).md
