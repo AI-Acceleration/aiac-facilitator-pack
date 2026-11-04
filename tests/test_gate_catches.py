@@ -11,6 +11,7 @@ carries no match for the gate's address regex) and live at `.test`, the
 reserved-invalid TLD. Their hashes are in `tests/fixtures/deny-hashes-test.txt`
 and must never be copied into `.githooks/deny-hashes.txt`.
 """
+import os
 import shutil
 import subprocess
 import sys
@@ -221,7 +222,12 @@ class GateSandbox(unittest.TestCase):
         settings (e.g. i18n.commitEncoding)."""
         self.write("doc.md", "clean body\n")
         cfg = [a for c in config for a in ("-c", c)]
-        self.git(*cfg, "commit", "-q", "--no-verify", "-F", "-", input=message)
+        # A fixed negative timezone: in UTF-7 a '+0000' (CI runs in UTC)
+        # would open a shift sequence and make the whole commit undecodable.
+        date = "1700000000 -0400"
+        env = dict(os.environ, GIT_AUTHOR_DATE=date, GIT_COMMITTER_DATE=date)
+        self.git(*cfg, "commit", "-q", "--no-verify", "-F", "-", input=message,
+                 env=env)
 
     def test_history_mode_scans_commit_author_header(self):
         self.write("doc.md", "clean body\n")
@@ -255,7 +261,7 @@ class GateSandbox(unittest.TestCase):
             "i18n.commitEncoding=UTF-7")
         r = run_gate(self.tmp, "--history")
         self.assertBlocked(r, "KNOWN-PRIVATE")
-        self.assertIn("commit message", r.stderr)
+        self.assertIn("commit decoded", r.stderr)
 
     def test_history_mode_scans_latin1_message_decoded(self):
         # Raw Latin-1 bytes are not UTF-8 (UNSCANNABLE); the decoded message
@@ -273,6 +279,43 @@ class GateSandbox(unittest.TestCase):
         r = run_gate(self.tmp, "--history")
         self.assertBlocked(r, "UNSCANNABLE")
         self.assertIn("X-NOT-A-CHARSET", r.stderr)
+
+    def raw_commit(self, author, message, encoding=None):
+        """Write a commit object byte for byte (author ident given as raw
+        bytes, so its encoding is ours to choose) and point HEAD at it. The
+        timezone is negative on purpose: in UTF-7 a '+0000' would open a shift
+        sequence."""
+        self.write("doc.md", "clean body\n")
+        tree = self.git("write-tree").stdout.strip()
+        ident = ("t <%s> 1700000000 -0400" % GIT_EMAIL).encode("ascii")
+        obj = (b"tree " + tree + b"\n"
+               b"author " + author + b" 1700000000 -0400\n"
+               b"committer " + ident + b"\n")
+        if encoding:
+            obj += b"encoding " + encoding + b"\n"
+        obj += b"\n" + message
+        sha = self.git("hash-object", "-t", "commit", "-w", "--literally",
+                       "--stdin", input=obj).stdout.strip().decode("ascii")
+        self.git("update-ref", "HEAD", sha)
+
+    def test_history_mode_decodes_utf7_author_header(self):
+        # The `encoding` header governs the whole commit: an author email
+        # written in UTF-7 holds no '@' in its raw bytes.
+        hidden = DENIED.replace("@", "+AEA-")
+        self.raw_commit(("t <%s>" % hidden).encode("ascii"),
+                        b"clean message\n", b"UTF-7")
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "KNOWN-PRIVATE")
+        self.assertIn("commit decoded", r.stderr)
+
+    def test_history_mode_decodes_latin1_author_header(self):
+        # A Latin-1 author name makes the raw header undecodable as UTF-8;
+        # the address beside it must still be read and reported.
+        self.raw_commit(("Caf\u00e9 <%s>" % DENIED).encode("iso-8859-1"),
+                        b"clean message\n", b"ISO-8859-1")
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "KNOWN-PRIVATE")
+        self.assertIn("commit decoded", r.stderr)
 
     def test_history_mode_clean_commit_passes(self):
         self.commit_message_bytes(b"clean message\n")
