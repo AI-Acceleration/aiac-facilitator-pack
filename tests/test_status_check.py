@@ -33,6 +33,21 @@ class TestStatusCheck(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         return r.stdout
 
+    def test_code_repo_redacts_absolute_path_in_all_copies(self):
+        private_dir = self.vault / "private-client-workspace"
+        private_dir.mkdir()
+        self.repo = self.repo.rename(private_dir / "Code Project")
+        self.assertTrue(self.repo.is_absolute())
+        for script in SCRIPTS:
+            with self.subTest(script=str(script.relative_to(ROOT))):
+                repo_line = next(line for line in self.report(script).splitlines()
+                                 if "Code repo (STEP 6)" in line)
+                self.assertTrue(repo_line.startswith("[ OK ]"), repo_line)
+                self.assertNotIn("/", repo_line)
+                self.assertNotIn(private_dir.name, repo_line)
+                detail = repo_line.split("Code repo (STEP 6)", 1)[1].strip()
+                self.assertIn(detail, (self.repo.name, "present"))
+
     def test_origin_reports_host_without_credentials_or_path_in_all_copies(self):
         # Fragments keep the synthetic credential out of the gate's address scan.
         self.git("remote", "add", "origin",

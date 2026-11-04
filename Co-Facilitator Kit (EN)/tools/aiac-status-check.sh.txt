@@ -415,7 +415,7 @@ if [ -z "$REPO" ] && [ -n "$VAULT" ] && [ -d "$VAULT" ]; then
   [ -n "$g" ] && REPO="${g%/.git}"
 fi
 if [ -n "$REPO" ]; then
-  say "$OK" "Code repo (STEP 6)" "$REPO"
+  say "$OK" "Code repo (STEP 6)" "$(basename "$REPO")"
   case "$REPO" in
     "$VAULT"/*) printf '%s %-42s %s\n' "[info]" "  repo location choice" "(A) inside the vault" ;;
     *)          printf '%s %-42s %s\n' "[info]" "  repo location choice" "(B) ~/dev - needs a named sandbox path" ;;
