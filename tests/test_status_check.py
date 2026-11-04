@@ -66,6 +66,45 @@ class TestStatusCheck(unittest.TestCase):
                       if line.startswith("[info]") and "  origin" in line)
         self.assertEqual(origin.split("origin", 1)[1].strip(), "no remote")
 
+    def test_origin_redacts_local_and_unrecognized_remotes_in_all_copies(self):
+        remotes = [
+            "client-private.git",
+            "client-private/backup.git",
+            "/abs/path/repo.git",
+            "file:///x/repo.git",
+            "file://localhost/x/repo.git",
+            "github.com:org/private.git",
+        ]
+        self.git("remote", "add", "origin", "https://github.com/org/repo.git")
+        for remote in remotes:
+            self.git("remote", "set-url", "origin", remote)
+            for script in SCRIPTS:
+                with self.subTest(remote=remote,
+                                  script=str(script.relative_to(ROOT))):
+                    output = self.report(script)
+                    origin = next(line for line in output.splitlines()
+                                  if line.startswith("[info]") and "  origin" in line)
+                    self.assertEqual(origin.split("origin", 1)[1].strip(),
+                                     "present (local/unrecognized)")
+                    self.assertNotIn(remote, output)
+
+    def test_origin_preserves_bracketed_ipv6_host_in_all_copies(self):
+        remotes = [
+            "ssh://git" + "@" + "[2001:db8::1]/repo.git",
+            "ssh://git" + "@" + "[2001:db8::1]:2222/repo.git",
+            "git" + "@" + "[2001:db8::1]:repo.git",
+        ]
+        self.git("remote", "add", "origin", "https://github.com/org/repo.git")
+        for remote in remotes:
+            self.git("remote", "set-url", "origin", remote)
+            for script in SCRIPTS:
+                with self.subTest(remote=remote,
+                                  script=str(script.relative_to(ROOT))):
+                    origin = next(line for line in self.report(script).splitlines()
+                                  if line.startswith("[info]") and "  origin" in line)
+                    self.assertEqual(origin.split("origin", 1)[1].strip(),
+                                     "present ([2001:db8::1])")
+
 
 if __name__ == "__main__":
     unittest.main()

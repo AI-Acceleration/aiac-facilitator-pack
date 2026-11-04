@@ -423,12 +423,17 @@ if [ -n "$REPO" ]; then
   nc=$(git -C "$REPO" rev-list --count HEAD 2>/dev/null || echo 0)
   rm_=$(git -C "$REPO" remote get-url origin 2>/dev/null || true)
   if [ -n "$rm_" ]; then
-    # Keep only the host; reports are sent back to the facilitator.
-    rm_=${rm_#*://}
-    rm_=${rm_%%[/?#]*}
-    rm_=${rm_##*@}
-    rm_=${rm_%%:*}
-    rm_="present ($rm_)"
+    # Only recognized network remotes may expose a host in shared reports.
+    # Capture bracketed IPv6 as a whole, excluding any port and path.
+    url_remote='^[a-zA-Z][a-zA-Z0-9+.-]*://([^/?#]*@)?(\[[0-9a-fA-F:.]+\]|[a-zA-Z0-9._-]+)(:[0-9]+)?([/?#]|$)'
+    scp_remote='^[^/@:[:space:]]+@(\[[0-9a-fA-F:.]+\]|[a-zA-Z0-9._-]+):.+'
+    if [[ "$rm_" != [fF][iI][lL][eE]://* && "$rm_" =~ $url_remote ]]; then
+      rm_="present (${BASH_REMATCH[2]})"
+    elif [[ "$rm_" =~ $scp_remote ]]; then
+      rm_="present (${BASH_REMATCH[1]})"
+    else
+      rm_="present (local/unrecognized)"
+    fi
   else
     rm_="no remote"
   fi
