@@ -270,7 +270,8 @@ class GateSandbox(unittest.TestCase):
                         ("ok %s\n" % DENIED).encode("utf-16-le"), b"UTF-16LE")
         r = run_gate(self.tmp, "--history")
         self.assertBlocked(r, "UNSCANNABLE")
-        self.assertIn("not ASCII-compatible", r.stderr)
+        self.assertIn("commit encoding 'utf-16-le' is not ASCII-compatible",
+                      r.stderr)
 
     def test_history_mode_scans_latin1_message_decoded(self):
         # Raw Latin-1 bytes are not UTF-8 (UNSCANNABLE); the decoded message
@@ -289,7 +290,25 @@ class GateSandbox(unittest.TestCase):
                                   "i18n.commitEncoding=X-NOT-A-CHARSET")
         r = run_gate(self.tmp, "--history")
         self.assertBlocked(r, "UNSCANNABLE")
-        self.assertIn("X-NOT-A-CHARSET", r.stderr)
+        self.assertIn("[UNSCANNABLE — unknown commit encoding]", r.stderr)
+        self.assertNotIn("X-NOT-A-CHARSET", r.stderr)
+
+    def test_history_mode_encoding_header_does_not_echo_denied_address(self):
+        self.raw_commit(("t <%s>" % GIT_EMAIL).encode("ascii"),
+                        b"clean message\n", DENIED.encode("ascii"))
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "KNOWN-PRIVATE")
+        self.assertNotIn(DENIED, r.stdout)
+        self.assertNotIn(DENIED, r.stderr)
+        self.assertIn("[UNSCANNABLE — unknown commit encoding]", r.stderr)
+
+    def test_history_mode_encoding_header_with_nul_is_unscannable(self):
+        self.raw_commit(("t <%s>" % GIT_EMAIL).encode("ascii"),
+                        b"clean message\n", b"UTF-8\x00")
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "UNSCANNABLE")
+        self.assertIn("[UNSCANNABLE — unknown commit encoding]", r.stderr)
+        self.assertNotIn("Traceback", r.stdout + r.stderr)
 
     def raw_commit(self, author, message, encoding=None):
         """Write a commit object byte for byte (author ident given as raw

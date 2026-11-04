@@ -230,11 +230,12 @@ def decoded_forms(sha, commit, message, encodings):
     for raw_enc in encodings:
         enc = raw_enc.decode("ascii", "replace")
         try:
-            if codecs.lookup(enc).name == "utf-8":
+            enc = codecs.lookup(enc).name
+            if enc == "utf-8":
                 continue  # the strict UTF-8 scan of the raw bytes covers it
-        except LookupError:
+        except (LookupError, ValueError):
             problems.append((COMMIT_DECODED_PATH,
-                             f"UNSCANNABLE — unknown commit encoding {enc!r}"))
+                             "UNSCANNABLE — unknown commit encoding"))
             continue
         if not ascii_compatible(enc):
             problems.append((COMMIT_DECODED_PATH,
