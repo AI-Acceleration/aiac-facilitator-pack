@@ -421,7 +421,17 @@ if [ -n "$REPO" ]; then
     *)          printf '%s %-42s %s\n' "[info]" "  repo location choice" "(B) ~/dev - needs a named sandbox path" ;;
   esac
   nc=$(git -C "$REPO" rev-list --count HEAD 2>/dev/null || echo 0)
-  rm_=$(git -C "$REPO" remote get-url origin 2>/dev/null || echo "no remote")
+  rm_=$(git -C "$REPO" remote get-url origin 2>/dev/null || true)
+  if [ -n "$rm_" ]; then
+    # Keep only the host; reports are sent back to the facilitator.
+    rm_=${rm_#*://}
+    rm_=${rm_%%[/?#]*}
+    rm_=${rm_##*@}
+    rm_=${rm_%%:*}
+    rm_="present ($rm_)"
+  else
+    rm_="no remote"
+  fi
   printf '%s %-42s %s\n' "[info]" "  commits" "$nc"
   printf '%s %-42s %s\n' "[info]" "  origin" "$rm_"
   if [ -f "$REPO/CLAUDE.md" ]; then say "$OK" "Repo CLAUDE.md (STEP 8)" ""; else say "$NO" "Repo CLAUDE.md (STEP 8)" "missing"; fi
