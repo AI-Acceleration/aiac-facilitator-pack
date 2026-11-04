@@ -46,6 +46,12 @@ class GateSandbox(unittest.TestCase):
         shutil.copytree(ROOT / ".githooks", self.tmp / ".githooks")
         shutil.copy2(FIXTURES / "deny-hashes-test.txt",
                      self.tmp / ".githooks" / "deny-hashes.txt")
+        # --history scans whole commit objects, author/committer included:
+        # permit the sandbox's own synthetic identity, exactly as the real
+        # allowlist permits the repo's commit identities.
+        with open(self.tmp / ".githooks" / "allow-patterns.txt", "a",
+                  encoding="utf-8") as f:
+            f.write("\n%s\n" % GIT_EMAIL)
         for cmd in (["init", "-q"],
                     ["config", "user.email", GIT_EMAIL],
                     ["config", "user.name", "t"]):
@@ -204,6 +210,74 @@ class GateSandbox(unittest.TestCase):
         self.assertBlocked(r, "KNOWN-PRIVATE")
         self.assertIn("commit message", r.stderr)
         self.assertIn("tra***@" + DOMAIN, r.stderr)
+
+    # --- whole commit objects: headers, NUL bytes, re-encoded messages ---
+    def git(self, *args, **kw):
+        return subprocess.run(["git", *args], cwd=str(self.tmp), check=True,
+                              capture_output=True, **kw)
+
+    def commit_message_bytes(self, message, *config):
+        """Commit with a message given as raw bytes, optionally under git -c
+        settings (e.g. i18n.commitEncoding)."""
+        self.write("doc.md", "clean body\n")
+        cfg = [a for c in config for a in ("-c", c)]
+        self.git(*cfg, "commit", "-q", "--no-verify", "-F", "-", input=message)
+
+    def test_history_mode_scans_commit_author_header(self):
+        self.write("doc.md", "clean body\n")
+        self.git("-c", "user.email=" + DENIED, "commit", "-q", "--no-verify",
+                 "-m", "clean message")
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "KNOWN-PRIVATE")
+        self.assertIn("commit header", r.stderr)
+
+    def test_history_mode_catches_address_after_nul_in_message(self):
+        # `git commit` refuses a NUL in a message, but a commit object can
+        # carry one; git log's %B stops at it and hides what follows.
+        self.write("doc.md", "clean body\n")
+        tree = self.git("write-tree").stdout.strip().decode("ascii")
+        ident = ("t <%s> 0 +0000" % GIT_EMAIL).encode("utf-8")
+        obj = (b"tree " + tree.encode("ascii") + b"\n"
+               b"author " + ident + b"\ncommitter " + ident + b"\n\n"
+               b"ok\x00 " + DENIED.encode("utf-8") + b"\n")
+        sha = self.git("hash-object", "-t", "commit", "-w", "--literally",
+                       "--stdin", input=obj).stdout.strip().decode("ascii")
+        self.git("update-ref", "HEAD", sha)
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "KNOWN-PRIVATE")
+        self.assertIn("commit message", r.stderr)
+
+    def test_history_mode_decodes_utf7_message(self):
+        # In UTF-7 '@' may be written '+AEA-': the raw bytes hold no address,
+        # the decoded message does.
+        self.commit_message_bytes(
+            ("ok %s\n" % DENIED.replace("@", "+AEA-")).encode("ascii"),
+            "i18n.commitEncoding=UTF-7")
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "KNOWN-PRIVATE")
+        self.assertIn("commit message", r.stderr)
+
+    def test_history_mode_scans_latin1_message_decoded(self):
+        # Raw Latin-1 bytes are not UTF-8 (UNSCANNABLE); the decoded message
+        # must still be read, so the address itself is reported.
+        self.commit_message_bytes(
+            ("caf\u00e9 %s\n" % DENIED).encode("iso-8859-1"),
+            "i18n.commitEncoding=ISO-8859-1")
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "KNOWN-PRIVATE")
+        self.assertIn("UNSCANNABLE", r.stderr)
+
+    def test_history_mode_undecodable_encoding_is_unscannable(self):
+        self.commit_message_bytes(b"clean message\n",
+                                  "i18n.commitEncoding=X-NOT-A-CHARSET")
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "UNSCANNABLE")
+        self.assertIn("X-NOT-A-CHARSET", r.stderr)
+
+    def test_history_mode_clean_commit_passes(self):
+        self.commit_message_bytes(b"clean message\n")
+        r = run_gate(self.tmp, "--history")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
 
 if __name__ == "__main__":

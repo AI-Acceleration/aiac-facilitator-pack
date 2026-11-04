@@ -13,7 +13,8 @@ Modes:
               uncommitted edits, which is a different question than "is HEAD
               clean" -- do not read a local --tree pass as a statement about
               what is committed.
-  --history   every object reachable from every ref, plus every commit message
+  --history   every object reachable from every ref, plus every whole commit
+              object (headers and message, raw and, if re-encoded, decoded)
 
 Four design choices, each answering a way this gate could have been useless:
 
@@ -35,6 +36,7 @@ Four design choices, each answering a way this gate could have been useless:
    set, a missing pattern file -- each is loud, because a gate that scans
    nothing and prints "clean" is the failure mode this file exists to prevent.
 """
+import codecs
 import hashlib
 import html
 import re
@@ -63,6 +65,7 @@ CANARY = "canary.probe" + "@" + "example-invalid" + ".test"
 # The exemption must apply to precisely the one file load() actually reads.
 DENY_ONLY_CONTENT = {".githooks/allow-patterns.txt"}
 COMMIT_MSG_PATH = "<commit message>"
+COMMIT_HDR_PATH = "<commit header>"
 
 
 def die(msg):
@@ -190,14 +193,54 @@ def scan_name(path, deny_hashes, allow, findings):
               deny_hashes, allow, findings)
 
 
-def commit_messages():
-    """(sha, raw message bytes) for every commit reachable from every ref."""
+def commit_encodings(headers):
+    """Values of the commit's `encoding` header(s). Continuation lines of
+    multi-line headers (gpgsig, mergetag) start with a space and never match."""
+    return [l[len(b"encoding "):].strip()
+            for l in headers.split(b"\n") if l.startswith(b"encoding ")]
+
+
+def decoded_forms(sha, message, encodings):
+    """For a commit whose `encoding` header is not UTF-8, the message as a
+    reader sees it after decoding: (forms, problem). Raw bytes alone can hide
+    an address (UTF-7 writes '@' as '+AEA-'), so the decoded text is scanned
+    too. A message we cannot decode is a FAILED MEASUREMENT: problem is set and
+    the commit is reported UNSCANNABLE, never certified clean."""
+    forms = []
+    for raw_enc in encodings:
+        enc = raw_enc.decode("ascii", "replace")
+        try:
+            if codecs.lookup(enc).name == "utf-8":
+                continue  # the strict UTF-8 scan of the raw bytes covers it
+            text = message.decode(enc)  # strict
+            forms.append(text.encode("utf-8"))  # strict: lone surrogates fail
+        except (LookupError, UnicodeError, ValueError):
+            return [], f"UNSCANNABLE — commit message not decodable as {enc!r}"
+        # Also scan what git itself shows for the commit. It may decode with a
+        # different converter than Python; scanning both closes the gap.
+        forms.append(git("log", "-1", "--no-show-signature", "--format=%B",
+                         "--encoding=UTF-8", sha))
+    return forms, None
+
+
+def commit_objects():
+    """(sha, raw header bytes, raw message bytes, decoded message forms,
+    problem) for every commit reachable from every ref. Each commit is read on
+    its own with `cat-file`, never parsed out of a `git log` stream: %B stops
+    at a NUL byte and a separator byte inside a message splits its record,
+    and either one hides the text after it. The WHOLE object is scanned, as
+    bytes: headers (author, committer, mergetag, gpgsig) and message."""
     for raw_sha in git("rev-list", "--all").splitlines():
         if not re.fullmatch(rb"[0-9a-f]{40}", raw_sha):
             die("git rev-list --all returned an invalid commit SHA")
         sha = raw_sha.decode("ascii")
         commit = git("cat-file", "commit", sha)
-        yield sha, commit.partition(b"\n\n")[2]
+        headers, _, message = commit.partition(b"\n\n")
+        forms, problem = [], None
+        encodings = commit_encodings(headers)
+        if encodings:
+            forms, problem = decoded_forms(sha, message, encodings)
+        yield sha, headers, message, forms, problem
 
 
 def main():
@@ -239,13 +282,20 @@ def main():
             scan_blob(git("cat-file", "-p", sha), name, deny_hashes, allow, findings)
         # Commit MESSAGES carry no name in rev-list --objects and would
         # otherwise never be read. Git history is permanent; so is a leak in it.
-        msgs = list(commit_messages())
-        if not msgs:
+        commits = list(commit_objects())
+        if not commits:
             die("git rev-list --all returned no commits -- refusing to certify an empty scan")
-        for sha, body in msgs:
+        for sha, headers, message, forms, problem in commits:
             scanned += 1
-            scan_blob(body, f"{COMMIT_MSG_PATH} {sha[:12]}",
+            # Raw bytes, strict UTF-8: anything undecodable is UNSCANNABLE.
+            scan_blob(headers, f"{COMMIT_HDR_PATH} {sha[:12]}",
                       deny_hashes, allow, findings)
+            label = f"{COMMIT_MSG_PATH} {sha[:12]}"
+            scan_blob(message, label, deny_hashes, allow, findings)
+            if problem:
+                findings.append((label, 0, problem))
+            for form in forms:
+                scan_blob(form, label, deny_hashes, allow, findings)
     elif tree:
         # CI has no index. Scan every tracked file, read from the working tree.
         paths = [p for p in git("ls-files", "-z").split(b"\0") if p]

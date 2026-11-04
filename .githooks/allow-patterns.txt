@@ -3,3 +3,11 @@
 # Not a person's routing address; appears in commit messages, which the
 # commit-msg hook and `--history` scan.
 noreply@anthropic.com
+
+# GitHub-issued commit identities. `--history` scans whole commit objects,
+# author and committer headers included. These are GitHub's no-reply
+# addresses, not anyone's routing address: the maintainer's private-email
+# commit identity (already on main) and the committer GitHub stamps on
+# merges made in its web UI.
+132688204+wildbuffaloman@users.noreply.github.com
+noreply@github.com
