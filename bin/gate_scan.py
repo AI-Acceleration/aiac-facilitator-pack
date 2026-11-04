@@ -191,14 +191,13 @@ def scan_name(path, deny_hashes, allow, findings):
 
 
 def commit_messages():
-    """(sha, message) for every commit reachable from every ref. \\x01 records,
-    \\x02 field separator -- neither can appear in a commit message."""
-    out = git("log", "--all", "--format=%x01%H%x02%B").decode("utf-8", "replace")
-    for rec in out.split("\x01"):
-        if not rec.strip():
-            continue
-        sha, _, body = rec.partition("\x02")
-        yield sha.strip(), body
+    """(sha, raw message bytes) for every commit reachable from every ref."""
+    for raw_sha in git("rev-list", "--all").splitlines():
+        if not re.fullmatch(rb"[0-9a-f]{40}", raw_sha):
+            die("git rev-list --all returned an invalid commit SHA")
+        sha = raw_sha.decode("ascii")
+        commit = git("cat-file", "commit", sha)
+        yield sha, commit.partition(b"\n\n")[2]
 
 
 def main():
@@ -242,10 +241,10 @@ def main():
         # otherwise never be read. Git history is permanent; so is a leak in it.
         msgs = list(commit_messages())
         if not msgs:
-            die("git log --all returned no commits -- refusing to certify an empty scan")
+            die("git rev-list --all returned no commits -- refusing to certify an empty scan")
         for sha, body in msgs:
             scanned += 1
-            scan_blob(body.encode("utf-8"), f"{COMMIT_MSG_PATH} {sha[:12]}",
+            scan_blob(body, f"{COMMIT_MSG_PATH} {sha[:12]}",
                       deny_hashes, allow, findings)
     elif tree:
         # CI has no index. Scan every tracked file, read from the working tree.

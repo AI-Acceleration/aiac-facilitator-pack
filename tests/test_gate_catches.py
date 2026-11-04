@@ -195,6 +195,16 @@ class GateSandbox(unittest.TestCase):
                        cwd=str(self.tmp), check=True, capture_output=True)
         self.assertBlocked(run_gate(self.tmp, "--history"), "commit message")
 
+    def test_history_mode_catches_denied_address_after_record_separator(self):
+        self.write("doc.md", "clean body\n")
+        subprocess.run(["git", "commit", "-q", "--no-verify", "-F", "-"],
+                       input=("ok\x01%s\n" % DENIED).encode("utf-8"),
+                       cwd=str(self.tmp), check=True, capture_output=True)
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "KNOWN-PRIVATE")
+        self.assertIn("commit message", r.stderr)
+        self.assertIn("tra***@" + DOMAIN, r.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
