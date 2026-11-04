@@ -253,15 +253,24 @@ class GateSandbox(unittest.TestCase):
         self.assertBlocked(r, "KNOWN-PRIVATE")
         self.assertIn("commit message", r.stderr)
 
-    def test_history_mode_decodes_utf7_message(self):
-        # In UTF-7 '@' may be written '+AEA-': the raw bytes hold no address,
-        # the decoded message does.
+    def test_history_mode_utf7_message_is_unscannable(self):
+        # In UTF-7 '@' may be written '+AEA-': the raw bytes hold no address.
+        # UTF-7 is not ASCII-compatible, so the commit cannot be measured.
         self.commit_message_bytes(
             ("ok %s\n" % DENIED.replace("@", "+AEA-")).encode("ascii"),
             "i18n.commitEncoding=UTF-7")
         r = run_gate(self.tmp, "--history")
-        self.assertBlocked(r, "KNOWN-PRIVATE")
-        self.assertIn("commit decoded", r.stderr)
+        self.assertBlocked(r, "UNSCANNABLE")
+        self.assertIn("not ASCII-compatible", r.stderr)
+
+    def test_history_mode_utf16_message_is_unscannable(self):
+        # A UTF-16 message interleaves NULs: no address in the raw bytes, and
+        # the ASCII headers mean nothing decoded as UTF-16. Fail closed.
+        self.raw_commit(("t <%s>" % GIT_EMAIL).encode("ascii"),
+                        ("ok %s\n" % DENIED).encode("utf-16-le"), b"UTF-16LE")
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "UNSCANNABLE")
+        self.assertIn("not ASCII-compatible", r.stderr)
 
     def test_history_mode_scans_latin1_message_decoded(self):
         # Raw Latin-1 bytes are not UTF-8 (UNSCANNABLE); the decoded message
@@ -272,6 +281,8 @@ class GateSandbox(unittest.TestCase):
         r = run_gate(self.tmp, "--history")
         self.assertBlocked(r, "KNOWN-PRIVATE")
         self.assertIn("UNSCANNABLE", r.stderr)
+        # ...and found by decoding the message on its own, not only the object.
+        self.assertRegex(r.stderr, r"<commit message decoded> [0-9a-f]+:\d+  \[KNOWN-PRIVATE")
 
     def test_history_mode_undecodable_encoding_is_unscannable(self):
         self.commit_message_bytes(b"clean message\n",
@@ -298,15 +309,15 @@ class GateSandbox(unittest.TestCase):
                        "--stdin", input=obj).stdout.strip().decode("ascii")
         self.git("update-ref", "HEAD", sha)
 
-    def test_history_mode_decodes_utf7_author_header(self):
+    def test_history_mode_utf7_author_header_is_unscannable(self):
         # The `encoding` header governs the whole commit: an author email
-        # written in UTF-7 holds no '@' in its raw bytes.
+        # written in UTF-7 holds no '@' in its raw bytes. Fail closed.
         hidden = DENIED.replace("@", "+AEA-")
         self.raw_commit(("t <%s>" % hidden).encode("ascii"),
                         b"clean message\n", b"UTF-7")
         r = run_gate(self.tmp, "--history")
-        self.assertBlocked(r, "KNOWN-PRIVATE")
-        self.assertIn("commit decoded", r.stderr)
+        self.assertBlocked(r, "UNSCANNABLE")
+        self.assertIn("not ASCII-compatible", r.stderr)
 
     def test_history_mode_decodes_latin1_author_header(self):
         # A Latin-1 author name makes the raw header undecodable as UTF-8;
