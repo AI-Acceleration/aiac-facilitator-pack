@@ -176,6 +176,18 @@ class GateSandbox(unittest.TestCase):
         self.assertBlocked(r, "UNALLOWLISTED")
         self.assertIn(UNKNOWN + " (file name)", r.stderr)
 
+    def test_history_mode_catches_shared_blob_under_later_denied_name(self):
+        # Same blob, two names: git's object dedup lists it once under the
+        # FIRST name, so a later path that carries an address must still be
+        # checked through the per-commit tree walk.
+        self.write("notes.md", "identical clean body\n")
+        self.git("commit", "-q", "--no-verify", "-m", "first name")
+        self.write("%s.md" % UNKNOWN, "identical clean body\n")
+        self.git("commit", "-q", "--no-verify", "-m", "same content, second name")
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "UNALLOWLISTED")
+        self.assertIn(UNKNOWN, r.stderr)
+
     def test_history_mode_preserves_tabs_and_newlines_in_names(self):
         name = "notes\tarchive\n" + UNKNOWN
         self.write(name + "/doc.md", "clean body\n")

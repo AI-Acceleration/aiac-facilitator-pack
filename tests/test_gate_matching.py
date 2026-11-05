@@ -33,6 +33,30 @@ print(elapsed)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertLess(float(r.stdout), 0.5)
 
+    def test_scan_blob_pathological_at_runs_are_bounded(self):
+        # '@'-dense inputs that make a backtracking address regex retry from
+        # every start index must still finish in bounded time.
+        code = """
+import runpy
+import time
+gate = runpy.run_path('bin/gate_scan.py')
+cases = [b'@' * (200 * 1024), b'a@' * (100 * 1024), (b'a.' * 1000 + b'@') * 100, b'a' * (100 * 1024) + b'@' + b'b' * (100 * 1024)]
+worst = 0.0
+for data in cases:
+    findings = []
+    start = time.perf_counter()
+    gate['scan_blob'](data, 'p.txt', set(), [], findings)
+    worst = max(worst, time.perf_counter() - start)
+print(worst)
+"""
+        try:
+            r = subprocess.run([sys.executable, "-c", code], cwd=str(ROOT),
+                               capture_output=True, text=True, timeout=5)
+        except subprocess.TimeoutExpired:
+            self.fail("scan_blob on '@'-dense input did not finish within 5 seconds")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertLess(float(r.stdout), 1.0)
+
     def test_address_matches_preserve_existing_spans(self):
         self.assertTrue(callable(GATE.get("address_matches")),
                         "gate must expose the linear address matcher")
