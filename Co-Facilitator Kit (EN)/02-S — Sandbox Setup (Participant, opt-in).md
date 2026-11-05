@@ -145,6 +145,7 @@ This covers the built-in file tools, which the sandbox does not. **This replaces
 > **targeted `deny` list** (crown-jewel paths) — that part is unique to the sandbox variant.
 
 Other git invocations are approved case by case.
+Any `git push`, `git pull`, or `git clone` command with extra options will ask for approval.
 
 ```json
 {
@@ -155,9 +156,11 @@ Other git invocations are approved case by case.
       "Bash(git log *)",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git push *)",
-      "Bash(git pull *)",
-      "Bash(git clone *)",
+      "Bash(git push)",
+      "Bash(git pull)",
+      "Bash(git push origin main)",
+      "Bash(git pull origin main)",
+      "Bash(git clone https://github.com/wildbuffaloman/cc-starter-pack.git)",
       "Bash(git init *)",
       "Bash(git remote *)",
       "Bash(git branch *)",

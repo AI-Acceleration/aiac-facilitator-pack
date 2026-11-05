@@ -147,6 +147,7 @@ Esto cubre las herramientas de archivos integradas, que el sandbox no cubre. **E
 > **lista `deny` dirigida** (las rutas joya de la corona) — esa parte es exclusiva de la variante con sandbox.
 
 Las demás invocaciones de git se aprueban caso por caso.
+Cualquier comando `git push`, `git pull` o `git clone` con opciones adicionales te pedirá aprobación.
 
 ```json
 {
@@ -157,9 +158,11 @@ Las demás invocaciones de git se aprueban caso por caso.
       "Bash(git log *)",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git push *)",
-      "Bash(git pull *)",
-      "Bash(git clone *)",
+      "Bash(git push)",
+      "Bash(git pull)",
+      "Bash(git push origin main)",
+      "Bash(git pull origin main)",
+      "Bash(git clone https://github.com/wildbuffaloman/cc-starter-pack.git)",
       "Bash(git init *)",
       "Bash(git remote *)",
       "Bash(git branch *)",
