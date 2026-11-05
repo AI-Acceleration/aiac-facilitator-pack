@@ -184,6 +184,196 @@ class GateSandbox(unittest.TestCase):
         self.assertBlocked(r, "UNALLOWLISTED")
         self.assertIn(name + " (file name)", r.stderr)
 
+    # --- refs can publish blobs, trees and annotated tag objects too ------
+    def clean_commit(self):
+        self.write("doc.md", "clean body\n")
+        self.git("commit", "-q", "--no-verify", "-m", "clean message")
+        return self.git("rev-parse", "HEAD").stdout.strip().decode("ascii")
+
+    def test_history_mode_scans_lightweight_tag_blob(self):
+        self.clean_commit()
+        blob = self.git("hash-object", "-w", "--stdin",
+                        input=DENIED.encode("ascii")).stdout.strip().decode("ascii")
+        self.git("tag", "lw", blob)
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "KNOWN-PRIVATE")
+        self.assertIn("refs/tags/lw", r.stderr)
+
+    def test_history_mode_scans_direct_tree_ref_names(self):
+        self.clean_commit()
+        name = "notes\tarchive\n" + UNKNOWN
+        self.write(name + "/doc.md", "clean body\n")
+        tree = self.git("write-tree").stdout.strip().decode("ascii")
+        self.git("update-ref", "refs/data/tree", tree)
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "UNALLOWLISTED")
+        self.assertIn(name + " (file name)", r.stderr)
+
+    def test_history_mode_scans_direct_tree_ref_blobs(self):
+        self.clean_commit()
+        self.write("notes/private.md", DENIED)
+        tree = self.git("write-tree").stdout.strip().decode("ascii")
+        self.git("update-ref", "refs/data/tree", tree)
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "KNOWN-PRIVATE")
+        self.assertIn("notes/private.md", r.stderr)
+
+    def test_history_mode_scans_annotated_tag_message(self):
+        self.clean_commit()
+        self.git("tag", "-a", "release", "-m", "route to " + DENIED)
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "KNOWN-PRIVATE")
+        self.assertIn("tag message", r.stderr)
+
+    def test_history_mode_scans_annotated_tag_tagger_email(self):
+        self.clean_commit()
+        self.git("-c", "user.email=" + DENIED,
+                 "tag", "-a", "release", "-m", "clean message")
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "KNOWN-PRIVATE")
+        self.assertIn("tag header", r.stderr)
+
+    def test_history_mode_scans_outer_tag_in_chain(self):
+        self.clean_commit()
+        self.git("tag", "-a", "inner", "-m", "clean message")
+        self.git("tag", "-a", "outer", "inner", "-m", "route to " + DENIED)
+        # The inner tag must be reached by peeling, not by its own ref.
+        self.git("tag", "-d", "inner")
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "KNOWN-PRIVATE")
+        self.assertIn("tag message", r.stderr)
+
+    def test_history_mode_scans_inner_tag_in_chain(self):
+        self.clean_commit()
+        self.git("tag", "-a", "inner", "-m", "route to " + DENIED)
+        self.git("tag", "-a", "outer", "inner", "-m", "clean message")
+        self.git("tag", "-d", "inner")
+        self.assertBlocked(run_gate(self.tmp, "--history"), "KNOWN-PRIVATE")
+
+    def test_history_mode_clean_annotated_tag_passes(self):
+        self.clean_commit()
+        self.git("tag", "-a", "release", "-m", "clean message")
+        r = run_gate(self.tmp, "--history")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def raw_tag(self, message, encoding=None, tag_name=b"release", tagger=None,
+                commit=None):
+        """Publish raw tag bytes, including headers `git tag` cannot emit."""
+        if commit is None:
+            commit = self.clean_commit()
+        if tagger is None:
+            tagger = ("t <%s>" % GIT_EMAIL).encode("ascii")
+        obj = (b"object " + commit.encode("ascii") + b"\ntype commit\ntag " + tag_name +
+               b"\ntagger " + tagger + b" 1700000000 -0400\n")
+        if encoding is not None:
+            obj += b"encoding " + encoding + b"\n"
+        obj += b"\n" + message
+        sha = self.git("hash-object", "-t", "tag", "-w", "--literally",
+                       "--stdin", input=obj).stdout.strip().decode("ascii")
+        self.git("update-ref", "refs/tags/release", sha)
+
+    def test_history_mode_scans_tag_name_header(self):
+        # The name inside a tag object need not equal the ref publishing it.
+        self.raw_tag(b"clean message\n", tag_name=DENIED.encode("ascii"))
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "KNOWN-PRIVATE")
+        self.assertIn("tag header", r.stderr)
+
+    def test_history_mode_scans_tag_message_after_nul(self):
+        self.raw_tag(b"clean\x00 " + DENIED.encode("ascii") + b"\n")
+        self.assertBlocked(run_gate(self.tmp, "--history"), "KNOWN-PRIVATE")
+
+    def test_history_mode_non_utf8_tag_is_unscannable(self):
+        self.raw_tag(b"caf\xe9\n")
+        self.assertBlocked(run_gate(self.tmp, "--history"), "UNSCANNABLE")
+
+    def test_history_mode_decodes_latin1_tag(self):
+        self.raw_tag(("caf\u00e9 %s\n" % DENIED).encode("iso-8859-1"),
+                     encoding=b"ISO-8859-1",
+                     tagger=("Caf\u00e9 <%s>" % DENIED).encode("iso-8859-1"))
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "KNOWN-PRIVATE")
+        self.assertIn("UNSCANNABLE", r.stderr)
+        self.assertRegex(r.stderr, r"<tag message decoded> [0-9a-f]+:\d+  \[KNOWN-PRIVATE")
+        self.assertRegex(r.stderr, r"<tag decoded> [0-9a-f]+:\d+  \[KNOWN-PRIVATE")
+
+    def test_history_mode_unsafe_tag_encoding_is_unscannable(self):
+        commit = self.clean_commit()
+        for encoding, problem in ((b"UTF-7", "not ASCII-compatible"),
+                                  (b"UTF-16LE", "not ASCII-compatible"),
+                                  (b"X-NOT-A-CHARSET", "unknown tag encoding"),
+                                  (b"UTF-8\x00", "unknown tag encoding")):
+            with self.subTest(encoding=encoding):
+                self.raw_tag(b"clean message\n", encoding=encoding, commit=commit)
+                r = run_gate(self.tmp, "--history")
+                self.assertBlocked(r, "UNSCANNABLE")
+                self.assertIn(problem, r.stderr)
+                self.assertNotIn("Traceback", r.stderr)
+
+    def test_history_mode_peels_annotated_blob_and_tree_tags(self):
+        self.clean_commit()
+        blob = self.git("hash-object", "-w", "--stdin",
+                        input=DENIED.encode("ascii")).stdout.strip().decode("ascii")
+        self.git("tag", "-a", "blob", blob, "-m", "clean message")
+        self.write("notes/" + UNKNOWN + "/doc.md", "clean body\n")
+        tree = self.git("write-tree").stdout.strip().decode("ascii")
+        self.git("tag", "-a", "tree", tree, "-m", "clean message")
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "KNOWN-PRIVATE")
+        self.assertIn("refs/tags/blob", r.stderr)
+        self.assertIn(UNKNOWN + " (file name)", r.stderr)
+
+    def test_history_mode_includes_commit_reachable_only_through_tag_chain(self):
+        self.write("doc.md", DENIED)
+        self.git("commit", "-q", "--no-verify", "-m", "route to " + UNKNOWN)
+        self.git("tag", "-a", "inner", "-m", "clean message")
+        self.git("tag", "-a", "outer", "inner", "-m", "clean message")
+        self.git("tag", "-d", "inner")
+        branch = self.git("symbolic-ref", "HEAD").stdout.strip().decode("ascii")
+        self.git("update-ref", "-d", branch)
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "KNOWN-PRIVATE")
+        self.assertIn("commit message", r.stderr)
+        self.assertIn("UNALLOWLISTED", r.stderr)
+
+    def test_history_mode_clean_blob_and_tree_refs_without_commits_pass(self):
+        blob = self.git("hash-object", "-w", "--stdin",
+                        input=b"clean body\n").stdout.strip().decode("ascii")
+        self.git("tag", "lw", blob)
+        self.write("notes/doc.md", "clean body\n")
+        tree = self.git("write-tree").stdout.strip().decode("ascii")
+        self.git("update-ref", "refs/data/tree", tree)
+        r = run_gate(self.tmp, "--history")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_history_mode_preserves_non_utf8_ref_name(self):
+        # Git ref names may contain arbitrary non-UTF-8 bytes. Parse the
+        # for-each-ref output as bytes and preserve the complete name.
+        self.clean_commit()
+        blob = self.git("hash-object", "-w", "--stdin",
+                        input=DENIED.encode("ascii")).stdout.strip().decode("ascii")
+        # Packed refs also work on filesystems that reject non-UTF-8 file
+        # names (a loose ref with this name cannot be written on macOS).
+        (self.tmp / ".git" / "packed-refs").write_bytes(
+            blob.encode("ascii") + b" refs/data/non-utf8-\xff\n")
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "KNOWN-PRIVATE")
+        self.assertIn("UNSCANNABLE", r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
+
+    def test_history_mode_does_not_load_allowlist_from_ref_tree(self):
+        self.clean_commit()
+        self.write(".githooks/allow-patterns.txt", UNKNOWN + "\n")
+        self.write("private.md", UNKNOWN + "\n")
+        tree = self.git("write-tree").stdout.strip().decode("ascii")
+        self.git("update-ref", "refs/data/tree", tree)
+        # Restore the approved policy before scanning the historical tree.
+        (self.tmp / ".githooks" / "allow-patterns.txt").write_text(
+            GIT_EMAIL + "\n", encoding="utf-8")
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "UNALLOWLISTED")
+        self.assertIn("private.md", r.stderr)
+
     # --- finding 5: path matching is case- and NFC-insensitive ------------
     def test_case_variant_withheld_basename_is_caught(self):
         # Lowercase "registry". The vault volume is case-insensitive APFS, so

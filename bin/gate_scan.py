@@ -13,8 +13,8 @@ Modes:
               uncommitted edits, which is a different question than "is HEAD
               clean" -- do not read a local --tree pass as a statement about
               what is committed.
-  --history   every object reachable from every ref, plus every whole commit
-              object (headers and message, raw and, if re-encoded, decoded)
+  --history   every object reachable from every ref, including commit and tag
+              headers and messages (raw and, if re-encoded, decoded)
 
 Four design choices, each answering a way this gate could have been useless:
 
@@ -66,9 +66,6 @@ CANARY = "canary.probe" + "@" + "example-invalid" + ".test"
 # The exemption must apply to precisely the one file load() actually reads.
 DENY_ONLY_CONTENT = {".githooks/allow-patterns.txt"}
 COMMIT_MSG_PATH = "<commit message>"
-COMMIT_HDR_PATH = "<commit header>"
-COMMIT_DECODED_PATH = "<commit decoded>"
-COMMIT_MSG_DECODED_PATH = "<commit message decoded>"
 
 
 def die(msg):
@@ -214,8 +211,8 @@ def scan_name(path, deny_hashes, allow, findings):
               deny_hashes, allow, findings)
 
 
-def commit_encodings(headers):
-    """Values of the commit's `encoding` header(s). Continuation lines of
+def object_encodings(headers):
+    """Values of a commit or tag's `encoding` header(s). Continuation lines of
     multi-line headers (gpgsig, mergetag) start with a space and never match."""
     return [l[len(b"encoding "):].strip()
             for l in headers.split(b"\n") if l.startswith(b"encoding ")]
@@ -236,16 +233,17 @@ def ascii_compatible(enc):
         return False
 
 
-def decoded_forms(sha, commit, message, encodings):
-    """For a commit whose `encoding` header is not UTF-8, the commit as a
+def decoded_forms(sha, obj, message, encodings, kind="commit"):
+    """For metadata whose `encoding` header is not UTF-8, the object as a
     reader sees it after decoding: ([(label, bytes)], problems). Raw bytes
-    alone can hide an address, so on top of the raw scan three decoded views
-    are scanned: the message decoded on its own, the WHOLE object (headers
-    included) decoded strictly by Python, and git's own re-encoded identity
-    fields and message. An unknown encoding, one that is not ASCII-compatible,
-    or a failed decode is a FAILED MEASUREMENT: reported UNSCANNABLE, never
-    certified clean."""
+    alone can hide an address, so the message and WHOLE object (including
+    headers) are also decoded strictly by Python. For commits, scan Git's own
+    re-encoded identities and message too; Git does not re-encode tags. An
+    unknown encoding, one that is not ASCII-compatible, or a failed decode
+    is a FAILED MEASUREMENT: reported UNSCANNABLE, never certified clean."""
     forms, problems = [], []
+    decoded_path = f"<{kind} decoded>"
+    message_path = f"<{kind} message decoded>"
     for raw_enc in encodings:
         enc = raw_enc.decode("ascii", "replace")
         try:
@@ -253,16 +251,15 @@ def decoded_forms(sha, commit, message, encodings):
             if enc == "utf-8":
                 continue  # the strict UTF-8 scan of the raw bytes covers it
         except (LookupError, ValueError):
-            problems.append((COMMIT_DECODED_PATH,
-                             "UNSCANNABLE — unknown commit encoding"))
+            problems.append((decoded_path,
+                             f"UNSCANNABLE — unknown {kind} encoding"))
             continue
         if not ascii_compatible(enc):
-            problems.append((COMMIT_DECODED_PATH,
-                             f"UNSCANNABLE — commit encoding {enc!r} is not "
+            problems.append((decoded_path,
+                             f"UNSCANNABLE — {kind} encoding {enc!r} is not "
                              f"ASCII-compatible"))
             continue
-        for label, data in ((COMMIT_MSG_DECODED_PATH, message),
-                            (COMMIT_DECODED_PATH, commit)):
+        for label, data in ((message_path, message), (decoded_path, obj)):
             try:
                 # strict decode, then strict encode: lone surrogates fail too
                 forms.append((label, data.decode(enc).encode("utf-8")))
@@ -270,30 +267,95 @@ def decoded_forms(sha, commit, message, encodings):
                 problems.append((label, f"UNSCANNABLE — not decodable as {enc!r}"))
         # git may decode with a different converter than Python; scan its view
         # too. scan_blob's strict UTF-8 read flags it if git could not convert.
-        forms.append((COMMIT_DECODED_PATH,
-                      git("log", "-1", "--no-show-signature", "--encoding=UTF-8",
-                          "--format=%an%n%ae%n%cn%n%ce%n%B", sha)))
+        if kind == "commit":
+            forms.append((decoded_path,
+                          git("log", "-1", "--no-show-signature", "--encoding=UTF-8",
+                              "--format=%an%n%ae%n%cn%n%ce%n%B", sha)))
     return forms, problems
 
 
-def commit_objects():
+def metadata_object(sha, kind):
+    """Read metadata byte for byte; formatting commands can truncate at NUL."""
+    obj = git("cat-file", kind, sha)
+    headers, _, message = obj.partition(b"\n\n")
+    forms, problems = [], []
+    encodings = object_encodings(headers)
+    if encodings:
+        forms, problems = decoded_forms(sha, obj, message, encodings, kind)
+    return headers, message, forms, problems
+
+
+def scan_metadata(sha, kind, headers, message, forms, problems,
+                  deny_hashes, allow, findings):
+    # Strict UTF-8 for raw bytes, even when a declared encoding is also read.
+    scan_blob(headers, f"<{kind} header> {sha[:12]}", deny_hashes, allow, findings)
+    scan_blob(message, f"<{kind} message> {sha[:12]}", deny_hashes, allow, findings)
+    for label, problem in problems:
+        findings.append((f"{label} {sha[:12]}", 0, problem))
+    for label, form in forms:
+        scan_blob(form, f"{label} {sha[:12]}", deny_hashes, allow, findings)
+
+
+def commit_objects(tips=()):
     """(sha, raw header bytes, raw message bytes, decoded (label, bytes)
     forms, (label, problem) pairs) for every commit reachable from every ref. Each commit is read on
     its own with `cat-file`, never parsed out of a `git log` stream: %B stops
     at a NUL byte and a separator byte inside a message splits its record,
     and either one hides the text after it. The WHOLE object is scanned, as
     bytes: headers (author, committer, mergetag, gpgsig) and message."""
-    for raw_sha in git("rev-list", "--all").splitlines():
+    for raw_sha in git("rev-list", "--all", *sorted(tips)).splitlines():
         if not re.fullmatch(rb"[0-9a-f]{40}", raw_sha):
             die("git rev-list --all returned an invalid commit SHA")
         sha = raw_sha.decode("ascii")
-        commit = git("cat-file", "commit", sha)
-        headers, _, message = commit.partition(b"\n\n")
-        forms, problems = [], []
-        encodings = commit_encodings(headers)
-        if encodings:
-            forms, problems = decoded_forms(sha, commit, message, encodings)
-        yield sha, headers, message, forms, problems
+        yield sha, *metadata_object(sha, "commit")
+
+
+def ref_objects():
+    """Keep ref names as bytes until the two ASCII fields are separated.
+    Git forbids LF and spaces in ref names, but permits non-UTF-8 bytes."""
+    for record in git("for-each-ref",
+                      "--format=%(objectname) %(objecttype) %(refname)").split(b"\n"):
+        if not record:
+            continue
+        fields = record.split(b" ", 2)
+        if (len(fields) != 3 or not re.fullmatch(rb"[0-9a-f]{40}", fields[0]) or
+                fields[1] not in (b"commit", b"tag", b"tree", b"blob") or
+                not fields[2].startswith(b"refs/")):
+            die("git for-each-ref returned an invalid object record")
+        sha, kind, name = fields
+        yield sha.decode("ascii"), kind, name.decode("utf-8", "surrogateescape")
+
+
+def tag_target(headers):
+    """Peel exactly one level and verify the declared target type."""
+    lines = headers.split(b"\n")
+    if (len(lines) < 2 or not re.fullmatch(rb"object [0-9a-f]{40}", lines[0]) or
+            lines[1] not in (b"type commit", b"type tag", b"type tree", b"type blob")):
+        die("annotated tag has invalid target headers")
+    sha = lines[0][len(b"object "):].decode("ascii")
+    kind = lines[1][len(b"type "):]
+    if git("cat-file", "-t", sha).strip() != kind:
+        die("annotated tag target type does not match its object")
+    return sha, kind
+
+
+def scan_history_tree(tree, deny_hashes, allow, bad_base, bad_path, findings):
+    """Scan every path, including reused trees and directory names."""
+    scanned = 0
+    for entry in git("ls-tree", "-r", "-t", "-z", tree).split(b"\0"):
+        if not entry:
+            continue
+        meta, raw_name = entry.split(b"\t", 1)
+        _, kind, sha = meta.split()
+        name = raw_name.decode("utf-8", "surrogateescape")
+        scanned += 1
+        if check_path(name, bad_base, bad_path):
+            findings.append((name, 0, "FORBIDDEN IN HISTORY"))
+        scan_name(name, deny_hashes, allow, findings)
+        if kind == b"blob":
+            scan_blob(git("cat-file", "blob", sha.decode("ascii")), name,
+                      deny_hashes, allow, findings)
+    return scanned
 
 
 def main():
@@ -320,43 +382,43 @@ def main():
         scanned = 1
         scan_blob(msg_file.read_bytes(), COMMIT_MSG_PATH, deny_hashes, allow, findings)
     elif history:
-        commits = git("rev-list", "--all").splitlines()
-        if not commits:
-            die("rev-list returned no commits -- refusing to certify an empty history scan")
-        for commit in commits:
-            # Object enumeration assigns a reused tree only one name. Walk
-            # each commit instead, including directories and root entries.
-            entries = git("ls-tree", "-r", "-t", "-z", commit.decode("ascii"))
-            for entry in entries.split(b"\0"):
-                if not entry:
-                    continue
-                meta, raw_name = entry.split(b"\t", 1)
-                _, kind, sha = meta.split()
-                name = raw_name.decode("utf-8", "surrogateescape")
+        refs = list(ref_objects())
+        tag_targets, commit_tips = {}, set()
+        for sha, kind, name in refs:
+            scanned += 1
+            scan_name(name, deny_hashes, allow, findings)
+            chain = set()
+            while kind == b"tag":
+                if sha in chain:
+                    die("cycle in annotated tag targets")
+                chain.add(sha)
+                if sha not in tag_targets:
+                    metadata = metadata_object(sha, "tag")
+                    scan_metadata(sha, "tag", *metadata, deny_hashes, allow, findings)
+                    scanned += 1
+                    tag_targets[sha] = tag_target(metadata[0])
+                sha, kind = tag_targets[sha]
+            if kind == b"commit":
+                commit_tips.add(sha)
+            elif kind == b"blob":
                 scanned += 1
-                why = check_path(name, bad_base, bad_path)
-                if why:
-                    findings.append((name, 0, "FORBIDDEN IN HISTORY"))
-                scan_name(name, deny_hashes, allow, findings)
-                if kind == b"blob":
-                    scan_blob(git("cat-file", "blob", sha.decode("ascii")), name,
-                              deny_hashes, allow, findings)
+                scan_blob(git("cat-file", "blob", sha), name, deny_hashes, allow, findings)
+            elif kind == b"tree":
+                scanned += scan_history_tree(sha, deny_hashes, allow,
+                                             bad_base, bad_path, findings)
         # Commit headers and messages are scanned separately as raw bytes
         # and, if re-encoded, decoded forms. Git history makes leaks permanent.
-        commits = list(commit_objects())
-        if not commits:
-            die("git rev-list --all returned no commits -- refusing to certify an empty scan")
+        commits = list(commit_objects(commit_tips))
+        if not commits and not refs:
+            die("no objects -- refusing to certify an empty history scan")
         for sha, headers, message, forms, problems in commits:
+            # Keep the per-commit walk: object enumeration gives a reused
+            # tree only one name, which can hide a historical directory name.
+            scanned += scan_history_tree(sha, deny_hashes, allow,
+                                         bad_base, bad_path, findings)
             scanned += 1
-            # Raw bytes, strict UTF-8: anything undecodable is UNSCANNABLE.
-            scan_blob(headers, f"{COMMIT_HDR_PATH} {sha[:12]}",
-                      deny_hashes, allow, findings)
-            scan_blob(message, f"{COMMIT_MSG_PATH} {sha[:12]}",
-                      deny_hashes, allow, findings)
-            for label, problem in problems:
-                findings.append((f"{label} {sha[:12]}", 0, problem))
-            for label, form in forms:
-                scan_blob(form, f"{label} {sha[:12]}", deny_hashes, allow, findings)
+            scan_metadata(sha, "commit", headers, message, forms, problems,
+                          deny_hashes, allow, findings)
     elif tree:
         # CI has no index. Scan every tracked file, read from the working tree.
         paths = [p for p in git("ls-files", "-z").split(b"\0") if p]
