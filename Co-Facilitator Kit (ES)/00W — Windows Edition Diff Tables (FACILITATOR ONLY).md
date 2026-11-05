@@ -89,7 +89,7 @@ Verificadas contra la documentación viva de Anthropic, y luego contra una máqu
 | 4 | Granola del STEP 2.6b | `~/Library/Application Support/Granola/` + launchd/cron | `%APPDATA%\Granola\` (`~/AppData/Roaming/…`) + **Programador de tareas de Windows**, y "confirma los nombres de archivo reales, no asumas la estructura de Mac" | Opcional/diferido, pero las rutas de Mac sencillamente no existen |
 | 5 | `gws` del STEP 2.5b | `~/bin/gws`, `chmod +x`, perfil de zsh | `~/bin/gws.exe`, windows-amd64, línea de PATH en `~/.bashrc` | Las instrucciones de Mac eran inejecutables |
 | 6 | `lessons.md` del STEP 3 | vacío | sembrado con la regla de la barra inclinada | Pone la regla de Windows donde Claude la vuelve a leer cada sesión |
-| 7 | ⭐ **STEP 7** | "Crea un script de Python … y ejecútalo" | **Detectar primero `python`/`py`/`python3`**; que falte Python explícitamente NO es un bloqueo; añadir el comando real a `allow` | ⭐ Mina #4 — de lo contrario la comprobación final del kit falla en Windows por una razón ajena |
+| 7 | ⭐ **STEP 7** | "Crea un script de Python … y ejecútalo" | **Detectar primero `python`/`py`/`python3`**; que falte Python explícitamente NO es un bloqueo; ejecutar una vez con la aprobación normal | ⭐ Mina #4 — de lo contrario la comprobación final del kit falla en Windows por una razón ajena |
 | 8 | STEP 7 | 8 comprobaciones | añade la comprobación de validez JSON `jq .` sobre `settings.json` | Barato; atrapa una fusión corrompida del Documento 02 |
 | 9 | STEP 7 | (ninguno) | añade `claude doctor` | Lo primero que hay que correr cuando algo se rompa después |
 | 10–11 | Chuleta del STEP 6 | neutral respecto a Mac | Bloque de notas de Windows (ventana · rutas · pegado · `claude doctor`) | Las cuatro cosas que van a olvidar para la semana que viene |
@@ -106,7 +106,7 @@ Verificadas contra la documentación viva de Anthropic, y luego contra una máqu
 | Comillas tipográficas dentro de bloques de código | ✅ 0 | ✅ 0 |
 
 **Nota sobre el defecto #12:** a diferencia del paquete que Mangan armó para uno de sus participantes — que deliberadamente despachó el
-bloque de permisos original — estas variantes heredan el bloque **endurecido** (`Bash(python3 *)`,
+bloque de permisos original — estas variantes heredan el bloque **endurecido** (ejecución de Python sin restricciones,
 `Bash(pip install *)`, `Read`/`Write`/`Edit` a secas eliminados), según la decisión del mantenedor del 2026-08-19.
-El cambio del STEP 7 de Windows descrito arriba es lo que hace que ese endurecimiento no cueste nada: hace que
-Claude añada el comando *real* de Python a `allow` solo si Python existe de verdad.
+El cambio del STEP 7 de Windows descrito arriba mantiene ese endurecimiento: ejecuta el saludo una sola vez con
+la aprobación normal usando el comando de Python que existe de verdad, sin agregarlo a `allow`.

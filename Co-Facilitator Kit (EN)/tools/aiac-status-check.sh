@@ -290,7 +290,7 @@ if [ -f "$GS" ]; then
   fi
 
   if in_file "$GS" 'python3'; then
-    printf '%s %-42s %s\n' "$WARN" "permissions.allow" "contains Bash(python3 *) -> the STANDARD Doc 02 block is in effect, not the 02-S hardened one"
+    printf '%s %-42s %s\n' "$WARN" "permissions.allow" "contains blanket python3 approval -> the STANDARD Doc 02 block is in effect, not the 02-S hardened one"
   else
     say "$OK" "permissions.allow" "no blanket python3 (02-S hardened block)"
   fi

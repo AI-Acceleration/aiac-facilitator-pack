@@ -1,0 +1,59 @@
+import re
+import runpy
+import subprocess
+import sys
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+GATE = runpy.run_path(str(ROOT / "bin" / "gate_scan.py"))
+
+
+class TestGateMatching(unittest.TestCase):
+    def test_scan_blob_without_at_sign_is_linear(self):
+        # Bound the child process too: the old matcher takes minutes on this
+        # input, so a regression must fail without stalling the whole suite.
+        code = """
+import runpy
+import time
+gate = runpy.run_path('bin/gate_scan.py')
+data = b'a' * (200 * 1024)
+findings = []
+start = time.perf_counter()
+gate['scan_blob'](data, 'long.txt', set(), [], findings)
+elapsed = time.perf_counter() - start
+assert not findings, findings
+print(elapsed)
+"""
+        try:
+            r = subprocess.run([sys.executable, "-c", code], cwd=str(ROOT),
+                               capture_output=True, text=True, timeout=2)
+        except subprocess.TimeoutExpired:
+            self.fail("scan_blob on 200 KB without '@' did not finish within 2 seconds")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertLess(float(r.stdout), 0.5)
+
+    def test_address_matches_preserve_existing_spans(self):
+        legacy = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+        for local in ("a", ".lead+tag%", "a_b-c", "a..b", "!prefix", "éname"):
+            for domain in ("example.test", "sub.example.test", "bad.t",
+                           "-odd..test", "a.test123", "a.étest"):
+                text = "(%s%s%s), next %s%sother.test!" % (local, "@", domain, local, "@")
+                with self.subTest(local=local, domain=domain):
+                    expected = [(m.span(), m.group()) for m in legacy.finditer(text)]
+                    actual = [(m.span(), m.group()) for m in GATE["address_matches"](text)]
+                    self.assertEqual(actual, expected)
+
+    def test_scan_blob_preserves_adjacent_addresses(self):
+        # '+' ends the domain but can begin the next local part. A fixed
+        # lookbehind must not hide that second address after the first match.
+        domain = "example-invalid" + ".test"
+        first = "first" + "@" + domain
+        second = "+second" + "@" + domain
+        findings = []
+        GATE["scan_blob"]((first + second).encode("utf-8"), "doc.md", set(), [], findings)
+        self.assertEqual(len(findings), 2, findings)
+
+
+if __name__ == "__main__":
+    unittest.main()

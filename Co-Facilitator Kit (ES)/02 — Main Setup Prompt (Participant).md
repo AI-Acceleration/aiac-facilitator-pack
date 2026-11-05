@@ -269,11 +269,24 @@ Ahora configura los ajustes globales de Claude Code. Viven en `~/.claude/setting
 
 Crea o actualiza `~/.claude/settings.json` con:
 
+Las demás invocaciones de git se aprueban caso por caso.
+
 ```json
 {
   "permissions": {
     "allow": [
-      "Bash(git *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git pull *)",
+      "Bash(git clone *)",
+      "Bash(git init *)",
+      "Bash(git remote *)",
+      "Bash(git branch *)",
+      "Bash(git checkout *)",
       "Bash(ls *)",
       "Bash(mkdir *)",
       "Bash(cat *)",
@@ -320,7 +333,7 @@ Crea o actualiza `~/.claude/settings.json` con:
 
 > **Por qué esta lista es más corta de lo que esperarías.** Dos cosas se dejaron fuera a propósito:
 >
-> - **`Bash(python3 *)` y `Bash(pip install *)`.** Python puede leer y escribir cualquier archivo como
+> - **Ejecución de Python sin restricciones y `Bash(pip install *)`.** Python puede leer y escribir cualquier archivo como
 >   subproceso, y las reglas de permisos no ven eso. Pre-aprobarlo significaría que cualquier regla
 >   `deny` que agregues después es decorativa, a menos que también quites esta línea. Vas a recibir una
 >   solicitud de permiso la primera vez que Claude ejecute Python — ese es el resultado correcto el día
