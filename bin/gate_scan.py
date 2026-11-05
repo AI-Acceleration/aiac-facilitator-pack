@@ -49,6 +49,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 HOOKS = ROOT / ".githooks"
 ADDR_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+LOCAL_PART_CHARS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._%+-")
 # Built at runtime so this source file contains no address literal.
 CANARY = "canary.probe" + "@" + "example-invalid" + ".test"
 # allow-patterns.txt necessarily names every permitted address, so the generic
@@ -149,6 +150,24 @@ def self_test(deny_hashes):
         die("self-test FAILED — path folding is not case/NFC insensitive")
 
 
+def address_matches(text):
+    """Preserve finditer's greedy, non-overlapping matches in linear time.
+    Each at-sign gets one anchored match attempt, rather than retrying every
+    suffix of a local-part run. The cursor also permits adjacent matches."""
+    cursor = 0
+    while True:
+        at = text.find("@", cursor)
+        if at == -1:
+            return
+        start = at
+        while start > cursor and text[start - 1] in LOCAL_PART_CHARS:
+            start -= 1
+        match = ADDR_RE.match(text, start)
+        cursor = match.end() if match else at + 1
+        if match:
+            yield match
+
+
 def scan_blob(data, path, deny_hashes, allow, findings):
     """Content scan. A deny-hash match is unconditional; the allowlist can
     only suppress the generic UNALLOWLISTED rule, never a known address."""
@@ -164,7 +183,7 @@ def scan_blob(data, path, deny_hashes, allow, findings):
     seen = set()
     unescaped = html.unescape(text)
     for variant in (text, unescaped, deobfuscate(unescaped)):
-        for m in ADDR_RE.finditer(variant):
+        for m in address_matches(variant):
             a = m.group(0)
             known = h(a) in deny_hashes
             if not known and (deny_only or a.lower() in allow_l):
@@ -301,21 +320,29 @@ def main():
         scanned = 1
         scan_blob(msg_file.read_bytes(), COMMIT_MSG_PATH, deny_hashes, allow, findings)
     elif history:
-        objects = git("rev-list", "--objects", "--all").decode("utf-8", "replace").splitlines()
-        if not objects:
-            die("rev-list returned no objects -- refusing to certify an empty history scan")
-        for line in objects:
-            sha, _, name = line.partition(" ")
-            if not name:
-                continue
-            scanned += 1
-            why = check_path(name, bad_base, bad_path)
-            if why:
-                findings.append((name, 0, "FORBIDDEN IN HISTORY"))
-            scan_name(name, deny_hashes, allow, findings)
-            scan_blob(git("cat-file", "-p", sha), name, deny_hashes, allow, findings)
-        # Commit MESSAGES carry no name in rev-list --objects and would
-        # otherwise never be read. Git history is permanent; so is a leak in it.
+        commits = git("rev-list", "--all").splitlines()
+        if not commits:
+            die("rev-list returned no commits -- refusing to certify an empty history scan")
+        for commit in commits:
+            # Object enumeration assigns a reused tree only one name. Walk
+            # each commit instead, including directories and root entries.
+            entries = git("ls-tree", "-r", "-t", "-z", commit.decode("ascii"))
+            for entry in entries.split(b"\0"):
+                if not entry:
+                    continue
+                meta, raw_name = entry.split(b"\t", 1)
+                _, kind, sha = meta.split()
+                name = raw_name.decode("utf-8", "surrogateescape")
+                scanned += 1
+                why = check_path(name, bad_base, bad_path)
+                if why:
+                    findings.append((name, 0, "FORBIDDEN IN HISTORY"))
+                scan_name(name, deny_hashes, allow, findings)
+                if kind == b"blob":
+                    scan_blob(git("cat-file", "blob", sha.decode("ascii")), name,
+                              deny_hashes, allow, findings)
+        # Commit headers and messages are scanned separately as raw bytes
+        # and, if re-encoded, decoded forms. Git history makes leaks permanent.
         commits = list(commit_objects())
         if not commits:
             die("git rev-list --all returned no commits -- refusing to certify an empty scan")

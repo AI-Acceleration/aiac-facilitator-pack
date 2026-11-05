@@ -167,6 +167,23 @@ class GateSandbox(unittest.TestCase):
         self.assertEqual(r.returncode, 3, r.stdout + r.stderr)
         self.assertIn("GATE ERROR", r.stderr)
 
+    def test_history_mode_catches_address_in_renamed_directory(self):
+        self.write("%s/doc.md" % UNKNOWN, "clean body\n")
+        self.git("commit", "-q", "--no-verify", "-m", "original directory")
+        self.git("mv", "--", UNKNOWN, "notes")
+        self.git("commit", "-q", "--no-verify", "-m", "rename directory")
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "UNALLOWLISTED")
+        self.assertIn(UNKNOWN + " (file name)", r.stderr)
+
+    def test_history_mode_preserves_tabs_and_newlines_in_names(self):
+        name = "notes\tarchive\n" + UNKNOWN
+        self.write(name + "/doc.md", "clean body\n")
+        self.git("commit", "-q", "--no-verify", "-m", "unusual path")
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "UNALLOWLISTED")
+        self.assertIn(name + " (file name)", r.stderr)
+
     # --- finding 5: path matching is case- and NFC-insensitive ------------
     def test_case_variant_withheld_basename_is_caught(self):
         # Lowercase "registry". The vault volume is case-insensitive APFS, so
