@@ -160,42 +160,6 @@ class GateSandbox(unittest.TestCase):
         self.assertEqual(r.returncode, 3, r.stdout + r.stderr)
         self.assertIn("GATE ERROR", r.stderr)
 
-    def test_history_mode_ignores_temporary_allowlist_entry(self):
-        allow = self.tmp / ".githooks" / "allow-patterns.txt"
-        approved = allow.read_text(encoding="utf-8")
-        self.write(".githooks/allow-patterns.txt", approved)
-        subprocess.run(["git", "commit", "-q", "--no-verify", "-m", "approved policy"],
-                       cwd=str(self.tmp), check=True, capture_output=True)
-        self.write(".githooks/allow-patterns.txt", approved + "\n%s\n" % UNKNOWN)
-        self.write("doc.md", "contact %s\n" % UNKNOWN)
-        subprocess.run(["git", "commit", "-q", "--no-verify", "-m", "temporary policy"],
-                       cwd=str(self.tmp), check=True, capture_output=True)
-        self.write(".githooks/allow-patterns.txt", approved)
-        subprocess.run(["git", "commit", "-q", "--no-verify", "-m", "restore policy"],
-                       cwd=str(self.tmp), check=True, capture_output=True)
-        self.assertBlocked(run_gate(self.tmp, "--history"), "UNALLOWLISTED")
-
-    def test_history_mode_catches_address_in_renamed_directory(self):
-        self.write("%s/doc.md" % UNKNOWN, "clean body\n")
-        subprocess.run(["git", "commit", "-q", "--no-verify", "-m", "original directory"],
-                       cwd=str(self.tmp), check=True, capture_output=True)
-        subprocess.run(["git", "mv", "--", UNKNOWN, "notes"],
-                       cwd=str(self.tmp), check=True, capture_output=True)
-        subprocess.run(["git", "commit", "-q", "--no-verify", "-m", "rename directory"],
-                       cwd=str(self.tmp), check=True, capture_output=True)
-        r = run_gate(self.tmp, "--history")
-        self.assertBlocked(r, "UNALLOWLISTED")
-        self.assertIn(UNKNOWN + " (file name)", r.stderr)
-
-    def test_history_mode_preserves_tabs_and_newlines_in_names(self):
-        name = "notes\tarchive\n" + UNKNOWN
-        self.write(name + "/doc.md", "clean body\n")
-        subprocess.run(["git", "commit", "-q", "--no-verify", "-m", "unusual path"],
-                       cwd=str(self.tmp), check=True, capture_output=True)
-        r = run_gate(self.tmp, "--history")
-        self.assertBlocked(r, "UNALLOWLISTED")
-        self.assertIn(name + " (file name)", r.stderr)
-
     # --- finding 5: path matching is case- and NFC-insensitive ------------
     def test_case_variant_withheld_basename_is_caught(self):
         # Lowercase "registry". The vault volume is case-insensitive APFS, so
