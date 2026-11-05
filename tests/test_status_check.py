@@ -1,0 +1,125 @@
+import os
+import subprocess
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+SCRIPTS = [ROOT / ("Co-Facilitator Kit (%s)" % edition) / "tools" / name
+           for edition in ("EN", "ES")
+           for name in ("aiac-status-check.sh", "aiac-status-check.sh.txt")]
+
+
+class TestStatusCheck(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(prefix="statuscheck-")
+        self.addCleanup(self.tmp.cleanup)
+        self.vault = Path(self.tmp.name)
+        self.repo = self.vault / "dev" / "code"
+        self.repo.mkdir(parents=True)
+        self.env = dict(os.environ, HOME=self.tmp.name,
+                        GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1",
+                        PATH=os.defpath)
+        self.git("init", "-q")
+
+    def git(self, *args):
+        subprocess.run(["git", *args], cwd=str(self.repo), env=self.env,
+                       check=True, capture_output=True)
+
+    def report(self, script):
+        r = subprocess.run(["bash", str(script), str(self.vault)],
+                           cwd=str(self.vault), env=self.env,
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        return r.stdout
+
+    def test_code_repo_redacts_absolute_path_in_all_copies(self):
+        private_dir = self.vault / "private-client-workspace"
+        private_dir.mkdir()
+        self.repo = self.repo.rename(private_dir / "Code Project")
+        self.assertTrue(self.repo.is_absolute())
+        for script in SCRIPTS:
+            with self.subTest(script=str(script.relative_to(ROOT))):
+                repo_line = next(line for line in self.report(script).splitlines()
+                                 if "Code repo (STEP 6)" in line)
+                self.assertTrue(repo_line.startswith("[ OK ]"), repo_line)
+                self.assertNotIn("/", repo_line)
+                self.assertNotIn(private_dir.name, repo_line)
+                detail = repo_line.split("Code repo (STEP 6)", 1)[1].strip()
+                self.assertIn(detail, (self.repo.name, "present"))
+
+    def test_origin_reports_host_without_credentials_or_path_in_all_copies(self):
+        # Fragments keep the synthetic credential out of the gate's address scan.
+        self.git("remote", "add", "origin",
+                 "https://user:tok3n" + "@" + "github.com/org/private.git")
+        for script in SCRIPTS:
+            with self.subTest(script=str(script.relative_to(ROOT))):
+                output = self.report(script)
+                self.assertNotIn("tok3n", output)
+                self.assertNotIn("private", output)
+                self.assertIn("present (github.com)", output)
+
+    def test_origin_reports_only_host_for_other_remote_formats(self):
+        remotes = [
+            ("ssh://git" + "@" + "github.com:2222/org/private.git?query#fragment",
+             "github.com"),
+            ("git" + "@" + "github.com:org/private.git", "github.com"),
+            ("https://github.com/org/private.git?notify=someone" + "@" +
+             "elsewhere.test#fragment", "github.com"),
+        ]
+        self.git("remote", "add", "origin", "https://github.com/org/repo.git")
+        for remote, host in remotes:
+            with self.subTest(remote=remote):
+                self.git("remote", "set-url", "origin", remote)
+                origin = next(line for line in self.report(SCRIPTS[0]).splitlines()
+                              if line.startswith("[info]") and "  origin" in line)
+                self.assertEqual(origin.split("origin", 1)[1].strip(),
+                                 "present (%s)" % host)
+
+    def test_origin_reports_no_remote_when_origin_is_missing(self):
+        origin = next(line for line in self.report(SCRIPTS[0]).splitlines()
+                      if line.startswith("[info]") and "  origin" in line)
+        self.assertEqual(origin.split("origin", 1)[1].strip(), "no remote")
+
+    def test_origin_redacts_local_and_unrecognized_remotes_in_all_copies(self):
+        remotes = [
+            "client-private.git",
+            "client-private/backup.git",
+            "/abs/path/repo.git",
+            "file:///x/repo.git",
+            "file://localhost/x/repo.git",
+            "github.com:org/private.git",
+        ]
+        self.git("remote", "add", "origin", "https://github.com/org/repo.git")
+        for remote in remotes:
+            self.git("remote", "set-url", "origin", remote)
+            for script in SCRIPTS:
+                with self.subTest(remote=remote,
+                                  script=str(script.relative_to(ROOT))):
+                    output = self.report(script)
+                    origin = next(line for line in output.splitlines()
+                                  if line.startswith("[info]") and "  origin" in line)
+                    self.assertEqual(origin.split("origin", 1)[1].strip(),
+                                     "present (local/unrecognized)")
+                    self.assertNotIn(remote, output)
+
+    def test_origin_preserves_bracketed_ipv6_host_in_all_copies(self):
+        remotes = [
+            "ssh://git" + "@" + "[2001:db8::1]/repo.git",
+            "ssh://git" + "@" + "[2001:db8::1]:2222/repo.git",
+            "git" + "@" + "[2001:db8::1]:repo.git",
+        ]
+        self.git("remote", "add", "origin", "https://github.com/org/repo.git")
+        for remote in remotes:
+            self.git("remote", "set-url", "origin", remote)
+            for script in SCRIPTS:
+                with self.subTest(remote=remote,
+                                  script=str(script.relative_to(ROOT))):
+                    origin = next(line for line in self.report(script).splitlines()
+                                  if line.startswith("[info]") and "  origin" in line)
+                    self.assertEqual(origin.split("origin", 1)[1].strip(),
+                                     "present ([2001:db8::1])")
+
+
+if __name__ == "__main__":
+    unittest.main()

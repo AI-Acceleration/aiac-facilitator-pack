@@ -757,9 +757,8 @@ Hagamos una prueba rápida para asegurarnos de que todo funciona. Corre este eje
    ```
 
    - **Si encuentra alguno:** crea un script sencillo en `05 AI/CLAUDE CODE/workspace/hello.py` que
-     imprima un saludo personalizado con las rutas del *vault* y del repositorio, córrelo con el comando que
-     realmente existe y muéstrame la salida. Agrega ese comando real a mi arreglo `permissions.allow`
-     (por ejemplo, `Bash(python *)`), no la forma `python3` de macOS.
+     imprima un saludo personalizado con las rutas del *vault* y del repositorio, córrelo una sola vez con
+     la aprobación normal usando el comando que realmente existe y muéstrame la salida. No lo agregues a `permissions.allow`.
    - **Si no encuentra ninguno: eso NO es un bloqueo, y NO instalamos Python ahora.** Nada más en
      la Fase 0 lo necesita. Anótalo como ítem de la Semana 1 y pasa a la siguiente revisión. No dejes que esto detenga
      la sesión — es el último paso de verificación, no un prerrequisito.

@@ -290,7 +290,7 @@ if [ -f "$GS" ]; then
   fi
 
   if in_file "$GS" 'python3'; then
-    printf '%s %-42s %s\n' "$WARN" "permissions.allow" "contains Bash(python3 *) -> the STANDARD Doc 02 block is in effect, not the 02-S hardened one"
+    printf '%s %-42s %s\n' "$WARN" "permissions.allow" "contains blanket python3 approval -> the STANDARD Doc 02 block is in effect, not the 02-S hardened one"
   else
     say "$OK" "permissions.allow" "no blanket python3 (02-S hardened block)"
   fi
@@ -415,13 +415,28 @@ if [ -z "$REPO" ] && [ -n "$VAULT" ] && [ -d "$VAULT" ]; then
   [ -n "$g" ] && REPO="${g%/.git}"
 fi
 if [ -n "$REPO" ]; then
-  say "$OK" "Code repo (STEP 6)" "$REPO"
+  say "$OK" "Code repo (STEP 6)" "$(basename "$REPO")"
   case "$REPO" in
     "$VAULT"/*) printf '%s %-42s %s\n' "[info]" "  repo location choice" "(A) inside the vault" ;;
     *)          printf '%s %-42s %s\n' "[info]" "  repo location choice" "(B) ~/dev - needs a named sandbox path" ;;
   esac
   nc=$(git -C "$REPO" rev-list --count HEAD 2>/dev/null || echo 0)
-  rm_=$(git -C "$REPO" remote get-url origin 2>/dev/null || echo "no remote")
+  rm_=$(git -C "$REPO" remote get-url origin 2>/dev/null || true)
+  if [ -n "$rm_" ]; then
+    # Only recognized network remotes may expose a host in shared reports.
+    # Capture bracketed IPv6 as a whole, excluding any port and path.
+    url_remote='^[a-zA-Z][a-zA-Z0-9+.-]*://([^/?#]*@)?(\[[0-9a-fA-F:.]+\]|[a-zA-Z0-9._-]+)(:[0-9]+)?([/?#]|$)'
+    scp_remote='^[^/@:[:space:]]+@(\[[0-9a-fA-F:.]+\]|[a-zA-Z0-9._-]+):.+'
+    if [[ "$rm_" != [fF][iI][lL][eE]://* && "$rm_" =~ $url_remote ]]; then
+      rm_="present (${BASH_REMATCH[2]})"
+    elif [[ "$rm_" =~ $scp_remote ]]; then
+      rm_="present (${BASH_REMATCH[1]})"
+    else
+      rm_="present (local/unrecognized)"
+    fi
+  else
+    rm_="no remote"
+  fi
   printf '%s %-42s %s\n' "[info]" "  commits" "$nc"
   printf '%s %-42s %s\n' "[info]" "  origin" "$rm_"
   if [ -f "$REPO/CLAUDE.md" ]; then say "$OK" "Repo CLAUDE.md (STEP 8)" ""; else say "$NO" "Repo CLAUDE.md (STEP 8)" "missing"; fi

@@ -755,9 +755,8 @@ Let's do a quick test to make sure everything works. Run this simple exercise:
    ```
 
    - **If one is found:** create a simple script at `05 AI/CLAUDE CODE/workspace/hello.py` that
-     prints a personalized greeting with the vault and repo paths, run it with the command that
-     actually exists, and show me the output. Add that real command to my `permissions.allow`
-     array (e.g. `Bash(python *)`), not the macOS `python3` form.
+     prints a personalized greeting with the vault and repo paths, run it once with normal approval
+     using the command that actually exists, and show me the output. Do not add it to `permissions.allow`.
    - **If none is found: that is NOT a blocker, and we do NOT install Python now.** Nothing else in
      Phase 0 needs it. Note it as a Week-1 item and skip to the next check. Do not let this stop
      the session — it is the last verification step, not a prerequisite.

@@ -284,11 +284,27 @@ Now set up the global Claude Code settings. These live in `~/.claude/settings.js
 
 Create or update `~/.claude/settings.json` with:
 
+Other git invocations are approved case by case.
+Any `git push`, `git pull`, or `git clone` command with extra options will ask for approval.
+
 ```json
 {
   "permissions": {
     "allow": [
-      "Bash(git *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push)",
+      "Bash(git pull)",
+      "Bash(git push origin main)",
+      "Bash(git pull origin main)",
+      "Bash(git clone https://github.com/wildbuffaloman/cc-starter-pack.git)",
+      "Bash(git init *)",
+      "Bash(git remote *)",
+      "Bash(git branch *)",
+      "Bash(git checkout *)",
       "Bash(ls *)",
       "Bash(mkdir *)",
       "Bash(cat *)",
@@ -334,7 +350,7 @@ Create or update `~/.claude/settings.json` with:
 
 > **Why this list is shorter than you might expect.** Two things were deliberately left out:
 >
-> - **`Bash(python3 *)` and `Bash(pip install *)`.** Python can read and write any file as a
+> - **Blanket Python execution and `Bash(pip install *)`.** Python can read and write any file as a
 >   subprocess, which permission rules cannot see. Pre-approving it would mean that any `deny`
 >   rule you add later is decorative unless you also remove this line. You'll get a prompt the
 >   first time Claude runs Python — that is the correct outcome on day one, and you can approve it.

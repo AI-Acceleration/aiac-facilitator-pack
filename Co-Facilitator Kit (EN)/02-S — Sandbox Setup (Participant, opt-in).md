@@ -45,7 +45,7 @@ Permission rules like `Read(~/.ssh/**)` in a deny list work on Claude's own file
 
 > "They don't apply to arbitrary subprocesses that read or write files indirectly, like a Python or Node script that opens files itself. For OS-level enforcement that blocks all processes from accessing a path, enable the sandbox."
 
-The standard Phase 0 config pre-approves `Bash(python3 *)` and has an **empty deny list**. That combination means a one-line Python script reads anything on the machine, and no permission rule can stop it. Any deny list you add on top of it is theater. The sandbox is what closes that hole — and it closes it at the kernel, which is why it holds even if the model is confused, wrong, or manipulated by something it read.
+An older Phase 0 config pre-approved unrestricted Python execution and had an **empty deny list**. With that combination, a one-line Python script reads anything on the machine, and no permission rule can stop it. Any deny list you add on top of it is theater. The sandbox is what closes that hole — and it closes it at the kernel, which is why it holds even if the model is confused, wrong, or manipulated by something it read.
 
 ### What this does NOT protect against
 
@@ -144,11 +144,27 @@ This covers the built-in file tools, which the sandbox does not. **This replaces
 > below, so the two no longer disagree on that half. What this block still adds on top is the
 > **targeted `deny` list** (crown-jewel paths) — that part is unique to the sandbox variant.
 
+Other git invocations are approved case by case.
+Any `git push`, `git pull`, or `git clone` command with extra options will ask for approval.
+
 ```json
 {
   "permissions": {
     "allow": [
-      "Bash(git *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push)",
+      "Bash(git pull)",
+      "Bash(git push origin main)",
+      "Bash(git pull origin main)",
+      "Bash(git clone https://github.com/wildbuffaloman/cc-starter-pack.git)",
+      "Bash(git init *)",
+      "Bash(git remote *)",
+      "Bash(git branch *)",
+      "Bash(git checkout *)",
       "Bash(ls *)",
       "Bash(mkdir *)",
       "Bash(cat *)",
@@ -182,7 +198,7 @@ This covers the built-in file tools, which the sandbox does not. **This replaces
 
 What changed from the standard Phase 0 config, and why each change is deliberate:
 
-- **`Bash(python3 *)` and `Bash(pip install *)` removed from `allow`.** This is the single most important edit. Pre-approving Python means pre-approving "read or write any file, unconstrained by any permission rule." With the sandbox on, Python is kernel-confined to your vault anyway — but there is no reason to *also* hand it a blanket pre-approval, and if the sandbox ever fails to load you want the prompt. (`failIfUnavailable: true` should make that impossible. Belt and braces.)
+- **Blanket Python execution and `Bash(pip install *)` removed from `allow`.** This is the single most important edit. Pre-approving Python means pre-approving "read or write any file, unconstrained by any permission rule." With the sandbox on, Python is kernel-confined to your vault anyway — but there is no reason to *also* hand it a blanket pre-approval, and if the sandbox ever fails to load you want the prompt. (`failIfUnavailable: true` should make that impossible. Belt and braces.)
 - **Bare `Read`, `Write`, `Edit` removed from `allow`.** A bare tool name in `allow` pre-approves that tool for **any** input — including paths outside your vault. Removing them restores the real default: *"By default, Claude has access to files in the directory where you launched it."* Launch from the vault, and the vault is the scope. This is a case where deleting three lines buys more than adding ten.
 - **Targeted `deny` entries, not a broad one.** Note what is deliberately **absent**: there is no `Read(~/Documents/**)` or `Read(//**)`. Your vault lives under `~/Documents`, and permission deny rules take precedence over allow rules with **no possible exception** — a broad deny like that would silently lock Claude out of the very vault you're trying to give it. These entries are narrow on purpose. The broad boundary is the sandbox's job; this list is for the built-in tools' crown jewels.
 - **Sound hook is macOS-only.** On Windows Git Bash/WSL use `powershell.exe -c "[console]::beep(1000,400)"`; on Linux `paplay /usr/share/sounds/freedesktop/stereo/bell.oga`. If unsure, delete the whole `"Stop"` block — it's a convenience, and a wrong command here fails on every single turn.
@@ -257,8 +273,8 @@ If any of 3, 5, or 6 succeeds, the boundary is not what you think it is. Say so 
 **Expect this, it is not a misconfiguration:** under the sandbox, **Claude cannot run `git` for you.**
 The harness pattern-protects `.git/` state files — `config`, `HEAD`, `refs` — because git hooks and
 `git config` are a documented escape vector (a hook is just a script git will run for you). This was
-verified with isolated probes on a real machine during a live session. `Bash(git *)` sitting in your
-`allow` list does not change it: the sandbox is a kernel-level boundary, and the permission list is a
+verified with isolated probes on a real machine during a live session. Git subcommand entries in your
+`allow` list do not change it: the sandbox is a kernel-level boundary, and the permission list is a
 different system that cannot override it.
 
 **What to do about it — and why the workaround is better than the thing it replaces:**

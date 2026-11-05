@@ -86,7 +86,7 @@ Verified against Anthropic's live docs, then against a real Windows machine.
 | 4 | STEP 2.6b Granola | `~/Library/Application Support/Granola/` + launchd/cron | `%APPDATA%\Granola\` (`~/AppData/Roaming/…`) + **Windows Task Scheduler**, and "confirm the real filenames, don't assume the Mac layout" | Optional/deferred, but the Mac paths simply do not exist |
 | 5 | STEP 2.5b `gws` | `~/bin/gws`, `chmod +x`, zsh profile | `~/bin/gws.exe`, windows-amd64, `~/.bashrc` PATH line | The Mac instructions were unrunnable |
 | 6 | STEP 3 `lessons.md` | empty | seeded with the forward-slash rule | Puts the Windows rule where Claude re-reads it every session |
-| 7 | ⭐ **STEP 7** | "Create a Python script … and run it" | **Detect `python`/`py`/`python3` first**; missing Python explicitly NOT a blocker; add the real command to `allow` | ⭐ Landmine #4 — the kit's final check otherwise fails on Windows for an unrelated reason |
+| 7 | ⭐ **STEP 7** | "Create a Python script … and run it" | **Detect `python`/`py`/`python3` first**; missing Python explicitly NOT a blocker; run once with normal approval | ⭐ Landmine #4 — the kit's final check otherwise fails on Windows for an unrelated reason |
 | 8 | STEP 7 | 8 checks | adds `jq .` JSON-validity check on `settings.json` | Cheap; catches a corrupted merge from Doc 02 |
 | 9 | STEP 7 | (none) | adds `claude doctor` | First thing to run when something breaks later |
 | 10–11 | STEP 6 cheat sheet | Mac-neutral | Windows notes block (window · paths · paste · `claude doctor`) | The four things they'll forget by next week |
@@ -103,7 +103,7 @@ Verified against Anthropic's live docs, then against a real Windows machine.
 | Smart quotes inside code blocks | ✅ 0 | ✅ 0 |
 
 **Note on defect #12:** unlike the pack Mangan built for one of his participants — which deliberately shipped the original
-permissions block — these variants inherit the **hardened** block (`Bash(python3 *)`,
+permissions block — these variants inherit the **hardened** block (blanket Python execution,
 `Bash(pip install *)`, bare `Read`/`Write`/`Edit` removed), per the maintainer's decision of 2026-08-19.
-The Windows STEP 7 change above is what keeps that hardening from costing anything: it has Claude
-add the *real* Python command to `allow` only if Python actually exists.
+The Windows STEP 7 change above keeps that hardening: it runs the greeting once with normal approval
+using the Python command that actually exists, without adding it to `allow`.

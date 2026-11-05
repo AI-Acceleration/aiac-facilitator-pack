@@ -47,7 +47,7 @@ Reglas de permisos como `Read(~/.ssh/**)` en una lista de denegación funcionan 
 
 > "They don't apply to arbitrary subprocesses that read or write files indirectly, like a Python or Node script that opens files itself. For OS-level enforcement that blocks all processes from accessing a path, enable the sandbox."
 
-La configuración estándar de Fase 0 pre-aprueba `Bash(python3 *)` y tiene una **lista de denegación vacía**. Esa combinación significa que un script de Python de una línea lee cualquier cosa en la máquina, y ninguna regla de permisos puede detenerlo. Cualquier lista de denegación que le pongas encima es teatro. El sandbox es lo que cierra ese hueco — y lo cierra en el kernel, que es por lo que se sostiene incluso si el modelo está confundido, equivocado o manipulado por algo que leyó.
+Una configuración anterior de Fase 0 preaprobaba la ejecución de Python sin restricciones y tenía una **lista de denegación vacía**. Con esa combinación, un script de Python de una línea lee cualquier cosa en la máquina, y ninguna regla de permisos puede detenerlo. Cualquier lista de denegación que le pongas encima es teatro. El sandbox es lo que cierra ese hueco — y lo cierra en el kernel, que es por lo que se sostiene incluso si el modelo está confundido, equivocado o manipulado por algo que leyó.
 
 ### Contra qué NO protege esto
 
@@ -146,11 +146,27 @@ Esto cubre las herramientas de archivos integradas, que el sandbox no cubre. **E
 > ves abajo, así que ya no se contradicen en esa mitad. Lo que este bloque sigue agregando encima es la
 > **lista `deny` dirigida** (las rutas joya de la corona) — esa parte es exclusiva de la variante con sandbox.
 
+Las demás invocaciones de git se aprueban caso por caso.
+Cualquier comando `git push`, `git pull` o `git clone` con opciones adicionales te pedirá aprobación.
+
 ```json
 {
   "permissions": {
     "allow": [
-      "Bash(git *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push)",
+      "Bash(git pull)",
+      "Bash(git push origin main)",
+      "Bash(git pull origin main)",
+      "Bash(git clone https://github.com/wildbuffaloman/cc-starter-pack.git)",
+      "Bash(git init *)",
+      "Bash(git remote *)",
+      "Bash(git branch *)",
+      "Bash(git checkout *)",
       "Bash(ls *)",
       "Bash(mkdir *)",
       "Bash(cat *)",
@@ -184,7 +200,7 @@ Esto cubre las herramientas de archivos integradas, que el sandbox no cubre. **E
 
 Qué cambió respecto a la configuración estándar de Fase 0, y por qué cada cambio es deliberado:
 
-- **`Bash(python3 *)` y `Bash(pip install *)` eliminados de `allow`.** Esta es la edición más importante de todas. Pre-aprobar Python significa pre-aprobar "leer o escribir cualquier archivo, sin restricción de ninguna regla de permisos". Con el sandbox activo, Python queda confinado por el kernel a tu vault de todos modos — pero no hay razón para *además* entregarle una pre-aprobación en blanco, y si el sandbox alguna vez falla al cargar, tú quieres la solicitud de permiso. (`failIfUnavailable: true` debería hacer eso imposible. Cinturón y tirantes.)
+- **Ejecución de Python sin restricciones y `Bash(pip install *)` eliminados de `allow`.** Esta es la edición más importante de todas. Pre-aprobar Python significa pre-aprobar "leer o escribir cualquier archivo, sin restricción de ninguna regla de permisos". Con el sandbox activo, Python queda confinado por el kernel a tu vault de todos modos — pero no hay razón para *además* entregarle una pre-aprobación en blanco, y si el sandbox alguna vez falla al cargar, tú quieres la solicitud de permiso. (`failIfUnavailable: true` debería hacer eso imposible. Cinturón y tirantes.)
 - **`Read`, `Write`, `Edit` a secas eliminados de `allow`.** Un nombre de herramienta a secas en `allow` pre-aprueba esa herramienta para **cualquier** entrada — incluyendo rutas fuera de tu vault. Quitarlos restaura el comportamiento real por defecto: *"By default, Claude has access to files in the directory where you launched it."* Lanza desde el vault, y el vault es el alcance. Este es un caso donde borrar tres líneas compra más que agregar diez.
 - **Entradas `deny` dirigidas, no una amplia.** Fíjate en lo que está **ausente** a propósito: no hay `Read(~/Documents/**)` ni `Read(//**)`. Tu vault vive bajo `~/Documents`, y las reglas de denegación de permisos tienen precedencia sobre las de permiso **sin ninguna excepción posible** — una denegación amplia como esa dejaría a Claude fuera, en silencio, del mismísimo vault que estás tratando de darle. Estas entradas son estrechas a propósito. El límite amplio es tarea del sandbox; esta lista es para las joyas de la corona de las herramientas integradas.
 - **El *hook* de sonido es solo para macOS.** En Windows Git Bash/WSL usa `powershell.exe -c "[console]::beep(1000,400)"`; en Linux `paplay /usr/share/sounds/freedesktop/stereo/bell.oga`. Si no estás seguro, borra el bloque `"Stop"` completo — es una comodidad, y un comando equivocado aquí falla en cada turno.
@@ -260,7 +276,7 @@ Si alguna de las pruebas 3, 5 o 6 tiene éxito, el límite no es lo que crees. D
 El *harness* protege por patrón los archivos de estado de `.git/` — `config`, `HEAD`, `refs` — porque los
 *hooks* de git y `git config` son un vector de escape documentado (un *hook* no es más que un script que git
 va a ejecutar por ti). Esto se verificó con pruebas aisladas en una máquina real durante una sesión en vivo.
-Tener `Bash(git *)` en tu lista `allow` no lo cambia: el sandbox es un límite a nivel de kernel, y la lista de
+Tener entradas para subcomandos de git en tu lista `allow` no lo cambia: el sandbox es un límite a nivel de kernel, y la lista de
 permisos es otro sistema distinto que no puede anularlo.
 
 **Qué hacer al respecto — y por qué la solución es mejor que lo que reemplaza:**
