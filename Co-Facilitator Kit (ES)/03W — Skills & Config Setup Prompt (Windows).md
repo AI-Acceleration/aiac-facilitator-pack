@@ -219,7 +219,7 @@ Confirma la fuente de transcripciones y que existe `~/.claude/skills/meeting-min
 
 ## PASO 2.7: INSTALAR LAS SKILLS INICIALES (UN PAQUETE, UN CLON)
 
-Las *skills* iniciales vienen de un solo paquete público y revisado: **`AI-Acceleration/cc-starter-pack`, fijado en la etiqueta `v1.0.0`** (una versión fija, para que todos instalen exactamente los mismos archivos). Trae once *skills*, incluidas las que este kit usa todos los días:
+Las *skills* iniciales vienen de un solo paquete público y revisado: **`AI-Acceleration/cc-starter-pack`, fijado en la etiqueta `v1.0.0`** (una versión fija, para que cada instalación nueva reciba exactamente los mismos archivos; una *skill* que ya tengas con el mismo nombre se salta y conserva tu versión — mira 2.7a). Trae once *skills*, incluidas las que este kit usa todos los días:
 
 - **`/session-close`** — cierra una sesión: actualiza el brief, registra el trabajo, deja un Continuation Prompt (Paso 4)
 - **`/project-create`** — crea un Brief de Proyecto / Programa con preguntas y respuestas guiadas
@@ -232,16 +232,38 @@ Varias *skills* traen archivos de apoyo junto a su `SKILL.md`, así que instala 
 
 ### 2.7a — Clonar el paquete en `v1.0.0` y correr su instalador
 
+El instalador corre **solo** después de una clonación nueva y exitosa — nunca sobre una copia que quedó de antes:
+
 ```bash
 mkdir -p ~/.aiac
-git clone --depth 1 --branch v1.0.0 https://github.com/AI-Acceleration/cc-starter-pack.git ~/.aiac/cc-starter-pack
-(cd ~/.aiac/cc-starter-pack && bash ./install.sh)
+if [ -e ~/.aiac/cc-starter-pack ]; then
+  echo "STOP: ~/.aiac/cc-starter-pack already exists - not installed"
+else
+  git clone --depth 1 --branch v1.0.0 https://github.com/AI-Acceleration/cc-starter-pack.git ~/.aiac/cc-starter-pack \
+    && (cd ~/.aiac/cc-starter-pack && bash ./install.sh)
+fi
 ```
 
-(Los paréntesis mantienen la carpeta de trabajo de esta sesión en el *vault*.)
+(Los paréntesis mantienen la carpeta de trabajo de esta sesión en el *vault*. El `&&` hace que una
+clonación fallida nunca ejecute nada.)
 
-- Si `~/.aiac/cc-starter-pack` ya existe de un intento anterior, dímelo antes de tocarlo. Revisa su versión con `git -C ~/.aiac/cc-starter-pack describe --tags` — tiene que imprimir `v1.0.0`.
-- `install.sh` copia cada carpeta de *skill* a `~/.claude/skills/<skill>/`. **Se salta** cualquier *skill* que yo ya tenga con el mismo nombre e imprime `SKIP: …` para ella. Si ves un `SKIP`, muéstrame la lista y pregúntame qué hacer — nunca sobrescribas una de mis *skills* sin mi OK (`bash ./install.sh force` sobrescribe).
+- **Si imprime `STOP`** (existe una copia de un intento anterior), dímelo antes de tocarla. O bien, con
+  mi OK, la renombras para quitarla del camino (`mv ~/.aiac/cc-starter-pack ~/.aiac/cc-starter-pack.old`)
+  y vuelves a correr el bloque, o la verificas primero — esto instala solo si la copia apunta al
+  repositorio oficial, está exactamente en el commit `v1.0.0` de GitHub y no tiene archivos cambiados ni
+  de más:
+
+  ```bash
+  (cd ~/.aiac/cc-starter-pack \
+    && test "$(git remote get-url origin)" = "https://github.com/AI-Acceleration/cc-starter-pack.git" \
+    && test -z "$(git status --porcelain --untracked-files=all)" \
+    && test "$(git rev-parse HEAD)" = "$(git ls-remote origin 'refs/tags/v1.0.0' 'refs/tags/v1.0.0^{}' | tail -n 1 | cut -f1)" \
+    && echo "VERIFIED: v1.0.0, clean" && bash ./install.sh)
+  ```
+
+  Si no aparece la línea `VERIFIED`, falló una comprobación y no se instaló nada: muéstramelo y usa el
+  camino de renombrar.
+- `install.sh` copia cada carpeta de *skill* a `~/.claude/skills/<skill>/`. **Se salta** cualquier *skill* que yo ya tenga con el mismo nombre e imprime `SKIP: …` para ella — esa *skill* se queda con mi versión, no con la de `v1.0.0`. Si ves un `SKIP`, muéstrame la lista y pregúntame qué hacer — nunca sobrescribas una de mis *skills* sin mi OK (`bash ./install.sh force` sobrescribe).
 - Termina con "Restart Claude Code": **no reinicies ahora.** Las *skills* se cargan en mi próxima sesión.
 
 ### 2.7b — Instalar `/playground` (plugin oficial de Anthropic)
@@ -448,23 +470,48 @@ Hagamos una prueba rápida para asegurarnos de que todo funciona. Corre este eje
 
 1. Revisa que el CLAUDE.md de este *vault* se pueda leer — léelo y dime la primera línea.
 2. Revisa que `~/.claude/CLAUDE.md` exista y tenga la ruta correcta del *vault*.
-3. Revisa que `~/.claude/settings.json` tenga los permisos que configuramos antes — y que **no** tenga reglas amplias: ningún permiso de git con comodín para todos los subcomandos (solo los de la lista), nada para `cat` ni `head`, nada de `git remote` con comodín (solo `git remote -v`), ninguna regla para `python`, `py`, `python3` o `node`. Si encuentras una, muéstramela y pregúntame antes de quitarla.
+3. Revisa los permisos de `~/.claude/settings.json` **sin abrir ni imprimir el archivo** (puede
+   guardar llaves). Corre esta revisión — solo imprime nombres de reglas:
+
+   ```bash
+   py - <<'PY'
+   import json, os, re
+   s = json.load(open(os.path.expanduser("~/.claude/settings.json"), encoding="utf-8"))
+   p = s.get("permissions") or {}
+   allow = [r for r in p.get("allow") or [] if isinstance(r, str)]
+   ask = [r for r in p.get("ask") or [] if isinstance(r, str)]
+   broad = [r for r in allow if r in ("Bash", "Bash(*)", "Read", "Write", "Edit", "Glob", "Grep")
+            or re.match(r"Bash\((git|gh|gws|cat|head|tail|grep|mkdir)\b.*\*", r)
+            or re.match(r"Bash\((python3?|py|node|npx|pip3?)\b", r)]
+   need = ["Bash(cat *)", "Bash(head *)", "Bash(tail *)", "Bash(grep *)",
+           "Bash(git add *)", "Bash(git commit *)", "Bash(git push *)", "Bash(gh repo create *)"]
+   print("broad allow rules:", ", ".join(broad) or "none")
+   print("missing ask rules:", ", ".join(r for r in need if r not in ask) or "none")
+   print("additionalDirectories:", "present" if "additionalDirectories" in p else "absent")
+   PY
+   ```
+
+   PASA = `broad allow rules: none`, `missing ask rules: none`, `additionalDirectories: absent`. Si
+   aparece otra cosa, muéstrame la línea y pregúntame antes de cambiar nada — yo quito una regla en un
+   editor de texto, o te pido volver a correr la fusión del Doc 02 si falta una.
 4. Revisa que existan las seis *skills* en `~/.claude/skills/<skill>/SKILL.md` (el bucle del Paso 2.7c): `session-close`, `project-create`, `inbox-clear`, `retro`, `skill-create`, `meeting-minutes`.
 5. Revisa con `claude plugin list` que `playground`, `compound-engineering` y `superpowers` estén instalados.
 6. **Averigua cuál comando de Python existe en esta máquina antes de usar uno.** En Windows el
-   comando suele ser `python` o `py` — **`python3` a secas normalmente NO existe, y escribirlo
+   comando suele ser `py` o `python` — **`python3` a secas normalmente NO existe, y escribirlo
    abre la Microsoft Store**, lo que parece un cuelgue. Corre esto primero:
 
    ```bash
-   for c in python py python3; do command -v $c >/dev/null 2>&1 && echo "FOUND: $c"; done
+   for c in py python python3; do command -v $c >/dev/null 2>&1 && echo "FOUND: $c"; done
    ```
 
    - **Si encuentra alguno:** crea un script sencillo en `05 AI/CLAUDE CODE/workspace/hello.py` que
      imprima un saludo personalizado con las rutas del *vault* y del repositorio, córrelo una sola vez con
      la aprobación normal usando el comando que realmente existe y muéstrame la salida. No lo agregues a `permissions.allow`.
-   - **Si no encuentra ninguno: eso NO es un bloqueo, y NO instalamos Python ahora.** Nada más en
-     la Fase 0 lo necesita. Anótalo como ítem de la Semana 1 y pasa a la siguiente revisión. No dejes que esto detenga
-     la sesión — es el último paso de verificación, no un prerrequisito.
+   - **Si no encuentra ninguno, algo anda mal:** Python es un prerrequisito (lo revisa el prevuelo del
+     Doc 01, y el Paso 3 del Doc 02W lo usó). Dímelo, dame la línea de instalación del Doc 01
+     (`winget install --id Python.Python.3.12 -e`) para correr en una **segunda ventana de terminal** y
+     revisa otra vez después de que reabra la terminal. Si hoy no se puede instalar, anótalo para mi
+     facilitador y pasa a la siguiente revisión.
 
 7. Valida que el archivo de settings no se haya corrompido con las fusiones del Doc 02W:
 
@@ -472,7 +519,8 @@ Hagamos una prueba rápida para asegurarnos de que todo funciona. Corre este eje
    jq . ~/.claude/settings.json > /dev/null && echo "settings.json is valid JSON"
    ```
 
-   (Si `jq` no está instalado — no viene con Git for Windows — vuelve a leer el archivo y confirma que es JSON válido.)
+   (Si `jq` no está instalado — no viene con Git for Windows — sáltate esta línea: la revisión del punto 3
+   ya parseó el archivo. Nunca abras el archivo para revisarlo; puede guardar llaves.)
 
 8. Corre `claude doctor` y muéstrame la salida.
 
