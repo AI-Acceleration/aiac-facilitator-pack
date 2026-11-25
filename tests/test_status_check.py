@@ -40,7 +40,7 @@ SAFE_END = "----- END -----"
 CHECK_NAMES = {
     "Doc 01 - Git installed",
     "Doc 01 - GitHub CLI (gh) installed",
-    "Doc 01 - GitHub CLI signed in",
+    "Doc 01 - GitHub CLI credentials present",
     "Doc 01 - Claude Code installed",
     "Doc 01 - jq installed",
     "Doc 01 - Python 3 installed",
@@ -49,11 +49,12 @@ CHECK_NAMES = {
     "Doc 01 - Granola or other transcription tool",
     "Pre-flight - vault folder exists",
     "Pre-flight - vault not in a cloud-synced folder",
-    "Pre-flight - vault opened in Obsidian",
+    "Pre-flight - Obsidian config found in this folder",
     "Doc 02-S - hardened global settings (Part 3b)",
     "Doc 02-S - sandbox config in the vault (Part 3a)",
     "Doc 02 - global settings file is valid",
     "Doc 02 - no blanket approvals in settings",
+    "Doc 02 - ask-first rules in settings",
     "Doc 02 - global router points at the vault",
     "Doc 02 - context monitoring (auto-compact 75 + statusline)",
     "Doc 02 - vault folders",
@@ -65,7 +66,7 @@ CHECK_NAMES = {
     "Doc 02 - code repo in ~/dev (named in router)",
     "Doc 02 - repo CLAUDE.md",
     "Doc 02 - repo has a first commit",
-    "Doc 02 - repo connected to GitHub",
+    "Doc 02 - repo origin points at GitHub",
     "Doc 03 - starter skills (all 6)",
     "Doc 03 - plugins (compound-engineering, superpowers, playground)",
     "Doc 03 - lessons.md",
@@ -75,6 +76,18 @@ OPTIONAL = {"Doc 01 - Ghostty terminal",
 SANDBOX_NAMES = {"Doc 02-S - hardened global settings (Part 3b)",
                  "Doc 02-S - sandbox config in the vault (Part 3a)"}
 STATUSES = ("DONE", "NOT DONE", "SKIPPED (optional)")
+
+# The settings blocks Docs 02 / 02W / 02-S write (STEP 3 and Part 3b).
+DOC02_ALLOW = ["Bash(git status)", "Bash(git status --short)", "Bash(git diff)",
+               "Bash(git log --oneline)", "Bash(git remote -v)",
+               "Bash(ls *)", "Bash(wc *)"]
+DOC02_ASK = ["Bash(cat *)", "Bash(head *)", "Bash(tail *)", "Bash(grep *)",
+             "Bash(git add *)", "Bash(git commit *)", "Bash(git push *)",
+             "Bash(gh repo create *)"]
+# 02-S Part 3b canonical deny list, spelled exactly as the doc writes it.
+DOC02S_DENY = ["Read(~/.ssh/**)", "Read(~/.aws/**)", "Read(~/.gnupg/**)",
+               "Read(~/.config/gh/**)", "Read(~/Library/Keychains/**)",
+               "Read(~/**/.env)", "Read(~/**/*.pem)", "Read(~/**/*.key)"]
 FIXED_LINES = re.compile(
     r"^(Status check: v\d+(\.\d+)*"
     r"|OS: (macOS|Windows|Windows \(WSL\)|Linux|unsupported)"
@@ -213,9 +226,8 @@ class StatusCheckCase(unittest.TestCase):
 
     def write_settings(self, **extra):
         settings = {
-            "permissions": {"allow": ["Bash(ls *)", "Bash(mkdir *)", "Bash(wc *)",
-                                      "Bash(git status)", "Bash(git remote -v)",
-                                      "Glob", "Grep"],
+            "permissions": {"allow": list(DOC02_ALLOW),
+                            "ask": list(DOC02_ASK),
                             "deny": []},
             "env": {"CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "75",
                     "ANTHROPIC_API_KEY": FAKE_KEY},
@@ -350,7 +362,7 @@ class TestPrivacy(StatusCheckCase):
         output = self.run_script("--details")
         self.assertIn("do NOT share", output)
         for secret in ("ETICTOKEN", "Zebulon", "Quixote", "zq-private",
-                       "zeb-secret-login", "SYNTHETIC-KEY", str(self.home)):
+                       "zeb-secret-login", "SYNTHETIC-KEY", "acme-hidden", str(self.home)):
             self.assertNotIn(secret, output)
         # --details is the place for ~-relative paths, never absolute ones.
         self.assertIn("~/OneDrive - Contoso Secretco/Zeb Private Vault", output)
@@ -364,7 +376,7 @@ class TestPrivacy(StatusCheckCase):
     def test_gh_account_name_is_never_printed(self):
         self.install_tools()
         output = self.run_script("--details")
-        self.assertEqual(statuses(output)["Doc 01 - GitHub CLI signed in"], "DONE")
+        self.assertEqual(statuses(output)["Doc 01 - GitHub CLI credentials present"], "DONE")
         self.assertNotIn("zeb-secret-login", output)
 
     def test_broad_rules_are_counted_not_listed_by_default(self):
@@ -382,12 +394,173 @@ class TestPrivacy(StatusCheckCase):
                          "NOT DONE")
         self.assertIn("7 broad rule(s) found", output)
         self.assertNotIn("Bash(git *)", output)
-        self.assertIn("broad rule: Bash(git *)", self.run_script("--details"))
+        details = self.run_script("--details")
+        # Even --details names a fixed category, never the rule text.
+        self.assertIn("broad rule (5): a git rule with a wildcard", details)
+        self.assertIn("broad rule (1): a cat / head wildcard", details)
+        self.assertIn("broad rule (1): an interpreter rule", details)
+        self.assertNotIn("Bash(git *)", details)
+        self.assertNotIn("Bash(python3 *)", details)
+
+    def test_details_never_print_broad_rule_text(self):
+        self.install_tools()
+        vault = self.make_vault(self.home / "AIAC-Vault", full=True)
+        self.write_router(vault)
+        settings = self.write_settings()
+        settings["permissions"]["allow"].append(
+            "Bash(python3 /srv/acme-hidden/run.py --token %s)" % FAKE_KEY)
+        write(self.home / ".claude" / "settings.json", json.dumps(settings))
+        for args in ((), ("--details",)):
+            output = self.run_script(*args)
+            self.assertNotIn("acme-hidden", output)
+            self.assertNotIn("SYNTHETIC-KEY", output)
+
+
+@unittest.skipUnless(BASH and shutil.which("git"), "bash and git required")
+class TestNoLeaksInDefaultOutput(StatusCheckCase):
+    """Paths, tool error text, settings values and server names stay out."""
+
+    LEAKS = ("acme-hidden", "ghp_", "SYNTH" + "ETIC", "zq-private", "contoso-private")
+
+    def assert_no_leaks(self, output, extra=(), paths=True):
+        leaks = self.LEAKS + tuple(extra)
+        if paths:  # --details may show where a tool is installed, nothing more
+            leaks += (str(ROOT), str(self.base), os.path.realpath(str(self.base)))
+        for leak in leaks:
+            self.assertNotIn(leak, output)
+        self.assert_safe_block_shape(output)
+
+    def test_missing_vault_message_never_prints_the_script_path(self):
+        # Run from a folder outside HOME whose name would identify a client.
+        hidden = self.base / "acme-hidden client folder"
+        hidden.mkdir()
+        copy = hidden / "aiac-status-check.sh.txt"
+        shutil.copyfile(str(SCRIPTS[0]), str(copy))
+        for script in (copy, SCRIPTS[0]):
+            with self.subTest(script=script.name):
+                output = self.run_script(script=script)
+                self.assertEqual(statuses(output)["Pre-flight - vault folder exists"], "NOT DONE")
+                self.assertIn('bash aiac-status-check.sh.txt "/path/to/your/vault"', output)
+                self.assert_no_leaks(output)
+
+    def test_help_and_unknown_option_print_fixed_text(self):
+        hidden = self.base / "acme-hidden client folder"
+        hidden.mkdir()
+        copy = hidden / "aiac-status-check.sh"
+        shutil.copyfile(str(SCRIPTS[0]), str(copy))
+        r = subprocess.run([BASH, str(copy), "--help"], cwd=str(self.base), env=self.env,
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("Usage: bash aiac-status-check.sh", r.stdout)
+        self.assertNotIn("acme-hidden", r.stdout + r.stderr)
+        r = subprocess.run([BASH, str(copy), "--acme-hidden-option"], cwd=str(self.base),
+                           env=self.env, capture_output=True, text=True)
+        self.assertEqual(r.returncode, 2)
+        self.assertNotIn("acme-hidden", r.stdout + r.stderr)
+
+    def failing_tools(self):
+        secret = "ghp_SYNTH" + "ETIC0000 /srv/acme-hidden " + at("zq-private", "example.test")
+        self.stub("gh", 'echo "fatal: %s" >&2; exit 1' % secret)
+        self.stub("claude", 'echo "9.9.9 (Claude Code) %s"; echo "%s" >&2' % (secret, secret))
+        self.stub("python3", 'echo "Python 3.12.0 %s"' % secret)
+        real_uname = shutil.which("uname", path=os.defpath)
+        self.stub("uname", 'case "$1" in -m) echo "acme-hidden-arch" ;; '
+                           '*) exec %s "$@" ;; esac' % real_uname)
+
+    def test_failing_tool_with_secret_looking_stderr_is_not_echoed(self):
+        self.failing_tools()
+        for args in ((), ("--details",)):
+            with self.subTest(args=args):
+                output = self.run_script(*args)
+                self.assert_no_leaks(output, paths=not args)
+                self.assertRegex(output, r"Doc 01 - GitHub CLI \(gh\) installed +installed "
+                                         r"\(version not read\)")
+                self.assertRegex(output, r"Doc 01 - Claude Code installed +version 9\.9\.9")
+                self.assertRegex(output, r"Doc 01 - Python 3 installed +version 3\.12\.0")
+                self.assertRegex(output, r"Chip / architecture +other")
+
+    def test_gh_token_variable_counts_but_is_never_printed(self):
+        self.env["GH_TOKEN"] = "ghp_SYNTH" + "ETICTOKENVALUE"
+        output = self.run_script("--details")
+        self.assertEqual(statuses(output)["Doc 01 - GitHub CLI credentials present"], "DONE")
+        self.assert_no_leaks(output)
+
+    @unittest.skipUnless(JQ, "jq required")
+    def test_malformed_settings_values_are_never_printed(self):
+        vault = self.make_vault(self.home / "AIAC-Vault", full=True)
+        self.write_router(vault)
+        sandboxes = [
+            {"sandbox": {"enabled": "acme-hidden-value",
+                         "failIfUnavailable": {"k": "acme-hidden-object"},
+                         "allowUnsandboxedCommands": ["acme-hidden-list"],
+                         "filesystem": {"denyRead": "acme-hidden-string",
+                                        "allowRead": ["/srv/acme-hidden/**"],
+                                        "allowWrite": {"x": "acme-hidden"}},
+                         "network": {"allowedDomains": "acme-hidden.test"}}},
+            {"sandbox": "acme-hidden-sandbox-string"},
+            {"sandbox": {"enabled": True, "network": ["acme-hidden.test"],
+                         "filesystem": "acme-hidden-fs"}},
+        ]
+        global_settings = [
+            {"permissions": {"allow": {"x": "acme-hidden"}, "deny": "Read(acme-hidden)",
+                             "ask": "acme-hidden"},
+             "env": {"CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "acme-hidden"},
+             "statusLine": {"type": "command", "command": "/srv/acme-hidden/s.sh"},
+             "hooks": {"Stop": "acme-hidden"}},
+            {"permissions": "acme-hidden-permissions", "sandbox": True},
+            {"permissions": {"allow": ["Bash(acme-hidden *)", 7, None],
+                             "deny": [1, {"acme-hidden": True}]}},
+        ]
+        for i, (vs, gs) in enumerate(zip(sandboxes, global_settings)):
+            write(vault / ".claude" / "settings.json", json.dumps(vs))
+            write(self.home / ".claude" / "settings.json", json.dumps(gs))
+            for args in ((), ("--details",), ("--sandbox",)):
+                with self.subTest(case=i, args=args):
+                    output = self.run_script(*args)
+                    self.assert_no_leaks(output)
+                    self.assertEqual(statuses(output)[
+                        "Doc 02-S - hardened global settings (Part 3b)"], "NOT DONE")
+                    self.assertEqual(statuses(output)[
+                        "Doc 02-S - sandbox config in the vault (Part 3a)"], "NOT DONE")
+            if i == 0:
+                output = self.run_script("--details")
+                self.assertRegex(output, r"sandbox\.enabled +unexpected value")
+                self.assertRegex(output, r"allowedDomains \(count\) +not a list")
+                self.assertRegex(output, r"filesystem\.denyRead \(entries\) +not a list")
+                self.assertRegex(output, r"filesystem\.allowRead \(entries\) +1")
+
+    @unittest.skipUnless(JQ, "jq required")
+    def test_synthetic_home_default_output_leaks_nothing(self):
+        # Everything at once: identity, token-bearing private remote, failing
+        # tool, malformed settings, a client-named vault and a broad rule.
+        self.install_tools()
+        self.failing_tools()
+        self.env["GH_TOKEN"] = "ghp_SYNTH" + "ETICTOKENVALUE"
+        vault = self.make_vault(self.home / "Zeb acme-hidden Vault", full=True)
+        self.set_identity()
+        self.make_repo("zeta-acme-hidden", commit=True, claude_md=True,
+                       origin="https://deploy:ghp_SYNTH" + "ETIC1" + "@" +
+                       "git.contoso-private.test/team/zeta.git")
+        self.write_router(vault, "zeta-acme-hidden")
+        settings = self.write_settings()
+        settings["permissions"]["allow"].append("Bash(python3 /srv/acme-hidden/x.py)")
+        settings["permissions"]["deny"] = ["Read(~/.ssh/**)", "Read(acme-hidden)"]
+        write(self.home / ".claude" / "settings.json", json.dumps(settings))
+        write(vault / ".claude" / "settings.json", json.dumps({"sandbox": {
+            "enabled": "acme-hidden", "network": {"allowedDomains": ["acme-hidden.test"]}}}))
+        for script in SCRIPTS:
+            for args in ((), ("--sandbox",)):
+                with self.subTest(script=str(script.relative_to(ROOT)), args=args):
+                    output = self.run_script(*args, script=script)
+                    self.assert_no_leaks(output, extra=(
+                        "Zebulon", "Quixote", "zebulon.quixote", "zeb-secret-login",
+                        "SYNTHETIC-KEY", "deploy", "zeta", str(self.home)))
+                    self.assertIn("origin: other host", output)
 
 
 @unittest.skipUnless(BASH and shutil.which("git"), "bash and git required")
 class TestOrigin(StatusCheckCase):
-    """Remote redaction: only a recognised host ever reaches the output."""
+    """Remotes are classified (GitHub / other host / local path), never shown."""
 
     def setUp(self):
         super().setUp()
@@ -395,61 +568,88 @@ class TestOrigin(StatusCheckCase):
         self.repo = self.make_repo("code")
         self.write_router(vault, "code")
 
-    def origin(self, script=None):
-        return next(line for line in self.run_script(script=script).splitlines()
+    def set_origin(self, remote):
+        if subprocess.run(["git", "remote", "get-url", "origin"], cwd=str(self.repo),
+                          env=self.env, capture_output=True).returncode == 0:
+            self.git(self.repo, "remote", "set-url", "origin", remote)
+        else:
+            self.git(self.repo, "remote", "add", "origin", remote)
+
+    def origin(self, *args, script=None):
+        return next(line for line in self.run_script(*args, script=script).splitlines()
                     if line.startswith("[info]") and "  origin" in line
                     ).split("origin", 1)[1].strip()
 
-    def test_origin_reports_host_without_credentials_or_path_in_all_copies(self):
-        self.git(self.repo, "remote", "add", "origin",
-                 "https://user:tok3n" + "@" + "github.com/org/private.git")
+    def test_github_remote_is_classified_without_credentials_or_path(self):
+        self.set_origin("https://user:tok3n" + "@" + "github.com/org/private.git")
         for script in SCRIPTS:
             with self.subTest(script=str(script.relative_to(ROOT))):
                 output = self.run_script(script=script)
                 self.assertNotIn("tok3n", output)
                 self.assertNotIn("private.git", output)
-                self.assertIn("present (github.com)", output)
+                self.assertNotIn("github.com/", output)
+                self.assertNotIn("(github.com)", output)
+                self.assertIn("origin: GitHub", output)
+                self.assertEqual(statuses(output)["Doc 02 - repo origin points at GitHub"],
+                                 "DONE")
 
-    def test_origin_reports_only_host_for_other_remote_formats(self):
-        remotes = [
-            ("ssh://git" + "@" + "github.com:2222/org/private.git?query#fragment", "github.com"),
-            ("git" + "@" + "github.com:org/private.git", "github.com"),
-            ("https://github.com/org/private.git?notify=someone" + "@" +
-             "elsewhere.test#fragment", "github.com"),
-        ]
-        self.git(self.repo, "remote", "add", "origin", "https://github.com/org/repo.git")
-        for remote, host in remotes:
+    def test_other_github_remote_formats_are_classified_github(self):
+        for remote in ("ssh://git" + "@" + "github.com:2222/org/private.git?query#fragment",
+                       "git" + "@" + "github.com:org/private.git",
+                       "github.com:org/private.git",
+                       "https://GitHub.com/org/private.git",
+                       "https://github.com/org/private.git?notify=someone" + "@" +
+                       "elsewhere.test#fragment"):
             with self.subTest(remote=remote):
-                self.git(self.repo, "remote", "set-url", "origin", remote)
-                self.assertEqual(self.origin(), "present (%s)" % host)
+                self.set_origin(remote)
+                self.assertEqual(self.origin(), "GitHub")
 
-    def test_origin_reports_no_remote_when_origin_is_missing(self):
-        output = self.run_script()
-        self.assertIn("no remote", output)
-        self.assertEqual(statuses(output)["Doc 02 - repo connected to GitHub"], "NOT DONE")
-
-    def test_origin_redacts_local_and_unrecognized_remotes_in_all_copies(self):
-        remotes = ["client-private.git", "client-private/backup.git", "/abs/path/repo.git",
-                   "file:///x/repo.git", "file://localhost/x/repo.git",
-                   "github.com:org/private.git"]
-        self.git(self.repo, "remote", "add", "origin", "https://github.com/org/repo.git")
-        for remote in remotes:
-            self.git(self.repo, "remote", "set-url", "origin", remote)
+    def test_private_remote_host_is_never_printed_by_default(self):
+        for remote in ("https://git.contoso-private.test/team/zeta-private.git",
+                       "git" + "@" + "git.contoso-private.test:team/zeta-private.git",
+                       "ssh://deploy" + "@" + "git.contoso-private.test:2222/zeta-private.git",
+                       "ssh://git" + "@" + "[2001:db8::1]:2222/repo.git",
+                       "git" + "@" + "[2001:db8::1]:repo.git"):
+            self.set_origin(remote)
             for script in SCRIPTS:
                 with self.subTest(remote=remote, script=str(script.relative_to(ROOT))):
                     output = self.run_script(script=script)
-                    self.assertIn("origin: present (local/unrecognized)", output)
-                    self.assertNotIn(remote, output)
+                    self.assertIn("origin: other host", output)
+                    for leak in ("contoso-private", "zeta-private", "2001:db8", "deploy"):
+                        self.assertNotIn(leak, output)
+                    self.assertEqual(
+                        statuses(output)["Doc 02 - repo origin points at GitHub"], "NOT DONE")
 
-    def test_origin_preserves_bracketed_ipv6_host(self):
-        remotes = ["ssh://git" + "@" + "[2001:db8::1]/repo.git",
-                   "ssh://git" + "@" + "[2001:db8::1]:2222/repo.git",
-                   "git" + "@" + "[2001:db8::1]:repo.git"]
-        self.git(self.repo, "remote", "add", "origin", "https://github.com/org/repo.git")
-        for remote in remotes:
-            with self.subTest(remote=remote):
-                self.git(self.repo, "remote", "set-url", "origin", remote)
-                self.assertEqual(self.origin(), "present ([2001:db8::1])")
+    def test_details_add_the_host_but_never_credentials_or_path(self):
+        self.set_origin("https://deploy:tok3n" + "@" + "git.contoso-private.test/team/zeta-private.git")
+        output = self.run_script("--details")
+        self.assertIn("other host (git.contoso-private.test)", output)
+        for leak in ("tok3n", "deploy", "zeta-private"):
+            self.assertNotIn(leak, output)
+
+    def test_origin_reports_none_when_origin_is_missing(self):
+        output = self.run_script()
+        self.assertIn("origin: none", output)
+        self.assertEqual(statuses(output)["Doc 02 - repo origin points at GitHub"], "NOT DONE")
+
+    def test_local_and_unrecognized_remotes_are_classified_not_shown(self):
+        remotes = [("client-private.git", "local path"),
+                   ("client-private/backup.git", "local path"),
+                   ("/abs/client-private/repo.git", "local path"),
+                   ("../client-private/repo.git", "local path"),
+                   ("file:///x/client-private/repo.git", "local path"),
+                   ("file://localhost/x/client-private.git", "local path"),
+                   ("C:/Users/zq/client-private.git", "local path"),
+                   ("x:client-private", "unrecognized")]
+        for remote, kind in remotes:
+            self.set_origin(remote)
+            for script in SCRIPTS:
+                with self.subTest(remote=remote, script=str(script.relative_to(ROOT))):
+                    output = self.run_script(script=script)
+                    self.assertIn("origin: %s" % kind, output)
+                    self.assertNotIn("client-private", output)
+                    self.assertEqual(
+                        statuses(output)["Doc 02 - repo origin points at GitHub"], "NOT DONE")
 
 
 @unittest.skipUnless(BASH and shutil.which("git"), "bash and git required")
@@ -467,12 +667,12 @@ class TestVerdicts(StatusCheckCase):
         output = self.run_script()  # no tools, no vault
         st = statuses(output)
         open_home = sum(1 for name in ("Doc 01 - GitHub CLI (gh) installed",
-                                       "Doc 01 - GitHub CLI signed in",
+                                       "Doc 01 - GitHub CLI credentials present",
                                        "Doc 01 - Claude Code installed",
                                        "Doc 01 - Obsidian installed",
                                        "Pre-flight - vault folder exists",
                                        "Pre-flight - vault not in a cloud-synced folder",
-                                       "Pre-flight - vault opened in Obsidian",
+                                       "Pre-flight - Obsidian config found in this folder",
                                        "Doc 01 - Git installed", "Doc 01 - jq installed",
                                        "Doc 01 - Python 3 installed")
                         if st.get(name) == "NOT DONE")
@@ -541,6 +741,35 @@ class TestVerdicts(StatusCheckCase):
                          "NOT DONE")
         self.assertIn("new notes go to INBOX", output)
 
+    @unittest.skipUnless(JQ, "jq required")
+    def test_ask_list_needs_every_rule(self):
+        self.complete_setup()
+        path = self.home / ".claude" / "settings.json"
+        for rule in DOC02_ASK:
+            with self.subTest(missing=rule):
+                settings = json.loads(path.read_text())
+                settings["permissions"]["ask"] = [r for r in DOC02_ASK if r != rule]
+                path.write_text(json.dumps(settings))
+                output = self.run_script()
+                self.assertEqual(statuses(output)["Doc 02 - ask-first rules in settings"],
+                                 "NOT DONE")
+                name = rule[len("Bash("):-len(" *)")]
+                self.assertIn("missing from permissions.ask: %s" % name, output)
+
+    @unittest.skipUnless(JQ, "jq required")
+    def test_ask_wildcards_are_not_blanket_but_allow_ones_are(self):
+        self.complete_setup()
+        path = self.home / ".claude" / "settings.json"
+        self.assertEqual(statuses(self.run_script())[
+            "Doc 02 - no blanket approvals in settings"], "DONE")
+        for rule in ("Bash(mkdir *)", "Bash(mkdir:*)", "Glob", "Grep", "Bash(cat *)"):
+            with self.subTest(allow=rule):
+                settings = json.loads(path.read_text())
+                settings["permissions"]["allow"] = DOC02_ALLOW + [rule]
+                path.write_text(json.dumps(settings))
+                self.assertEqual(statuses(self.run_script())[
+                    "Doc 02 - no blanket approvals in settings"], "NOT DONE")
+
     def test_only_a_repo_named_in_the_router_is_inspected(self):
         vault = self.make_vault(self.home / "AIAC-Vault")
         self.write_router(vault)  # names no repo
@@ -559,7 +788,7 @@ class TestVerdicts(StatusCheckCase):
         self.make_vault(self.home / "Documents" / "Other Vault")
         st = statuses(self.run_script())
         self.assertEqual(st["Pre-flight - vault folder exists"], "DONE")
-        self.assertEqual(st["Pre-flight - vault opened in Obsidian"], "NOT DONE")
+        self.assertEqual(st["Pre-flight - Obsidian config found in this folder"], "NOT DONE")
 
 
 @unittest.skipUnless(BASH and shutil.which("git"), "bash and git required")
@@ -645,14 +874,9 @@ class TestSandboxLines(StatusCheckCase):
 
     def part_3b_settings(self, stop=True):
         settings = self.write_settings()
-        settings["permissions"]["allow"] = [
-            "Bash(git status)", "Bash(git status --short)", "Bash(git diff)",
-            "Bash(git log --oneline)", "Bash(git remote -v)",
-            "Bash(ls *)", "Bash(mkdir *)", "Bash(wc *)", "Glob", "Grep"]
-        settings["permissions"]["deny"] = [
-            "Read(~/.ssh/**)", "Read(~/.aws/**)", "Read(~/.gnupg/**)",
-            "Read(~/.config/gh/**)", "Read(~/Library/Keychains/**)",
-            "Read(**/.env)", "Read(**/*.pem)", "Read(**/*.key)"]
+        settings["permissions"]["allow"] = list(DOC02_ALLOW)
+        settings["permissions"]["ask"] = list(DOC02_ASK)
+        settings["permissions"]["deny"] = list(DOC02S_DENY)
         if stop:
             settings["hooks"]["Stop"] = [{"hooks": [{"type": "command", "command": "true"}]}]
         return settings
@@ -684,6 +908,38 @@ class TestSandboxLines(StatusCheckCase):
                                ("interpreter", interpreter), ("empty Stop", empty_stop)):
             with self.subTest(case=name):
                 self.assertEqual(self.global_status(settings), "NOT DONE")
+
+    @unittest.skipUnless(JQ, "jq required")
+    def test_part_3b_needs_every_deny_rule(self):
+        # Each canonical rule missing on its own must fail hardening, and the
+        # detail line names the missing entry with a fixed label.
+        labels = ["~/.ssh", "~/.aws", "~/.gnupg", "~/.config/gh",
+                  "~/Library/Keychains", ".env files", "*.pem files", "*.key files"]
+        for rule, label in zip(DOC02S_DENY, labels):
+            with self.subTest(missing=rule):
+                settings = self.part_3b_settings()
+                settings["permissions"]["deny"] = [r for r in DOC02S_DENY if r != rule]
+                write(self.home / ".claude" / "settings.json", json.dumps(settings))
+                output = self.run_script("--sandbox")
+                self.assertEqual(statuses(output)[
+                    "Doc 02-S - hardened global settings (Part 3b)"], "NOT DONE")
+                self.assertIn("deny list incomplete - missing: %s" % label, output)
+
+    @unittest.skipUnless(JQ, "jq required")
+    def test_part_3b_relative_file_rules_do_not_count(self):
+        # **/x only covers the folder Claude starts in; 02-S anchors them at ~.
+        for rule in ("Read(~/**/.env)", "Read(~/**/*.pem)", "Read(~/**/*.key)"):
+            with self.subTest(rule=rule):
+                settings = self.part_3b_settings()
+                settings["permissions"]["deny"] = [
+                    r.replace("~/**/", "**/") if r == rule else r for r in DOC02S_DENY]
+                self.assertEqual(self.global_status(settings), "NOT DONE")
+
+    @unittest.skipUnless(JQ, "jq required")
+    def test_part_3b_extra_deny_rules_are_fine(self):
+        settings = self.part_3b_settings()
+        settings["permissions"]["deny"] = ["Read(~/Private/**)"] + DOC02S_DENY
+        self.assertEqual(self.global_status(settings), "DONE")
 
 
 @unittest.skipUnless(BASH and shutil.which("git"), "bash and git required")
@@ -744,7 +1000,7 @@ class TestPlatforms(StatusCheckCase):
         st = statuses(output)
         self.assertEqual(st["Doc 01 - Obsidian installed"], "DONE")
         self.assertEqual(st["Pre-flight - vault folder exists"], "DONE")
-        self.assertEqual(st["Pre-flight - vault opened in Obsidian"], "DONE")
+        self.assertEqual(st["Pre-flight - Obsidian config found in this folder"], "DONE")
 
 
 if __name__ == "__main__":
