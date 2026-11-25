@@ -18,20 +18,31 @@ English and the Spanish kit.
   website name only, never a username or token.
 - **Setup grants far fewer standing permissions.** Claude is pre-approved
   only for a short list of read-only commands (such as `git status` and
-  `git diff`). It now asks every time before it adds or commits files,
-  publishes anything, prints a file through the shell, or runs a script.
-  Settings are merged into what the participant already has, never
-  overwritten.
+  `git diff`), with no lasting write permission. Explicit `ask` rules make
+  it ask every time before it adds or commits files, publishes anything, or
+  prints a file through the shell (`cat`, `head`, `tail`, `grep`), and it
+  asks before running a script. The docs now say plainly which read-only
+  commands Claude Code runs without asking.
+- **Settings are merged locally, without showing them.** A small script
+  merges the kit's entries into the participant's existing
+  `~/.claude/settings.json`, keeps every key and rule already there, and
+  prints only what it added and the names of keys it left alone, never
+  their values (the file can hold API keys).
 - **Safer first upload to GitHub.** Sign-in happens in the browser (or
-  through the Git Credential Manager on Windows), with no long-lived access
-  tokens. Before the first upload, Claude confirms with the participant who
-  owns the repository, that it is **Private**, and exactly which files are
-  going up.
+  through the Git Credential Manager on Windows), with no token to create or
+  paste (`gh` and the credential manager store their own). The repository
+  starts in a new, empty folder. Any error while creating or connecting it
+  stops the setup. Before the first upload, Claude checks the address git
+  will really push to, confirms with the participant who owns the
+  repository and that it is **Private**, and shows exactly which files and
+  commits are going up.
 - **Removed a meeting-notes shortcut** that read a login token from another
   app's files and depended on an unofficial connection.
 - **The opt-in sandbox (Doc 02-S) is described honestly.** It says what the
   sandbox does and does not cover. Its self-test uses made-up files in a
-  temporary folder, never a real key.
+  temporary folder, never a real key. Its credential deny rules are anchored
+  to the home folder, so they cover the self-test's files too, and the
+  complete list sits in one place.
 - **New `SECURITY.md`** explains how to report a security or privacy problem
   privately.
 - **The private-data gate is stricter** (shipped as its own change, merged
@@ -48,8 +59,11 @@ English and the Spanish kit.
   because terminals (the Windows one especially) can cut a long paste short.
 - **The starter skills moved to
   [`AI-Acceleration/cc-starter-pack`](https://github.com/AI-Acceleration/cc-starter-pack)**
-  and are pinned to version **v1.0.0**, so every participant installs the
-  same reviewed files.
+  and are pinned to version **v1.0.0**, so every fresh install gets the same
+  reviewed files (a skill the participant already has under the same name is
+  skipped and keeps their version). The installer runs only after a
+  successful clone, or after checking that an existing copy is the official
+  `v1.0.0` with no changes.
 - **Doc 01 ends with a required pre-flight.** Claude creates the vault
   (never in OneDrive, Dropbox, Google Drive or iCloud), has the participant
   open it in Obsidian with "Open folder as vault", checks every tool, and
@@ -76,15 +90,18 @@ English and the Spanish kit.
   kit is, who it is for, what it costs and how long it takes, with links for
   facilitators and participants.
 - **Status check v2.0** works on macOS, Windows (Git Bash or WSL) and Linux,
-  warns when the vault sits in a cloud-synced folder, checks that Obsidian
-  opened the same folder Claude uses, and only shows the sandbox checks when
-  a sandbox is set up.
+  warns when the vault sits in a cloud-synced folder, checks that Obsidian's
+  config folder is in the vault Claude uses, checks the ask-first rules and the
+  complete sandbox deny list, and only shows the sandbox checks when a
+  sandbox is set up. Its labels say only what it can see on the machine (for
+  example "repo origin points at GitHub"), and it lists what it cannot check
+  from there, such as whether the repository exists on GitHub and is Private.
 
 ### Added
 
 - **Doc 06 — Pro Plan Survival Kit:** how usage limits work and how to make
   the Pro plan last.
-- **Doc 07 — Vocabulary:** every term in the kit on one page.
+- **Doc 07 — Vocabulary:** the main terms of the kit on one page.
 - A note that the method is not tied to one AI tool: the notes and habits
   are plain files that carry over if you switch tools.
 

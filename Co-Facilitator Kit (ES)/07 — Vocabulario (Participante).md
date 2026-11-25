@@ -32,7 +32,7 @@ Antes de los términos sueltos, aquí va la foto completa. Todo lo que vamos a u
 
 ---
 
-## Glosario: los términos, uno por uno
+## Glosario: los términos principales, uno por uno
 
 ### Trabajar con Claude
 
@@ -73,6 +73,8 @@ Antes de los términos sueltos, aquí va la foto completa. Todo lo que vamos a u
 | **Terminal** (o consola) | La ventana donde escribes comandos en texto, en vez de hacer clic. En Mac, «Terminal»; en Windows, Git Bash o PowerShell. |
 | **Shell** | El programa que interpreta lo que escribes en la terminal (bash, zsh y PowerShell son shells). «Terminal» y «shell» se usan casi como sinónimos. |
 | **CLI** | *Command-Line Interface*: una herramienta que se usa escribiendo comandos en la terminal. Claude Code es una CLI, y `gh` también. |
+| **PATH** | La lista de carpetas donde la terminal busca los programas. Si una herramienta recién instalada da «command not found», casi siempre su carpeta todavía no está en el PATH: cierra y vuelve a abrir la terminal, o sigue el paso de PATH del instalador. |
+| **`jq`** | Una herramienta pequeña de terminal para leer archivos JSON. La barra de contexto de tu statusline la usa. Viene incluida en macOS reciente; en Windows y Linux la instalas una vez. |
 | **Repo** (repositorio) | Una carpeta de **código** con historial de Git. Vive en `~/dev/`, **fuera** del vault; el brief del proyecto, en el vault, apunta a él. Vault = conocimiento; repo = código. |
 | **Git** | El sistema que guarda el historial de cambios de tu código: un «deshacer» infinito. |
 | **GitHub** | El servicio en la nube donde se respaldan y se comparten los repos de Git. Tus repos ahí son **privados** (*Private*) salvo que tú decidas otra cosa. |
@@ -81,4 +83,4 @@ Antes de los términos sueltos, aquí va la foto completa. Todo lo que vamos a u
 | **push** | Subir tus commits a GitHub. **pull** es lo contrario: bajar a tu computadora los cambios de la nube. |
 | **branch** (rama) / **PR** | Una *branch* es una línea de trabajo paralela, y un *PR* (*pull request*) propone juntar esa rama con la principal. En la Fase 0 casi no los tocamos; están aquí para que las palabras no te suenen raras. |
 
-> Eso es todo. Si alguno no te quedó claro, no importa: lo vemos en vivo.
+> Esos son los términos principales, no todas las palabras que vas a encontrar. Si alguno no te quedó claro, no importa: lo vemos en vivo.

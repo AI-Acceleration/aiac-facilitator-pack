@@ -175,11 +175,11 @@ Full inventory, in case you need to audit, replicate or troubleshoot later.
 | Path | What it is | Edit when... |
 |------|-----------|--------------|
 | `~/.claude/CLAUDE.md` | Global router + your profile | Your vault moves, your role changes, you want to add global defaults |
-| `~/.claude/settings.json` | Permissions (a short list of pre-approved, read-mostly commands), hooks (session-end sound, context warnings), auto-compact at 75%, status bar | You want Claude to ask less often for a specific safe command, or to change a hook |
+| `~/.claude/settings.json` | Permissions (a short list of pre-approved read-only commands, plus `ask` rules for printing files, committing and publishing), hooks (session-end sound, context warnings), auto-compact at 75%, status bar | You want Claude to ask less often for a specific safe command, or to change a hook |
 | `~/.claude/statusline.sh` and `~/.claude/hooks/` | The context bar and the 50% / pre-compact warnings | Rarely |
 | `~/.claude/skills/` | Your starter skills (`/session-close`, `/project-create`, …) | You add or update skills |
 
-> **Permissions are deliberately narrow.** Setup never pre-approves blanket commands (all of `git`, `cat`, Python, …). Claude asks before pushing, deleting or running scripts, and that's your safety net. When you add a permission, add one specific command, never a wildcard.
+> **Permissions are deliberately narrow.** Setup never pre-approves blanket commands (all of `git`, Python, …) or anything that writes. Claude asks before committing, pushing, deleting or running scripts, and the `ask` rules make `cat`, `head`, `tail`, `grep`, `git add`, `git commit`, `git push` and `gh repo create` ask every time — that's your safety net. When you add a permission, add one specific command, never a wildcard, and never move a rule out of `ask`. The settings file can hold keys: change it in a text editor yourself rather than asking Claude to print it.
 
 **Vault files created:**
 

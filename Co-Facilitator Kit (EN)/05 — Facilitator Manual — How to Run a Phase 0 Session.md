@@ -147,7 +147,7 @@ The participant must arrive with **one concrete project**: an input they can bri
 
 - Tell them to run **the exact filename they received**, for example `bash ~/Downloads/aiac-status-check.sh.txt` (Claude can run it for them; Doc 01 has the prompt).
 - Ask them to share **only** the block between `----- AIAC STATUS (safe to share) -----` and `----- END -----`. It holds check names, `DONE` / `NOT DONE` / `SKIPPED (optional)`, the OS and an overall verdict. **Never ask for the details above it**, and never ask for `--details` output: that part is for the participant's own eyes.
-- The first `NOT DONE` is the resume point. `SKIPPED (optional)` is not homework. Before the session, a complete setup reads `VERDICT: PRE-SESSION - homework complete, ready for the session`; after it, `VERDICT: PHASE 0 SETUP COMPLETE - …`. The script only reports "repo connected to GitHub": you still verify the repo on the server yourself (Gate 6).
+- The first `NOT DONE` is the resume point. `SKIPPED (optional)` is not homework. Before the session, a complete setup reads `VERDICT: PRE-SESSION - homework complete, ready for the session`; after it, `VERDICT: PHASE 0 SETUP COMPLETE - …`. The script reports only what it can see on the machine — for example "GitHub CLI credentials present", "Obsidian config found in this folder", "repo origin points at GitHub" — and its "NOT CHECKED HERE" list names what it cannot prove: that the `gh` credentials still work (`gh auth status`), that Obsidian has this exact folder open, and that the repo exists on GitHub, is Private and holds the commit. You verify those yourself: the folder on their shared screen, and the repo server-side (Gate 6).
 - If the participant has already set up the 02-S sandbox, they run it in a plain terminal rather than inside Claude Code, where sandboxed commands can't see `~/.claude`.
 
 ### 8. Recording: optional, with consent
@@ -551,9 +551,15 @@ GitHub is the step that keeps passing in the room and failing on disk. `git remo
 
 **PASS** = `nameWithOwner` is their repo, `visibility` is **`PRIVATE`**, and the commit SHA from GitHub matches the first 7 characters of the local `git log` line. A `gh` error, an empty answer, a public repo or a mismatched SHA is a **FAIL**, whatever the terminal showed ten minutes ago.
 
-**Without `gh`.** The participant asks Claude to run `git ls-remote origin HEAD` and `git rev-parse --short HEAD`: the first asks GitHub for its latest commit, and its first 7 characters must match the second. Then they open the repo page in the browser while sharing their screen, and you confirm the **Private** label next to the repository name.
+**Without `gh`.** The participant asks Claude to run `git remote get-url --push --all origin`, `git ls-remote origin HEAD` and `git rev-parse --short HEAD`. The first must print exactly one line, `https://github.com/<owner>/<repo>.git` (or the same address in GitHub's SSH form), with their owner and repo name; the second asks GitHub for its latest commit, and its first 7 characters must match the third. Then they open the repo page in the browser while sharing their screen, and you confirm the **Private** label next to the repository name.
 
-**Facilitator-owned variant.** You run, on your own machine, `gh api repos/<owner>/<repo>/collaborators --jq '.[].login'`. PASS = their username is listed. A **pending invitation is a FAIL**: have them accept it now at `https://github.com/<owner>/<repo>/invitations`.
+**Facilitator-owned variant.** Membership alone proves nothing about privacy or the push, so you run all three checks on your own machine:
+
+1. `gh api repos/<owner>/<repo>/collaborators --jq '.[].login'` — their username is listed. A **pending invitation is a FAIL**: have them accept it now at `https://github.com/<owner>/<repo>/invitations`.
+2. `gh repo view <owner>/<repo> --json nameWithOwner,visibility` — `visibility` is **`PRIVATE`**.
+3. `gh api repos/<owner>/<repo>/commits --jq '.[0].sha[0:7]'` — matches the first 7 characters of the `git log --oneline -1` line that the participant's Claude shows on their screen.
+
+PASS = all three. Any one missing is a **FAIL**.
 
 **If the repo turns out public**, fix it before anything else: on GitHub, Settings → General → Danger Zone → Change visibility → Private. Then check what was pushed.
 

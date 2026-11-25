@@ -7,7 +7,7 @@ lang: es
 translated_from: "01 — Pre-Session Setup Instructions (Participant).md"
 ---
 
-**Aplica a:** Antes de la sesión. Empieza unos días antes, no la noche anterior, y termina cada paso, incluido el **pre-vuelo** del final, antes de la fecha límite que te dé tu facilitador.
+**Aplica a:** Antes de la sesión. Lo recibes más o menos una semana antes: empieza lo antes que puedas, no la noche anterior, y termina cada paso, incluido el **pre-vuelo** del final, antes de la fecha límite que te dé tu facilitador.
 
 # Configuración Pre-Sesión — AI Acceleration Club Fase 0
 
@@ -292,7 +292,7 @@ Corre python3 --version (en Windows: py --version). Dime LISTO si es la versión
 
 ## Paso 7 — jq (chiquito, pero la sesión depende de él)
 
-Ni macOS ni Windows traen `jq`, y Git para Windows tampoco lo incluye, así que instálalo ahora.
+macOS 15 y posteriores ya traen `jq`; los macOS más viejos y Windows no, y Git para Windows tampoco lo incluye. Revisa con `jq --version` e instálalo ahora si falta.
 
 **Mac:**
 
