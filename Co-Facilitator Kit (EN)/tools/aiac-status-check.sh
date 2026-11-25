@@ -499,6 +499,21 @@ if [ "$PRE_SESSION" = "1" ]; then
   printf '%s %s\n'   "      " "marked [sess] are not things you missed - they are the session agenda."
 fi
 
+# Broad, lasting approvals the kit never grants. Any git rule with a wildcard
+# counts (git options can write files, run programs or plant hooks); the five
+# exact read-only git rules and "ls *", "mkdir *", "wc *" are fine.
+BROAD_FILTER='
+  [ ((.permissions.allow // []) | if type == "array" then .[] else empty end
+      | select(type == "string")
+      | select(. == "Bash" or . == "Bash(*)" or . == "Bash(:*)" or
+               . == "Read" or . == "Write" or . == "Edit" or
+               (test("^Bash\\(git[ :)]") and test("[*]")) or
+               test("^Bash\\((cat|head|gws)( \\*|:\\*|\\*)\\)$") or
+               test("^Bash\\((python3?|py|node|npx|pip3?|ruby|perl|deno|bun|bash|sh|zsh|pwsh|powershell)(\\.exe)?([ :].*)?\\)$"))),
+    (if .permissions.defaultMode == "bypassPermissions" then "defaultMode: bypassPermissions" else empty end),
+    (if ([.. | objects | has("additionalDirectories")] | any) then "additionalDirectories" else empty end)
+  ] | .[]'
+
 # ---------------------------------------------------------------------------
 # Sandbox (Doc 02-S) - opt-in. Shown only when a sandbox config exists or when
 # you pass --sandbox.
@@ -511,6 +526,9 @@ SANDBOX=0
 if [ "$HAS_VAULT" = "1" ] && [ -f "$VS" ] && grep -q '"sandbox"' "$VS" 2>/dev/null; then SANDBOX=1; fi
 grep -q '"sandbox"' "$GS" 2>/dev/null && SANDBOX=1
 
+# Doc 02-S Part 3b: the Doc 02 allow list plus the targeted deny list. The
+# Stop (sound) hook is optional - 02-S says to delete it if unsure - but an
+# empty Stop block fails on every turn, so a present one must hold a hook.
 valid_global_security() {
   jtest "$1" '
     type == "object" and
@@ -518,28 +536,32 @@ valid_global_security() {
     (.permissions.allow | type == "array") and
     (.permissions.deny | type == "array") and
     any(.permissions.deny[]; type == "string" and . == "Read(~/.ssh/**)") and
-    all(.permissions.allow[]; type == "string" and (test("python|node|\\bpy\\b") | not)) and
-    ([.. | objects | has("additionalDirectories")] | any | not) and
-    (.hooks | type == "object" and length > 0)
+    all(.permissions.allow[]; type == "string") and
+    ([ '"$BROAD_FILTER"' ] | length == 0) and
+    ((.hooks.Stop // null) as $stop |
+      $stop == null or ($stop | type == "array" and length > 0 and
+        all(.[]; (.hooks | type == "array" and length > 0))))
   '
 }
 
+# Doc 02-S Part 3a: deny reads of the whole home folder, re-allow only the
+# vault (".") and ~/.claude; write nothing extra. Part 3c option B may add one
+# named repo, ~/dev/<repo-name>, to allowRead and allowWrite. Nothing broader.
 valid_project_security() {
   jtest "$1" '
     .sandbox.enabled == true and
     .sandbox.failIfUnavailable == true and
     .sandbox.allowUnsandboxedCommands == false and
     (.sandbox.filesystem.denyRead | type == "array" and
-      any(.[]; type == "string" and . == "~/.ssh/**")) and
+      any(.[]; type == "string" and (. == "~/" or . == "~" or . == "~/**"))) and
     (.sandbox.filesystem.allowRead | type == "array" and
       all(.[]; type == "string") and
-      any(.[]; . == "~/.claude/**") and
-      all(.[]; . != "/" and . != "/**" and . != "**" and
-        . != "~" and . != "~/**" and . != "$HOME/**")) and
+      any(.[]; . == "." or . == "./") and
+      any(.[]; . == "~/.claude" or . == "~/.claude/" or . == "~/.claude/**") and
+      all(.[]; test("^([.]/?|~/[.]claude(/|/[*][*])?|~/dev/[^/*]+(/|/[*][*])?)$"))) and
     ((.sandbox.filesystem.allowWrite // []) | type == "array" and
       all(.[]; type == "string") and
-      all(.[]; . != "/" and . != "/**" and . != "**" and
-        . != "~" and . != "~/**" and . != "$HOME/**")) and
+      all(.[]; test("^([.]/?|~/dev/[^/*]+(/|/[*][*])?)$"))) and
     (.sandbox.network.allowedDomains | type == "array" and
       all(.[]; type == "string" and . != "*")) and
     ([.. | objects | has("additionalDirectories")] | any | not)
@@ -549,22 +571,22 @@ valid_project_security() {
 if [ "$SANDBOX" = "1" ]; then
   head1 "OPT-IN SANDBOX  (Doc 02-S)"
   if valid_global_security "$GS"; then
-    check sbxh done "Doc 02-S - hardened global settings (Part 2b)" "credential deny list, hooks, no interpreter approvals"
+    check sbxh done "Doc 02-S - hardened global settings (Part 3b)" "credential deny list, no blanket approvals"
   elif ! have jq; then
-    check sbxh notdone "Doc 02-S - hardened global settings (Part 2b)" "cannot check without jq"
+    check sbxh notdone "Doc 02-S - hardened global settings (Part 3b)" "cannot check without jq"
   else
-    check sbxh notdone "Doc 02-S - hardened global settings (Part 2b)" "needs Read(~/.ssh/**) in permissions.deny, a hooks block, no python/node approvals, no additionalDirectories"
+    check sbxh notdone "Doc 02-S - hardened global settings (Part 3b)" "needs Read(~/.ssh/**) in permissions.deny, no blanket or interpreter approvals, no additionalDirectories"
   fi
   if [ "$HAS_VAULT" = "1" ] && valid_project_security "$VS"; then
-    check sbxs done "Doc 02-S - sandbox config in the vault (Part 2a)" ""
+    check sbxs done "Doc 02-S - sandbox config in the vault (Part 3a)" ""
   elif [ "$HAS_VAULT" = "0" ]; then
-    check sbxs notdone "Doc 02-S - sandbox config in the vault (Part 2a)" "no vault yet - created in the session"
+    check sbxs notdone "Doc 02-S - sandbox config in the vault (Part 3a)" "no vault yet - created in the session"
   elif [ ! -f "$VS" ]; then
-    check sbxs notdone "Doc 02-S - sandbox config in the vault (Part 2a)" "missing: <vault>/.claude/settings.json"
+    check sbxs notdone "Doc 02-S - sandbox config in the vault (Part 3a)" "missing: <vault>/.claude/settings.json"
   elif ! have jq; then
-    check sbxs notdone "Doc 02-S - sandbox config in the vault (Part 2a)" "cannot check without jq"
+    check sbxs notdone "Doc 02-S - sandbox config in the vault (Part 3a)" "cannot check without jq"
   else
-    check sbxs notdone "Doc 02-S - sandbox config in the vault (Part 2a)" "present but not the strict 02-S values"
+    check sbxs notdone "Doc 02-S - sandbox config in the vault (Part 3a)" "present but not the 02-S Part 3a values"
   fi
   if [ "$HAS_VAULT" = "1" ] && json_valid "$VS"; then
     for k in enabled failIfUnavailable allowUnsandboxedCommands; do
@@ -595,18 +617,6 @@ else
   check sess notdone "Doc 02 - global settings file is valid" "MALFORMED JSON - none of its settings load"
 fi
 
-# Broad, lasting approvals the kit never grants.
-BROAD_FILTER='
-  [ ((.permissions.allow // []) | if type == "array" then .[] else empty end
-      | select(type == "string")
-      | select(. == "Bash" or . == "Bash(*)" or . == "Bash(:*)" or
-               . == "Read" or . == "Write" or . == "Edit" or
-               test("^Bash\\((git|cat|head|gws)( \\*|:\\*|\\*)\\)$") or
-               test("^Bash\\(git remote( \\*|:\\*)\\)$") or
-               test("^Bash\\((python3?|py|node|npx|pip3?|ruby|perl|deno|bun|bash|sh|zsh|pwsh|powershell)(\\.exe)?([ :].*)?\\)$"))),
-    (if .permissions.defaultMode == "bypassPermissions" then "defaultMode: bypassPermissions" else empty end),
-    (if ([.. | objects | has("additionalDirectories")] | any) then "additionalDirectories" else empty end)
-  ] | .[]'
 if json_valid "$GS"; then
   broad=$(jq -r "$BROAD_FILTER" "$GS" 2>/dev/null)
   if [ -z "$broad" ]; then
@@ -850,7 +860,7 @@ plugin_ready() {
 }
 
 missing_plugins=""
-for p in superpowers playground; do
+for p in compound-engineering superpowers playground; do
   if plugin_ready "$p"; then
     info "  plugin $p" "installed and enabled"
   else
@@ -859,11 +869,11 @@ for p in superpowers playground; do
   fi
 done
 if [ -z "$missing_plugins" ]; then
-  check sess done "Doc 03 - plugins (superpowers, playground)" ""
+  check sess done "Doc 03 - plugins (compound-engineering, superpowers, playground)" ""
 elif ! have jq; then
-  check sess notdone "Doc 03 - plugins (superpowers, playground)" "cannot check without jq"
+  check sess notdone "Doc 03 - plugins (compound-engineering, superpowers, playground)" "cannot check without jq"
 else
-  check sess notdone "Doc 03 - plugins (superpowers, playground)" "missing: $missing_plugins (verify with: claude plugin list)"
+  check sess notdone "Doc 03 - plugins (compound-engineering, superpowers, playground)" "missing: $missing_plugins (verify with: claude plugin list)"
 fi
 
 if [ "$HAS_VAULT" = "1" ] && [ -f "$VAULT/05 AI/CLAUDE CODE/resources/lessons.md" ]; then

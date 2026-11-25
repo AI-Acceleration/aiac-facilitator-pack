@@ -50,8 +50,8 @@ CHECK_NAMES = {
     "Pre-flight - vault folder exists",
     "Pre-flight - vault not in a cloud-synced folder",
     "Pre-flight - vault opened in Obsidian",
-    "Doc 02-S - hardened global settings (Part 2b)",
-    "Doc 02-S - sandbox config in the vault (Part 2a)",
+    "Doc 02-S - hardened global settings (Part 3b)",
+    "Doc 02-S - sandbox config in the vault (Part 3a)",
     "Doc 02 - global settings file is valid",
     "Doc 02 - no blanket approvals in settings",
     "Doc 02 - global router points at the vault",
@@ -67,13 +67,13 @@ CHECK_NAMES = {
     "Doc 02 - repo has a first commit",
     "Doc 02 - repo connected to GitHub",
     "Doc 03 - starter skills (all 6)",
-    "Doc 03 - plugins (superpowers, playground)",
+    "Doc 03 - plugins (compound-engineering, superpowers, playground)",
     "Doc 03 - lessons.md",
 }
 OPTIONAL = {"Doc 01 - Ghostty terminal",
             "Doc 01 - Granola or other transcription tool"}
-SANDBOX_NAMES = {"Doc 02-S - hardened global settings (Part 2b)",
-                 "Doc 02-S - sandbox config in the vault (Part 2a)"}
+SANDBOX_NAMES = {"Doc 02-S - hardened global settings (Part 3b)",
+                 "Doc 02-S - sandbox config in the vault (Part 3a)"}
 STATUSES = ("DONE", "NOT DONE", "SKIPPED (optional)")
 FIXED_LINES = re.compile(
     r"^(Status check: v\d+(\.\d+)*"
@@ -237,8 +237,10 @@ class StatusCheckCase(unittest.TestCase):
             write(self.home / ".claude" / "skills" / skill / "SKILL.md", "---\nname: x\n---\n")
         plugins = {}
         enabled = {}
-        for plugin in ("superpowers", "playground"):
-            key = plugin + "@claude-plugins-official"
+        for plugin, market in (("compound-engineering", "compound-engineering-plugin"),
+                               ("superpowers", "claude-plugins-official"),
+                               ("playground", "claude-plugins-official")):
+            key = plugin + "@" + market
             install = self.home / ".claude" / "plugins" / "cache" / plugin
             install.mkdir(parents=True)
             plugins[key] = [{"installPath": str(install), "version": "1.0.0"}]
@@ -371,12 +373,14 @@ class TestPrivacy(StatusCheckCase):
         self.write_router(vault)
         settings = self.write_settings()
         settings["permissions"]["allow"] += ["Bash(git *)", "Bash(python3 *)",
-                                             "Bash(cat *)", "Bash(git remote *)"]
+                                             "Bash(cat *)", "Bash(git remote *)",
+                                             "Bash(git diff *)", "Bash(git log:*)",
+                                             "Bash(git add *)"]
         write(self.home / ".claude" / "settings.json", json.dumps(settings))
         output = self.run_script()
         self.assertEqual(statuses(output)["Doc 02 - no blanket approvals in settings"],
                          "NOT DONE")
-        self.assertIn("4 broad rule(s) found", output)
+        self.assertIn("7 broad rule(s) found", output)
         self.assertNotIn("Bash(git *)", output)
         self.assertIn("broad rule: Bash(git *)", self.run_script("--details"))
 
@@ -506,7 +510,17 @@ class TestVerdicts(StatusCheckCase):
          / "plugins" / "playground").mkdir(parents=True)
         st = statuses(self.run_script())
         self.assertEqual(st["Doc 03 - starter skills (all 6)"], "NOT DONE")
-        self.assertEqual(st["Doc 03 - plugins (superpowers, playground)"], "NOT DONE")
+        self.assertEqual(st["Doc 03 - plugins (compound-engineering, superpowers, playground)"], "NOT DONE")
+
+    @unittest.skipUnless(JQ, "jq required")
+    def test_compound_engineering_plugin_is_required(self):
+        self.complete_setup()
+        settings = json.loads((self.home / ".claude" / "settings.json").read_text())
+        settings["enabledPlugins"]["compound-engineering@compound-engineering-plugin"] = False
+        write(self.home / ".claude" / "settings.json", json.dumps(settings))
+        st = statuses(self.run_script())
+        self.assertEqual(
+            st["Doc 03 - plugins (compound-engineering, superpowers, playground)"], "NOT DONE")
 
     @unittest.skipUnless(JQ, "jq required")
     def test_disabled_plugin_does_not_count(self):
@@ -516,7 +530,7 @@ class TestVerdicts(StatusCheckCase):
         settings["enabledPlugins"]["playground@claude-plugins-official"] = False
         path.write_text(json.dumps(settings))
         st = statuses(self.run_script())
-        self.assertEqual(st["Doc 03 - plugins (superpowers, playground)"], "NOT DONE")
+        self.assertEqual(st["Doc 03 - plugins (compound-engineering, superpowers, playground)"], "NOT DONE")
 
     @unittest.skipUnless(JQ, "jq required")
     def test_obsidian_settings_checked_by_value(self):
@@ -592,15 +606,84 @@ class TestSandboxLines(StatusCheckCase):
         write(self.vault / ".claude" / "settings.json", json.dumps({"sandbox": {"enabled": True}}))
         self.assertEqual(SANDBOX_NAMES & set(statuses(self.run_script())), SANDBOX_NAMES)
 
-    @unittest.skipUnless(JQ, "jq required")
-    def test_strict_sandbox_config_is_done(self):
+    def write_sandbox(self, **filesystem):
+        fs = {"denyRead": ["~/"], "allowRead": [".", "~/.claude"], "allowWrite": []}
+        fs.update(filesystem)
         write(self.vault / ".claude" / "settings.json", json.dumps({"sandbox": {
             "enabled": True, "failIfUnavailable": True, "allowUnsandboxedCommands": False,
-            "filesystem": {"denyRead": ["~/.ssh/**"], "allowRead": ["~/.claude/**"],
-                           "allowWrite": []},
-            "network": {"allowedDomains": ["github.com"]}}}))
-        st = statuses(self.run_script())
-        self.assertEqual(st["Doc 02-S - sandbox config in the vault (Part 2a)"], "DONE")
+            "filesystem": fs,
+            "network": {"allowedDomains": ["github.com", "api.github.com",
+                                           "codeload.github.com", "registry.npmjs.org",
+                                           "pypi.org", "files.pythonhosted.org"]}}}))
+
+    def sandbox_status(self):
+        return statuses(self.run_script())["Doc 02-S - sandbox config in the vault (Part 3a)"]
+
+    @unittest.skipUnless(JQ, "jq required")
+    def test_part_3a_config_is_done(self):
+        self.write_sandbox()
+        self.assertEqual(self.sandbox_status(), "DONE")
+
+    @unittest.skipUnless(JQ, "jq required")
+    def test_part_3c_option_b_named_repo_is_done(self):
+        self.write_sandbox(allowRead=[".", "~/.claude", "~/dev/client-zeta"],
+                           allowWrite=["~/dev/client-zeta"])
+        self.assertEqual(self.sandbox_status(), "DONE")
+
+    @unittest.skipUnless(JQ, "jq required")
+    def test_broad_or_weak_sandbox_configs_are_not_done(self):
+        for fs in ({"denyRead": ["~/.ssh/**"]},
+                   {"allowRead": [".", "~/.claude", "~"]},
+                   {"allowRead": [".", "~/.claude", "~/dev"]},
+                   {"allowRead": [".", "~/.claude", "~/Documents/**"]},
+                   {"allowRead": ["."]},
+                   {"allowWrite": ["~/"]},
+                   {"allowWrite": ["~/dev/**"]}):
+            with self.subTest(fs=fs):
+                self.write_sandbox(**fs)
+                self.assertEqual(self.sandbox_status(), "NOT DONE")
+
+    def part_3b_settings(self, stop=True):
+        settings = self.write_settings()
+        settings["permissions"]["allow"] = [
+            "Bash(git status)", "Bash(git status --short)", "Bash(git diff)",
+            "Bash(git log --oneline)", "Bash(git remote -v)",
+            "Bash(ls *)", "Bash(mkdir *)", "Bash(wc *)", "Glob", "Grep"]
+        settings["permissions"]["deny"] = [
+            "Read(~/.ssh/**)", "Read(~/.aws/**)", "Read(~/.gnupg/**)",
+            "Read(~/.config/gh/**)", "Read(~/Library/Keychains/**)",
+            "Read(**/.env)", "Read(**/*.pem)", "Read(**/*.key)"]
+        if stop:
+            settings["hooks"]["Stop"] = [{"hooks": [{"type": "command", "command": "true"}]}]
+        return settings
+
+    def global_status(self, settings):
+        write(self.home / ".claude" / "settings.json", json.dumps(settings))
+        return statuses(self.run_script("--sandbox"))[
+            "Doc 02-S - hardened global settings (Part 3b)"]
+
+    @unittest.skipUnless(JQ, "jq required")
+    def test_part_3b_global_settings_are_done(self):
+        self.assertEqual(self.global_status(self.part_3b_settings()), "DONE")
+        # 02-S says to delete the sound hook if unsure: still DONE without it.
+        self.assertEqual(self.global_status(self.part_3b_settings(stop=False)), "DONE")
+        st = statuses(self.run_script("--sandbox"))
+        self.assertEqual(st["Doc 02 - no blanket approvals in settings"], "DONE")
+
+    @unittest.skipUnless(JQ, "jq required")
+    def test_part_3b_rejects_missing_deny_blanket_rules_and_empty_stop(self):
+        missing_deny = self.part_3b_settings()
+        missing_deny["permissions"]["deny"] = []
+        blanket = self.part_3b_settings()
+        blanket["permissions"]["allow"].append("Bash(git log *)")
+        interpreter = self.part_3b_settings()
+        interpreter["permissions"]["allow"].append("Bash(python3 *)")
+        empty_stop = self.part_3b_settings()
+        empty_stop["hooks"]["Stop"] = []
+        for name, settings in (("missing deny", missing_deny), ("blanket git", blanket),
+                               ("interpreter", interpreter), ("empty Stop", empty_stop)):
+            with self.subTest(case=name):
+                self.assertEqual(self.global_status(settings), "NOT DONE")
 
 
 @unittest.skipUnless(BASH and shutil.which("git"), "bash and git required")

@@ -211,7 +211,7 @@ Pick one before the session:
   ```json
   "filesystem": {
     "denyRead": ["~/"],
-    "allowRead": [".", "~/dev/<repo-name>"],
+    "allowRead": [".", "~/.claude", "~/dev/<repo-name>"],
     "allowWrite": ["~/dev/<repo-name>"]
   }
   ```

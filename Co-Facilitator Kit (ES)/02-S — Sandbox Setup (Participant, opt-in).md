@@ -213,7 +213,7 @@ Escoge una antes de la sesión:
   ```json
   "filesystem": {
     "denyRead": ["~/"],
-    "allowRead": [".", "~/dev/<repo-name>"],
+    "allowRead": [".", "~/.claude", "~/dev/<repo-name>"],
     "allowWrite": ["~/dev/<repo-name>"]
   }
   ```
