@@ -34,21 +34,29 @@ on your PR.
 Every commit records an author and committer email, and git history is
 public and permanent. Commit with the private address GitHub gives you
 (GitHub > Settings > Emails > "Keep my email addresses private"). It looks
-like `<id>+<login>@users.noreply.github.com`. Set it for this clone only:
+like `<id>+<login>@users.noreply.github.com`; accounts that turned this on
+before mid-2017 may show the older `<login>@users.noreply.github.com`.
+Set it for this clone only:
 
 ```bash
 git config user.email "<id>+<login>@users.noreply.github.com"
 ```
 
-The gate accepts any GitHub no-reply address as a commit's author or
-committer. Any other address in those fields fails the history check.
+The gate accepts either form of a GitHub no-reply address as a commit's
+author or committer (or a tag's tagger), and GitHub's own web-merge
+committer. Any other address in those fields fails the history check. To
+credit a co-author, use their no-reply address on a trailer line of exactly
+this form: `Co-authored-by: Their Name <their no-reply address>`.
+Anywhere else in a message or a file, a no-reply address still fails.
 
 ## Proposing a change
 
 1. Fork, then branch: `git checkout -b fix/<short-description>`
 2. Edit. Small, focused diffs review fastest.
 3. Run the tests: `python3 -m unittest discover -s tests -v`
-4. Push and open a PR. CI must be green; a maintainer reviews.
+4. Push and open a PR. The `gate` and `tests` checks must be green, and a
+   maintainer reviews. (The one exception, a change to the gate itself, is
+   described under "Changing the gate itself" below.)
 
 ## Content rules
 
@@ -110,13 +118,47 @@ which file and line.
 Commit **messages** are scanned too, by `.githooks/commit-msg` locally and by
 `--history` in CI. Git history is permanent; don't paste an address into one.
 
+## How CI judges a pull request
+
+The `gate` check runs from `main`, not from your PR. It is a
+`pull_request_target` workflow, so GitHub runs the copy of
+`.github/workflows/gate.yml` that is on `main`, with `main`'s scanner and
+pattern lists. Your PR's commits are fetched as data and read by that
+scanner; nothing from your PR is executed by it, and editing the workflow in
+your PR does not change what judges it. It checks, in order:
+
+1. the gate surface pin (below);
+2. every file in your PR's latest commit, the same scan as
+   `python3 bin/gate_scan.py --tree`;
+3. every commit in history, including yours, the same scan as
+   `python3 bin/gate_scan.py --history`.
+
+The CI log never prints an address or a changed file name: logs are public.
+Run the commands above locally to see which file and line.
+
+The `tests` check runs your PR's own unit tests with a read-only token.
+
+## Changing the gate itself
+
 **Changes under `.githooks/`, `bin/` or `.github/` are a security review, not
 a docs review.** They alter what the gate can see. Raise them in a PR of
-their own, with the reason in the description, so they are not read past inside
-a larger content change. CI fails any PR that edits those folders, and it
-always judges a PR with the scanner and pattern lists from `main`, not the
-PR's own copy. A maintainer lands gate changes on `main` as a separate,
-reviewed change.
+their own, with the reason in the description, so they are not read past
+inside a larger content change.
+
+Such a PR fails the `gate` check **by design**: the surface pin blocks any
+PR that edits those folders, and the rest of the check still runs `main`'s
+scanner, not your new one. A failing check is how the PR is flagged for this
+review, not a request to rework it. It lands like this:
+
+1. A code owner of those folders (see `CODEOWNERS`) reviews the diff as a
+   security change. The `tests` check must be green: that is where the new
+   scanner is exercised.
+2. A repository admin merges it, overriding the failing `gate` check.
+   Branch protection lets only admins override a required check.
+3. The push to `main` runs the new gate over all of `main`. If that run is
+   red, the change is reverted.
+
+From then on, every PR is judged by the new gate.
 
 ## License of contributions
 
