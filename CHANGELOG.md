@@ -91,5 +91,5 @@ English and the Spanish kit.
 ### Removed
 
 - Links to the old starter-skills location.
-- Internal maintainer notes, draft labels and links to private notes from
-  the kit indexes.
+- Internal maintainer notes and links to private notes from the kit
+  indexes, and the "draft" labels on the kit documents.
