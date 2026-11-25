@@ -27,8 +27,9 @@
 #   ----- END -----
 # That block holds nothing but check names, DONE / NOT DONE / SKIPPED, your
 # operating system and one verdict line. Everything printed above it is for
-# your own eyes: it is already trimmed (no email, no full paths, no repo URL),
-# but it describes your machine, so keep it to yourself.
+# your own eyes: it is already trimmed (no email, no paths, no repo address or
+# server name, no tool error text, no settings values), but it describes your
+# machine, so keep it to yourself.
 #
 # OPTIONS:
 #   bash aiac-status-check.sh.txt "/path/to/your/vault"   check this vault
@@ -51,10 +52,15 @@ for arg in "$@"; do
       printf '%s\n' "and '----- END -----' at the end of the output."
       exit 0
       ;;
-    -*) printf '%s\n' "Unknown option: $arg (try --help)"; exit 2 ;;
+    -*) printf '%s\n' "Unknown option (try --help)"; exit 2 ;;
     *) VAULT_ARG="$arg" ;;
   esac
 done
+
+# Error messages from the tools we call can carry paths, account names or
+# tokens, so they are discarded. Only this script's own fixed text is printed.
+# (AIAC_STATUS_DEBUG=1 keeps them, for the script's maintainers only.)
+[ "${AIAC_STATUS_DEBUG:-0}" = "1" ] || exec 2>/dev/null
 
 # Never take a lock or refresh an index in any repository we look at.
 GIT_OPTIONAL_LOCKS=0
@@ -106,6 +112,12 @@ show_path() {
 }
 
 lower() { printf '%s' "$1" | tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz'; }
+
+# version_of TEXT -> the first dotted version number in TEXT (e.g. 2.43.0), or
+# empty. Never the rest of the text: tool output can hold paths or tokens.
+version_of() {
+  printf '%s\n' "$1" | grep -oE '[0-9]+([.][0-9]+){1,3}' | head -1 | cut -c1-24
+}
 
 # Convert ~, $HOME and Windows drive paths (C:\Users\...) to this shell's form.
 to_unix_path() {
@@ -239,16 +251,27 @@ head1 "STAGE 0 - MACHINE AND PREREQUISITES  (Doc 01)"
 
 info "Operating system" "$PLATFORM"
 if [ "$PLATFORM" = "macOS" ]; then
-  info "macOS version" "$(sw_vers -productVersion 2>/dev/null || echo 'unknown')"
+  mv_=$(version_of "$(sw_vers -productVersion 2>/dev/null)")
+  info "macOS version" "${mv_:-unknown}"
   mem=$(sysctl -n hw.memsize 2>/dev/null || /usr/sbin/sysctl -n hw.memsize 2>/dev/null || echo 0)
-  info "Memory (GB)" "$(( ${mem:-0} / 1073741824 ))"
+  case "$mem" in ''|*[!0-9]*) mem=0 ;; esac
+  info "Memory (GB)" "$(( mem / 1073741824 ))"
 fi
-info "Chip / architecture" "$(uname -m 2>/dev/null)"
+arch_=$(uname -m 2>/dev/null)
+case "$arch_" in
+  x86_64|amd64) arch_="x86_64" ;;
+  arm64|aarch64) arch_="arm64" ;;
+  i?86) arch_="x86 (32-bit)" ;;
+  *) arch_="other" ;;
+esac
+info "Chip / architecture" "$arch_"
 
-# tool_version COMMAND -> first line of --version, or empty
+# tool_version COMMAND -> "version X.Y.Z", or "installed (version not read)".
+# Only a parsed version number is ever printed, never the tool's own text.
 tool_version() {
   c=$(cmd_name "$1")
-  "$c" --version 2>&1 | head -1
+  v=$(version_of "$("$c" --version 2>/dev/null | head -3)")
+  if [ -n "$v" ]; then printf 'version %s' "$v"; else printf '%s' "installed (version not read)"; fi
 }
 
 tool_check() {  # tool_check COMMAND LABEL
@@ -264,10 +287,14 @@ tool_check() {  # tool_check COMMAND LABEL
 tool_check git "Doc 01 - Git installed"
 tool_check gh "Doc 01 - GitHub CLI (gh) installed"
 
-# gh sign-in: read the gh config file, never the token, never the account name.
+# gh credentials: only whether gh has stored credentials for github.com.
+# The token and the account name are never read out. This is a local
+# observation: it does not prove the credentials still work.
 GH_SIGNED=0
+GH_HOW="gh credentials for github.com found (account not shown)"
 if [ -n "${GH_TOKEN:-}" ] || [ -n "${GITHUB_TOKEN:-}" ]; then
   GH_SIGNED=1
+  GH_HOW="a GH_TOKEN / GITHUB_TOKEN variable is set (value not shown)"
 else
   gh_dirs=""
   [ -n "${GH_CONFIG_DIR:-}" ] && gh_dirs="$gh_dirs$NL$(to_unix_path "$GH_CONFIG_DIR")"
@@ -281,9 +308,9 @@ else
   IFS=$OLDIFS; set +f
 fi
 if [ "$GH_SIGNED" = "1" ]; then
-  check home done "Doc 01 - GitHub CLI signed in" "signed in to github.com (account name not shown)"
+  check home done "Doc 01 - GitHub CLI credentials present" "$GH_HOW"
 else
-  check home notdone "Doc 01 - GitHub CLI signed in" "no github.com sign-in found - run gh auth login in a separate terminal window"
+  check home notdone "Doc 01 - GitHub CLI credentials present" "no gh credentials for github.com - run gh auth login in a separate terminal window"
 fi
 
 tool_check claude "Doc 01 - Claude Code installed"
@@ -292,7 +319,7 @@ if have claude; then
   case "$cp_path" in
     *"/.local/bin/"*) info "  install method" "native installer (self-updating)" ;;
     *"/homebrew/"*|*"/usr/local/bin/"*) info "  install method" "likely Homebrew (does NOT auto-update)" ;;
-    *) info "  install method" "other $([ "$DETAILS" = "1" ] && printf '(%s)' "$(tildify "$cp_path")")" ;;
+    *) if [ "$DETAILS" = "1" ]; then info "  install method" "other ($(tildify "$cp_path"))"; else info "  install method" "other"; fi ;;
   esac
 fi
 tool_check jq "Doc 01 - jq installed"
@@ -304,7 +331,12 @@ for py in python3 python py; do
   have "$py" || continue
   c=$(cmd_name "$py")
   if [ "$py" = "py" ]; then v=$("$c" -3 --version 2>&1 | head -1); else v=$("$c" --version 2>&1 | head -1); fi
-  case "$v" in "Python 3"*) PY_VER="$v ($py)"; break ;; esac
+  case "$v" in
+    "Python 3."[0-9]*)
+      pv=$(version_of "$v")
+      [ -n "$pv" ] && { PY_VER="version $pv ($py)"; break; }
+      ;;
+  esac
 done
 if [ -n "$PY_VER" ]; then
   check home done "Doc 01 - Python 3 installed" "$PY_VER"
@@ -468,8 +500,9 @@ if [ "$HAS_VAULT" = "1" ]; then
   info "  how it was located" "$VAULT_SRC"
 else
   check home notdone "Pre-flight - vault folder exists" "no vault found - the pre-flight prompt creates it"
-  printf '       %s\n' "If you DO have a vault somewhere unusual, re-run with its path:"
-  printf '       bash %s "/path/to/your/vault"\n' "$(tildify "$0")"
+  printf '       %s\n' "If you DO have a vault somewhere unusual, re-run with its path,"
+  printf '       %s\n' "using the exact filename you received (.sh or .sh.txt):"
+  printf '       %s\n' "bash aiac-status-check.sh.txt \"/path/to/your/vault\""
 fi
 
 # The vault must live in a plain local folder. Sync clients (OneDrive, Dropbox,
@@ -483,14 +516,16 @@ if [ "$HAS_VAULT" = "1" ]; then
   else
     check home done "Pre-flight - vault not in a cloud-synced folder" "local folder"
   fi
+  # A local observation: the folder holds Obsidian's config. It does not
+  # prove this is the vault Obsidian has open right now.
   if [ -d "$VAULT/.obsidian" ]; then
-    check home done "Pre-flight - vault opened in Obsidian" ".obsidian folder present"
+    check home done "Pre-flight - Obsidian config found in this folder" ".obsidian folder present (not proof it is the vault open now)"
   else
-    check home notdone "Pre-flight - vault opened in Obsidian" "no .obsidian folder - in Obsidian use 'Open folder as vault' on THIS folder (never 'Create new vault')"
+    check home notdone "Pre-flight - Obsidian config found in this folder" "no .obsidian folder - in Obsidian use 'Open folder as vault' on THIS folder (never 'Create new vault')"
   fi
 else
   check home notdone "Pre-flight - vault not in a cloud-synced folder" "no vault yet"
-  check home notdone "Pre-flight - vault opened in Obsidian" "no vault yet"
+  check home notdone "Pre-flight - Obsidian config found in this folder" "no vault yet"
 fi
 
 if [ "$PRE_SESSION" = "1" ]; then
@@ -499,20 +534,45 @@ if [ "$PRE_SESSION" = "1" ]; then
   printf '%s %s\n'   "      " "marked [sess] are not things you missed - they are the session agenda."
 fi
 
-# Broad, lasting approvals the kit never grants. Any git rule with a wildcard
-# counts (git options can write files, run programs or plant hooks); the five
-# exact read-only git rules and "ls *", "mkdir *", "wc *" are fine.
+# Broad, lasting approvals the kit never grants, looked for in the ALLOW list
+# only (wildcards in the "ask" list are intended: they make Claude ask). Any
+# git rule with a wildcard counts (git options can write files, run programs
+# or plant hooks); so does "mkdir *" (a lasting write grant) and a bare tool
+# name such as "Glob" or "Grep" (it pre-approves the tool outside the working
+# folder). Only the five exact read-only git rules, "ls *" and "wc *" are fine.
 BROAD_FILTER='
   [ ((.permissions.allow // []) | if type == "array" then .[] else empty end
       | select(type == "string")
       | select(. == "Bash" or . == "Bash(*)" or . == "Bash(:*)" or
                . == "Read" or . == "Write" or . == "Edit" or
+               . == "Glob" or . == "Grep" or
+               (test("^Bash\\(mkdir[ :)]") and test("[*]")) or
                (test("^Bash\\(git[ :)]") and test("[*]")) or
                test("^Bash\\((cat|head|gws)( \\*|:\\*|\\*)\\)$") or
                test("^Bash\\((python3?|py|node|npx|pip3?|ruby|perl|deno|bun|bash|sh|zsh|pwsh|powershell)(\\.exe)?([ :].*)?\\)$"))),
     (if .permissions.defaultMode == "bypassPermissions" then "defaultMode: bypassPermissions" else empty end),
     (if ([.. | objects | has("additionalDirectories")] | any) then "additionalDirectories" else empty end)
   ] | .[]'
+
+# Doc 02 STEP 3 "ask" list: commands Claude must ask about every time. All
+# eight must be present, each as the exact rule Bash(<command> *). Only the
+# command names are written here; the rules are built from them.
+ASK_REQUIRED='["cat", "head", "tail", "grep", "git add", "git commit", "git push", "gh repo create"]'
+ASK_MISSING='
+  ((.permissions.ask? // []) | if type == "array" then [.[] | select(type == "string")] else [] end) as $a
+  | ['"$ASK_REQUIRED"'[] | . as $c | select(($a | index(["Bash(" + $c + " *)"])) == null)]'
+
+# Turns each broad rule into a fixed category, so even --details never prints
+# the rule text (a rule can name a client folder or carry a token).
+BROAD_KIND='
+  if . == "defaultMode: bypassPermissions" or . == "additionalDirectories" then .
+  elif . == "Glob" or . == "Grep" then "a bare Glob / Grep approval"
+  elif test("^Bash\\(mkdir") then "a mkdir wildcard (lasting write grant)"
+  elif test("^Bash\\(git") then "a git rule with a wildcard"
+  elif test("^Bash\\((cat|head)") then "a cat / head wildcard"
+  elif test("^Bash\\(gws") then "a blanket gws approval"
+  elif test("^Bash\\(") and (test("^Bash\\((\\*|:\\*)?\\)$") | not) then "an interpreter rule (python, node, a shell...)"
+  else "a blanket tool approval (Bash, Read, Write or Edit)" end'
 
 # ---------------------------------------------------------------------------
 # Sandbox (Doc 02-S) - opt-in. Shown only when a sandbox config exists or when
@@ -526,16 +586,34 @@ SANDBOX=0
 if [ "$HAS_VAULT" = "1" ] && [ -f "$VS" ] && grep -q '"sandbox"' "$VS" 2>/dev/null; then SANDBOX=1; fi
 grep -q '"sandbox"' "$GS" 2>/dev/null && SANDBOX=1
 
-# Doc 02-S Part 3b: the Doc 02 allow list plus the targeted deny list. The
-# Stop (sound) hook is optional - 02-S says to delete it if unsure - but an
-# empty Stop block fails on every turn, so a present one must hold a hook.
+# Doc 02-S Part 3b: the Doc 02 allow list plus the WHOLE canonical deny list -
+# all eight entries, spelled exactly as 02-S writes them, not just one. The
+# three file-type rules are home-anchored (~/**/x): a relative **/x only
+# covers the folder Claude was started in. The first item of each row is a
+# fixed name, printed when that entry is missing.
+DENY_REQUIRED='[
+  ["~/.ssh", "Read(~/.ssh/**)"],
+  ["~/.aws", "Read(~/.aws/**)"],
+  ["~/.gnupg", "Read(~/.gnupg/**)"],
+  ["~/.config/gh", "Read(~/.config/gh/**)"],
+  ["~/Library/Keychains", "Read(~/Library/Keychains/**)"],
+  [".env files", "Read(~/**/.env)"],
+  ["*.pem files", "Read(~/**/*.pem)"],
+  ["*.key files", "Read(~/**/*.key)"]
+]'
+DENY_MISSING='
+  ((.permissions.deny? // []) | if type == "array" then [.[] | select(type == "string")] else [] end) as $d
+  | ['"$DENY_REQUIRED"'[] | . as [$name, $rule] | select(($d | index([$rule])) == null) | $name]'
+
+# The Stop (sound) hook is optional - 02-S says to delete it if unsure - but
+# an empty Stop block fails on every turn, so a present one must hold a hook.
 valid_global_security() {
   jtest "$1" '
     type == "object" and
     (.permissions | type == "object") and
     (.permissions.allow | type == "array") and
     (.permissions.deny | type == "array") and
-    any(.permissions.deny[]; type == "string" and . == "Read(~/.ssh/**)") and
+    (('"$DENY_MISSING"') | length == 0) and
     all(.permissions.allow[]; type == "string") and
     ([ '"$BROAD_FILTER"' ] | length == 0) and
     ((.hooks.Stop // null) as $stop |
@@ -575,7 +653,13 @@ if [ "$SANDBOX" = "1" ]; then
   elif ! have jq; then
     check sbxh notdone "Doc 02-S - hardened global settings (Part 3b)" "cannot check without jq"
   else
-    check sbxh notdone "Doc 02-S - hardened global settings (Part 3b)" "needs Read(~/.ssh/**) in permissions.deny, no blanket or interpreter approvals, no additionalDirectories"
+    dm=""
+    json_valid "$GS" && dm=$(jq -r "$DENY_MISSING | join(\", \")" "$GS" 2>/dev/null)
+    if [ -n "$dm" ]; then
+      check sbxh notdone "Doc 02-S - hardened global settings (Part 3b)" "deny list incomplete - missing: $dm"
+    else
+      check sbxh notdone "Doc 02-S - hardened global settings (Part 3b)" "needs the full 02-S deny list, no blanket or interpreter approvals, no additionalDirectories"
+    fi
   fi
   if [ "$HAS_VAULT" = "1" ] && valid_project_security "$VS"; then
     check sbxs done "Doc 02-S - sandbox config in the vault (Part 3a)" ""
@@ -588,14 +672,21 @@ if [ "$SANDBOX" = "1" ]; then
   else
     check sbxs notdone "Doc 02-S - sandbox config in the vault (Part 3a)" "present but not the 02-S Part 3a values"
   fi
+  # Only fixed words and counts are printed, never a value from the file.
   if [ "$HAS_VAULT" = "1" ] && json_valid "$VS"; then
     for k in enabled failIfUnavailable allowUnsandboxedCommands; do
-      info "  sandbox.$k" "$(jq -c ".sandbox.$k" "$VS" 2>/dev/null)"
+      info "  sandbox.$k" "$(jq -r --arg k "$k" '(try getpath(["sandbox", $k]) catch null)
+        | if . == true then "true" elif . == false then "false"
+          elif . == null then "not set" else "unexpected value" end' "$VS" 2>/dev/null)"
     done
-    info "  allowedDomains (count)" "$(jq -c '.sandbox.network.allowedDomains // [] | length' "$VS" 2>/dev/null)"
+    info "  allowedDomains (count)" "$(jq -r '(try getpath(["sandbox", "network", "allowedDomains"]) catch null)
+      | if type == "array" then (length | tostring) elif . == null then "not set"
+        else "not a list" end' "$VS" 2>/dev/null)"
     if [ "$DETAILS" = "1" ]; then
       for k in denyRead allowRead allowWrite; do
-        info "  filesystem.$k" "$(jq -c ".sandbox.filesystem.$k // empty" "$VS" 2>/dev/null)"
+        info "  filesystem.$k (entries)" "$(jq -r --arg k "$k" '(try getpath(["sandbox", "filesystem", $k]) catch null)
+          | if type == "array" then (length | tostring) elif . == null then "not set"
+            else "not a list" end' "$VS" 2>/dev/null)"
       done
     fi
   fi
@@ -620,16 +711,28 @@ fi
 if json_valid "$GS"; then
   broad=$(jq -r "$BROAD_FILTER" "$GS" 2>/dev/null)
   if [ -z "$broad" ]; then
-    check sess done "Doc 02 - no blanket approvals in settings" "no blanket git/cat/head/interpreter rules"
+    check sess done "Doc 02 - no blanket approvals in settings" "no blanket git, cat, head, mkdir, interpreter or bare tool rules"
   else
     nb=$(printf '%s\n' "$broad" | wc -l | tr -d ' ')
     check sess notdone "Doc 02 - no blanket approvals in settings" "$nb broad rule(s) found - remove them (--details lists them)"
     if [ "$DETAILS" = "1" ]; then
-      printf '%s\n' "$broad" | sed 's/^/         broad rule: /'
+      jq -r "$BROAD_FILTER | $BROAD_KIND" "$GS" 2>/dev/null | sort | uniq -c | \
+        sed 's/^ *\([0-9]*\) /         broad rule (\1): /'
     fi
   fi
 else
   check sess notdone "Doc 02 - no blanket approvals in settings" "cannot check (settings missing, malformed, or no jq)"
+fi
+
+if json_valid "$GS"; then
+  am=$(jq -r "$ASK_MISSING | join(\", \")" "$GS" 2>/dev/null)
+  if jtest "$GS" "($ASK_MISSING) | length == 0"; then
+    check sess done "Doc 02 - ask-first rules in settings" "all 8 ask rules present"
+  else
+    check sess notdone "Doc 02 - ask-first rules in settings" "missing from permissions.ask: ${am:-the ask list}"
+  fi
+else
+  check sess notdone "Doc 02 - ask-first rules in settings" "cannot check (settings missing, malformed, or no jq)"
 fi
 
 if [ -f "$ROUTER" ]; then
@@ -770,23 +873,37 @@ if [ -f "$ROUTER" ]; then
   IFS=$OLDIFS; set +f
 fi
 
-redact_remote() {
+# classify_remote URL -> sets REMOTE_CLASS to one of
+#   GitHub | other host | local path | unrecognized | none
+# and REMOTE_HOST to the server name of a network remote (else empty).
+# Only REMOTE_CLASS is printed by default: never the URL, the server name, a
+# user name, a token, a port or a path. --details adds the server name.
+classify_remote() {
   r=$1
-  if [ -z "$r" ]; then printf '%s' "no remote"; return; fi
-  # Only recognized network remotes may expose a host. Credentials, user
-  # names, ports, paths, queries and fragments are never printed.
+  REMOTE_CLASS="none"
+  REMOTE_HOST=""
+  [ -n "$r" ] || return 0
   url_remote='^[a-zA-Z][a-zA-Z0-9+.-]*://([^/?#]*@)?(\[[0-9a-fA-F:.]+\]|[a-zA-Z0-9._-]+)(:[0-9]+)?([/?#]|$)'
-  scp_remote='^[^/@:[:space:]]+@(\[[0-9a-fA-F:.]+\]|[a-zA-Z0-9._-]+):.+'
+  scp_remote='^([^/@:[:space:]]+@)?(\[[0-9a-fA-F:.]+\]|[a-zA-Z0-9._-][a-zA-Z0-9._-]+):.+'
   case "$r" in
-    [fF][iI][lL][eE]://*) printf '%s' "present (local/unrecognized)"; return ;;
+    [fF][iI][lL][eE]://*|/*|./*|../*|"~"*|[A-Za-z]:[\\/]*) REMOTE_CLASS="local path"; return 0 ;;
   esac
   if [[ "$r" =~ $url_remote ]]; then
-    printf '%s' "present (${BASH_REMATCH[2]})"
+    REMOTE_HOST=${BASH_REMATCH[2]}
   elif [[ "$r" =~ $scp_remote ]]; then
-    printf '%s' "present (${BASH_REMATCH[1]})"
-  else
-    printf '%s' "present (local/unrecognized)"
+    REMOTE_HOST=${BASH_REMATCH[2]}
   fi
+  if [ -z "$REMOTE_HOST" ]; then
+    case "$r" in
+      *:*) REMOTE_CLASS="unrecognized" ;;
+      *) REMOTE_CLASS="local path" ;;
+    esac
+    return 0
+  fi
+  case "$(lower "$REMOTE_HOST")" in
+    github.com|www.github.com|ssh.github.com) REMOTE_CLASS="GitHub" ;;
+    *) REMOTE_CLASS="other host" ;;
+  esac
 }
 
 if [ -n "$REPO" ]; then
@@ -795,23 +912,31 @@ if [ -n "$REPO" ]; then
     "$VAULT"/*) warn "  repo location" "inside the vault - Doc 02 puts repos in ~/dev" ;;
   esac
   nc=$(git -C "$REPO" rev-list --count HEAD 2>/dev/null || echo 0)
+  case "$nc" in ''|*[!0-9]*) nc=0 ;; esac
   rm_raw=$(git -C "$REPO" remote get-url origin 2>/dev/null || true)
-  rm_=$(redact_remote "$rm_raw")
+  classify_remote "$rm_raw"
   rm_raw=""
+  rm_class=$REMOTE_CLASS
+  rm_show=$rm_class
+  if [ "$DETAILS" = "1" ] && [ -n "$REMOTE_HOST" ]; then rm_show="$rm_class ($REMOTE_HOST)"; fi
+  REMOTE_HOST=""
   info "  commits" "$nc"
-  info "  origin" "$rm_"
+  info "  origin" "$rm_show"
   if [ -f "$REPO/CLAUDE.md" ]; then check sess done "Doc 02 - repo CLAUDE.md" ""; else check sess notdone "Doc 02 - repo CLAUDE.md" "missing (Step 8)"; fi
-  if [ "${nc:-0}" -gt 0 ] 2>/dev/null; then check sess done "Doc 02 - repo has a first commit" ""; else check sess notdone "Doc 02 - repo has a first commit" "no commits yet (Step 12)"; fi
-  case "$rm_" in
-    "present (local/unrecognized)"|"no remote") check sess notdone "Doc 02 - repo connected to GitHub" "origin: $rm_" ;;
-    *) check sess done "Doc 02 - repo connected to GitHub" "origin: $rm_" ;;
-  esac
+  if [ "$nc" -gt 0 ]; then check sess done "Doc 02 - repo has a first commit" ""; else check sess notdone "Doc 02 - repo has a first commit" "no commits yet (Step 12)"; fi
+  # A local observation: origin's address names GitHub. It does not prove the
+  # repo exists there, is Private, or holds this commit - Gate 6 checks that.
+  if [ "$rm_class" = "GitHub" ]; then
+    check sess done "Doc 02 - repo origin points at GitHub" "origin: GitHub (not proof the repo exists there or is Private)"
+  else
+    check sess notdone "Doc 02 - repo origin points at GitHub" "origin: $rm_class"
+  fi
 else
   if [ -f "$ROUTER" ]; then why="the router names no existing ~/dev/<repo> with a .git folder"; else why="no router yet"; fi
   check sess notdone "Doc 02 - code repo in ~/dev (named in router)" "$why"
   check sess notdone "Doc 02 - repo CLAUDE.md" "no repo"
   check sess notdone "Doc 02 - repo has a first commit" "no repo"
-  check sess notdone "Doc 02 - repo connected to GitHub" "no repo"
+  check sess notdone "Doc 02 - repo origin points at GitHub" "no repo"
 fi
 
 # ---------------------------------------------------------------------------
@@ -888,7 +1013,10 @@ fi
 head1 "NOT CHECKED HERE (needs a human)"
 printf '    - Your Claude plan is active (Pro is enough to start)\n'
 printf '    - Your transcription tool (if any) has microphone / screen permission\n'
-printf '    - The repo exists on GitHub and is Private (your facilitator checks this)\n'
+printf '    - Your gh credentials still work (gh auth status checks the server)\n'
+printf '    - Obsidian has THIS vault folder open (not a copy somewhere else)\n'
+printf '    - The repo exists on GitHub, is Private and holds your commit\n'
+printf '      (your facilitator checks this on the server)\n'
 printf '    - On a Mac: if the vault is on Desktop or in Documents, iCloud\n'
 printf '      "Desktop & Documents Folders" sync is off\n'
 [ "$SANDBOX" = "1" ] && printf '    - The /sandbox Config tab shows the rules as RESOLVED\n'
