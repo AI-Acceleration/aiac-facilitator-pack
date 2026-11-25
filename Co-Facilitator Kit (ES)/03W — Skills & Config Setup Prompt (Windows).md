@@ -2,7 +2,6 @@
 title: "Skills & Config Setup Prompt (Participant, WINDOWS) — AI Acceleration Club Phase 0"
 created: 2026-07-14
 category: reference
-status: draft
 tags: [aiac, phase0, co-facilitator-kit, participant, skills, config, setup-prompt, windows]
 lang: es
 translated_from: "03W — Skills & Config Setup Prompt (Windows).md"

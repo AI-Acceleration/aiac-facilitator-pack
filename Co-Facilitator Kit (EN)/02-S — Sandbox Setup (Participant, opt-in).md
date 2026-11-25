@@ -2,7 +2,6 @@
 title: "Sandbox Setup (Participant) — AI Acceleration Club Phase 0"
 created: 2026-07-15
 category: reference
-status: draft
 tags: [aiac, phase0, co-facilitator-kit, participant, sandbox, security]
 ---
 

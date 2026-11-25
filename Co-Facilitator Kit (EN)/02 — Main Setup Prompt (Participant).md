@@ -2,7 +2,6 @@
 title: "Main Setup Prompt (Participant) — AI Acceleration Club Phase 0"
 created: 2026-07-14
 category: reference
-status: draft
 tags: [aiac, phase0, co-facilitator-kit, participant, setup-prompt, main-setup]
 ---
 

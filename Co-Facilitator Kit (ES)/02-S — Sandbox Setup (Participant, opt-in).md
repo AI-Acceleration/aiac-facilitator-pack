@@ -2,7 +2,6 @@
 title: "Configuración de Sandbox (Participante) — AI Acceleration Club Fase 0"
 created: 2026-07-15
 category: reference
-status: draft
 tags: [aiac, phase0, co-facilitator-kit, participant, sandbox, security]
 lang: es
 translated_from: "02-S — Sandbox Setup (Participant, opt-in).md"

@@ -2,7 +2,6 @@
 title: "Prompt de Configuración Principal (Participante) — AI Acceleration Club Fase 0"
 created: 2026-07-14
 category: reference
-status: draft
 tags: [aiac, phase0, co-facilitator-kit, participant, setup-prompt, main-setup]
 lang: es
 translated_from: "02 — Main Setup Prompt (Participant).md"
