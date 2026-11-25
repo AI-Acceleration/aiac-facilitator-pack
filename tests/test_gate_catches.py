@@ -11,6 +11,7 @@ carries no match for the gate's address regex) and live at `.test`, the
 reserved-invalid TLD. Their hashes are in `tests/fixtures/deny-hashes-test.txt`
 and must never be copied into `.githooks/deny-hashes.txt`.
 """
+import hashlib
 import os
 import shutil
 import subprocess
@@ -25,8 +26,17 @@ FIXTURES = ROOT / "tests" / "fixtures"
 DOMAIN = "example-invalid" + ".test"
 DENIED = "trainer.private" + "@" + DOMAIN      # hash IS in the test deny list
 UNKNOWN = "someone.else" + "@" + DOMAIN        # hash is NOT in any deny list
-REGISTRY = "00 — Trainer Registry (ALBERT ONLY).md"
+REGISTRY = "00 — Trainer Registry (MAINTAINER ONLY).md"
 GIT_EMAIL = "t" + "@" + DOMAIN  # fragments: this file is itself scanned by the gate
+# A GitHub no-reply identity of a contributor who is not the maintainer.
+NOREPLY_DOMAIN = "users.noreply" + ".github.com"
+OUTSIDE = "98765+outside-contrib" + "@" + NOREPLY_DOMAIN
+WEB_MERGE = "noreply" + "@" + "github.com"
+
+
+def fp(addr):
+    """How the gate names an address in its output."""
+    return "address#" + hashlib.sha256(addr.lower().encode()).hexdigest()[:8]
 
 
 def run_gate(sandbox, *args):
@@ -71,6 +81,13 @@ class GateSandbox(unittest.TestCase):
         self.assertEqual(r.returncode, 1,
                          "expected exit 1, got %d\n%s%s" % (r.returncode, r.stdout, r.stderr))
         self.assertIn(needle, r.stderr)
+
+    def assertRedacted(self, r, *addrs):
+        """CI logs are public: the gate must never print what it caught."""
+        out = r.stdout + r.stderr
+        for a in addrs:
+            self.assertNotIn(a, out)
+        self.assertNotIn(DOMAIN, out)
 
     # --- baseline: the gate is capable of catching at all -----------------
     def test_plain_unallowlisted_address_is_caught(self):
@@ -174,7 +191,9 @@ class GateSandbox(unittest.TestCase):
         self.git("commit", "-q", "--no-verify", "-m", "rename directory")
         r = run_gate(self.tmp, "--history")
         self.assertBlocked(r, "UNALLOWLISTED")
-        self.assertIn(UNKNOWN + " (file name)", r.stderr)
+        self.assertIn("[redacted#", r.stderr)
+        self.assertIn("(file name)", r.stderr)
+        self.assertRedacted(r, UNKNOWN)
 
     def test_history_mode_catches_shared_blob_under_later_denied_name(self):
         # Same blob, two names: git's object dedup lists it once under the
@@ -186,7 +205,8 @@ class GateSandbox(unittest.TestCase):
         self.git("commit", "-q", "--no-verify", "-m", "same content, second name")
         r = run_gate(self.tmp, "--history")
         self.assertBlocked(r, "UNALLOWLISTED")
-        self.assertIn(UNKNOWN, r.stderr)
+        self.assertIn("[redacted#", r.stderr)
+        self.assertRedacted(r, UNKNOWN)
 
     def test_history_mode_preserves_tabs_and_newlines_in_names(self):
         name = "notes\tarchive\n" + UNKNOWN
@@ -194,7 +214,8 @@ class GateSandbox(unittest.TestCase):
         self.git("commit", "-q", "--no-verify", "-m", "unusual path")
         r = run_gate(self.tmp, "--history")
         self.assertBlocked(r, "UNALLOWLISTED")
-        self.assertIn(name + " (file name)", r.stderr)
+        self.assertIn("[redacted#", r.stderr)
+        self.assertRedacted(r, UNKNOWN)
 
     # --- refs can publish blobs, trees and annotated tag objects too ------
     def clean_commit(self):
@@ -219,7 +240,8 @@ class GateSandbox(unittest.TestCase):
         self.git("update-ref", "refs/data/tree", tree)
         r = run_gate(self.tmp, "--history")
         self.assertBlocked(r, "UNALLOWLISTED")
-        self.assertIn(name + " (file name)", r.stderr)
+        self.assertIn("[redacted#", r.stderr)
+        self.assertRedacted(r, UNKNOWN)
 
     def test_history_mode_scans_direct_tree_ref_blobs(self):
         self.clean_commit()
@@ -333,7 +355,8 @@ class GateSandbox(unittest.TestCase):
         r = run_gate(self.tmp, "--history")
         self.assertBlocked(r, "KNOWN-PRIVATE")
         self.assertIn("refs/tags/blob", r.stderr)
-        self.assertIn(UNKNOWN + " (file name)", r.stderr)
+        self.assertIn("notes/[redacted#", r.stderr)
+        self.assertRedacted(r, UNKNOWN, DENIED)
 
     def test_history_mode_includes_commit_reachable_only_through_tag_chain(self):
         self.write("doc.md", DENIED)
@@ -390,7 +413,7 @@ class GateSandbox(unittest.TestCase):
     def test_case_variant_withheld_basename_is_caught(self):
         # Lowercase "registry". The vault volume is case-insensitive APFS, so
         # mirroring this would overwrite the real registry — no undo.
-        self.write("Trainer Pack (EN)/00 — Trainer registry (ALBERT ONLY).md", "x\n")
+        self.write("Trainer Pack (EN)/00 — Trainer registry (maintainer only).md", "x\n")
         self.assertBlocked(run_gate(self.tmp, "--tree"), "FORBIDDEN BASENAME")
 
     def test_case_variant_withheld_path_is_caught(self):
@@ -429,7 +452,8 @@ class GateSandbox(unittest.TestCase):
         r = run_gate(self.tmp, "--history")
         self.assertBlocked(r, "KNOWN-PRIVATE")
         self.assertIn("commit message", r.stderr)
-        self.assertIn("tra***@" + DOMAIN, r.stderr)
+        self.assertIn(fp(DENIED), r.stderr)
+        self.assertRedacted(r, DENIED)
 
     # --- whole commit objects: headers, NUL bytes, re-encoded messages ---
     def git(self, *args, **kw):
@@ -571,6 +595,119 @@ class GateSandbox(unittest.TestCase):
         r = run_gate(self.tmp, "--history")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
+
+    # --- GitHub no-reply identities: any contributor, headers only --------
+    def commit_as(self, author, committer, message="clean message"):
+        self.write("doc.md", "clean body %s\n" % message)
+        env = dict(os.environ, GIT_AUTHOR_NAME="outside", GIT_AUTHOR_EMAIL=author,
+                   GIT_COMMITTER_NAME="outside", GIT_COMMITTER_EMAIL=committer)
+        self.git("commit", "-q", "--no-verify", "-m", message, env=env)
+
+    def test_outside_contributor_noreply_identity_passes_history(self):
+        # Not on the allowlist: any GitHub-issued no-reply identity is fine as
+        # the author/committer, so outside contributors' PRs can go green.
+        self.commit_as(OUTSIDE, OUTSIDE)
+        self.commit_as(OUTSIDE, WEB_MERGE, "merged in the web UI")
+        r = run_gate(self.tmp, "--history")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_outside_contributor_noreply_tagger_passes_history(self):
+        self.clean_commit()
+        self.git("-c", "user.email=" + OUTSIDE, "tag", "-a", "release",
+                 "-m", "clean message")
+        r = run_gate(self.tmp, "--history")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_noreply_identity_in_commit_message_is_still_caught(self):
+        self.commit_as(OUTSIDE, OUTSIDE, "thanks to %s" % OUTSIDE)
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "UNALLOWLISTED")
+        self.assertIn("commit message", r.stderr)
+        self.assertNotIn("commit header", r.stderr)
+        self.assertRedacted(r, OUTSIDE)
+
+    def test_noreply_identity_in_a_file_is_still_caught(self):
+        self.write("doc.md", "write to %s\n" % OUTSIDE)
+        self.assertBlocked(run_gate(self.tmp, "--tree"), "UNALLOWLISTED")
+
+    def test_noreply_lookalikes_in_headers_are_caught(self):
+        base = self.clean_commit()
+        for fake in ("outside-contrib" + "@" + NOREPLY_DOMAIN,          # no id
+                     OUTSIDE + ".evil.test",                             # suffix
+                     "98765+outside" + "@" + "users.noreply.github.co"):  # typo
+            with self.subTest(fake=fake):
+                self.git("reset", "-q", "--hard", base)
+                env = dict(os.environ, GIT_AUTHOR_EMAIL=fake,
+                           GIT_COMMITTER_EMAIL=OUTSIDE)
+                self.git("commit", "-q", "--no-verify", "--allow-empty",
+                         "-m", "clean message", env=env)
+                r = run_gate(self.tmp, "--history")
+                self.assertBlocked(r, "UNALLOWLISTED")
+                self.assertIn("commit header", r.stderr)
+                self.assertRedacted(r, fake)
+
+    def test_denied_address_in_header_is_never_excused(self):
+        self.commit_as(DENIED, OUTSIDE)
+        self.assertBlocked(run_gate(self.tmp, "--history"), "KNOWN-PRIVATE")
+
+    # --- output never echoes an address -----------------------------------
+    def test_tree_findings_are_redacted(self):
+        self.write("notes/%s/doc.md" % UNKNOWN, "route to %s\n" % DENIED)
+        r = run_gate(self.tmp, "--tree")
+        self.assertBlocked(r, "KNOWN-PRIVATE")
+        self.assertIn(fp(DENIED), r.stderr)
+        self.assertIn("notes/[redacted#", r.stderr)
+        self.assertIn("/doc.md", r.stderr)
+        self.assertRedacted(r, UNKNOWN, DENIED)
+
+    def test_obfuscated_address_in_file_name_is_redacted(self):
+        self.write("notes/%s.md" % UNKNOWN.replace("@", "\uff20"), "clean\n")
+        r = run_gate(self.tmp, "--tree")
+        self.assertBlocked(r, "UNALLOWLISTED")
+        self.assertNotIn(UNKNOWN.replace("@", "\uff20"), r.stderr)
+        self.assertRedacted(r, UNKNOWN)
+
+    # --- tree mode reads tracked blobs by mode ----------------------------
+    def test_tree_mode_does_not_follow_symlinks(self):
+        outside = Path(tempfile.mkdtemp(prefix="gateoutside-"))
+        self.addCleanup(shutil.rmtree, outside, True)
+        (outside / "secret.md").write_text("route to %s\n" % DENIED,
+                                           encoding="utf-8")
+        (self.tmp / "link.md").symlink_to(outside / "secret.md")
+        self.git("add", "--", "link.md")
+        r = run_gate(self.tmp, "--tree")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_tree_mode_scans_symlink_target_text(self):
+        (self.tmp / "link.md").symlink_to("../%s/doc.md" % UNKNOWN)
+        self.git("add", "--", "link.md")
+        r = run_gate(self.tmp, "--tree")
+        self.assertBlocked(r, "UNALLOWLISTED")
+        self.assertIn("link.md:1", r.stderr)
+
+    def test_tree_mode_scans_index_not_working_file(self):
+        self.write("doc.md", "route to %s\n" % DENIED)
+        (self.tmp / "doc.md").write_text("clean now\n", encoding="utf-8")
+        self.assertBlocked(run_gate(self.tmp, "--tree"), "KNOWN-PRIVATE")
+
+    def test_tree_mode_submodule_is_unscannable(self):
+        self.write("doc.md", "clean\n")
+        self.git("update-index", "--add", "--cacheinfo",
+                 "160000,%s,vendored" % ("a" * 40))
+        self.assertBlocked(run_gate(self.tmp, "--tree"), "UNSCANNABLE")
+
+    def test_shared_blob_is_reported_under_every_path(self):
+        # Blob scans are memoised by SHA; each path must still be reported.
+        self.write("a.md", "route to %s\n" % DENIED)
+        self.write("b.md", "route to %s\n" % DENIED)
+        r = run_gate(self.tmp, "--tree")
+        self.assertBlocked(r, "KNOWN-PRIVATE")
+        self.assertIn("a.md:1", r.stderr)
+        self.assertIn("b.md:1", r.stderr)
+
+    def test_withheld_basename_pattern_covers_variants(self):
+        self.write("kit/00 — Trainer Registry.md", "x\n")
+        self.assertBlocked(run_gate(self.tmp, "--tree"), "FORBIDDEN BASENAME")
 
 if __name__ == "__main__":
     unittest.main()

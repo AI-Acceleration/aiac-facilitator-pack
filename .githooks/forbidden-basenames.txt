@@ -1,2 +1,4 @@
-# Exact basenames that must never be committed, at any path.
-00 — Trainer Registry (ALBERT ONLY).md
+# Basenames that must never be committed, at any path. Glob patterns
+# (* ? [...]), matched case-insensitively, the way CI's `find -iname` reads
+# them. The pattern covers every variant of the internal trainer registry.
+00 — Trainer Registry*.md

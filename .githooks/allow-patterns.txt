@@ -4,10 +4,7 @@
 # commit-msg hook and `--history` scan.
 noreply@anthropic.com
 
-# GitHub-issued commit identities. `--history` scans whole commit objects,
-# author and committer headers included. These are GitHub's no-reply
-# addresses, not anyone's routing address: the maintainer's private-email
-# commit identity (already on main) and the committer GitHub stamps on
-# merges made in its web UI.
-132688204+wildbuffaloman@users.noreply.github.com
-noreply@github.com
+# GitHub no-reply identities (<id>+<login>@users.noreply.github.com and the
+# web-UI merge committer) are NOT listed here: bin/gate_scan.py accepts any of
+# them, but only as the identity in a commit or tag author/committer/tagger
+# header. Written in a file or a message they still fail as UNALLOWLISTED.

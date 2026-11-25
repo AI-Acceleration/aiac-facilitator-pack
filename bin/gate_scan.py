@@ -7,14 +7,17 @@ Exit codes:  0 = clean   1 = leak found   3 = gate could not run (FAIL LOUD)
 Modes:
   (none)      staged blobs, for the pre-commit hook
   --message F scan a commit message file, for the commit-msg hook
-  --tree      every tracked path, read from the WORKING TREE, not from the
-              blob at HEAD. Correct in CI, where the checkout is clean and
-              there is no index. Run locally on a dirty tree it measures your
-              uncommitted edits, which is a different question than "is HEAD
-              clean" -- do not read a local --tree pass as a statement about
-              what is committed.
+  --tree      every tracked path, read as the blob in the INDEX by its git
+              mode (symlinks scanned as link text, never followed; submodules
+              reported UNSCANNABLE). In CI the index equals the checkout.
+              Locally, unstaged edits are not read: stage them first.
   --history   every object reachable from every ref, including commit and tag
-              headers and messages (raw and, if re-encoded, decoded)
+              headers and messages (raw and, if re-encoded, decoded). A GitHub
+              no-reply address is accepted only as the identity in an author,
+              committer or tagger header.
+
+Findings never print an address: addresses are shown as `address#<8 hex>`
+(prefix of the deny-list hash) and path components holding one are redacted.
 
 Four design choices, each answering a way this gate could have been useless:
 
@@ -37,6 +40,7 @@ Four design choices, each answering a way this gate could have been useless:
    nothing and prints "clean" is the failure mode this file exists to prevent.
 """
 import codecs
+import fnmatch
 import hashlib
 import html
 import re
@@ -66,6 +70,15 @@ CANARY = "canary.probe" + "@" + "example-invalid" + ".test"
 # The exemption must apply to precisely the one file load() actually reads.
 DENY_ONLY_CONTENT = {".githooks/allow-patterns.txt"}
 COMMIT_MSG_PATH = "<commit message>"
+# GitHub-issued no-reply identities: `<id>+<login>@users.noreply.github.com`
+# (Settings > Emails > "Keep my email addresses private") and the committer
+# GitHub stamps on web-UI merges. They route to no one, so any contributor
+# may commit with one. Allowed ONLY as the identity in a commit or tag header
+# (see github_identity); written anywhere else they are ordinary addresses.
+GITHUB_NOREPLY_RE = re.compile(
+    r"\d+\+[A-Za-z0-9-]+@users\.noreply\.github\.com|noreply@github\.com",
+    re.IGNORECASE)
+IDENTITY_HEADERS = ("author ", "committer ", "tagger ")
 
 
 def die(msg):
@@ -115,9 +128,28 @@ def h(addr):
     return hashlib.sha256(addr.lower().strip().encode()).hexdigest()
 
 
-def mask(addr):
-    local, _, dom = addr.partition("@")
-    return f"{local[:3]}***@{dom}"
+def fingerprint(addr):
+    """How a finding names an address in output. CI logs are public, so the
+    gate never prints an address, not even masked (a masked address still
+    shows its domain). The 8-hex prefix of the deny-list hash tells findings
+    apart and lets a maintainer confirm a suspected address locally."""
+    return f"address#{h(addr)[:8]}"
+
+
+def redact(label):
+    """A path or ref name can carry an address. Replace every '/'-separated
+    component that holds one (raw, entity-encoded or obfuscated) before it is
+    printed, keeping the rest of the path so the file can still be found."""
+    suffix = " (file name)" if label.endswith(" (file name)") else ""
+    body = label[:len(label) - len(suffix)]
+    parts = []
+    for part in body.split("/"):
+        unescaped = html.unescape(part)
+        if any(True for v in (part, unescaped, deobfuscate(unescaped))
+               for _ in address_matches(v)):
+            part = f"[redacted#{h(part)[:8]}]"
+        parts.append(part)
+    return "/".join(parts) + suffix
 
 
 def git(*args):
@@ -145,6 +177,11 @@ def self_test(deny_hashes):
             die("self-test FAILED — deobfuscation missed %r" % hidden)
     if norm("A — B.MD") != norm("a — b.md"):
         die("self-test FAILED — path folding is not case/NFC insensitive")
+    for leaky in (f"notes/{CANARY}.md", CANARY.replace("@", "\uff20")):
+        if "@" in redact(leaky) or "\uff20" in redact(leaky):
+            die("self-test FAILED — path redaction left an address visible")
+    if "canary" in fingerprint(CANARY):
+        die("self-test FAILED — address fingerprint echoes the address")
 
 
 def address_matches(text):
@@ -165,9 +202,30 @@ def address_matches(text):
             yield match
 
 
-def scan_blob(data, path, deny_hashes, allow, findings):
+def github_identity(variant, m):
+    """True for a GitHub-issued no-reply address used as an identity: inside
+    the <...> of an author, committer or tagger header line, before the first
+    blank line of a commit or tag object. Any contributor's own no-reply
+    address passes there; the same address anywhere else (a message, a file)
+    is still UNALLOWLISTED."""
+    if not GITHUB_NOREPLY_RE.fullmatch(m.group(0)):
+        return False
+    start, end = m.span()
+    if (start == 0 or end >= len(variant) or variant[start - 1] != "<" or
+            variant[end] != ">"):
+        return False
+    header_end = variant.find("\n\n")
+    if header_end != -1 and start > header_end:
+        return False
+    line_start = variant.rfind("\n", 0, start) + 1
+    return variant.startswith(IDENTITY_HEADERS, line_start)
+
+
+def scan_blob(data, path, deny_hashes, allow, findings, identity_headers=False):
     """Content scan. A deny-hash match is unconditional; the allowlist can
-    only suppress the generic UNALLOWLISTED rule, never a known address."""
+    only suppress the generic UNALLOWLISTED rule, never a known address.
+    identity_headers=True (commit and tag objects only) also lets GitHub
+    no-reply identities through, see github_identity()."""
     deny_only = path in DENY_ONLY_CONTENT
     try:
         text = data.decode("utf-8")
@@ -183,7 +241,8 @@ def scan_blob(data, path, deny_hashes, allow, findings):
         for m in address_matches(variant):
             a = m.group(0)
             known = h(a) in deny_hashes
-            if not known and (deny_only or a.lower() in allow_l):
+            if not known and (deny_only or a.lower() in allow_l or
+                              (identity_headers and github_identity(variant, m))):
                 continue
             line = variant.count("\n", 0, m.start()) + 1
             why = "KNOWN-PRIVATE" if known else "UNALLOWLISTED"
@@ -191,13 +250,30 @@ def scan_blob(data, path, deny_hashes, allow, findings):
             if key in seen:
                 continue
             seen.add(key)
-            findings.append((path, line, f"{why} {mask(a)}"))
+            findings.append((path, line, f"{why} {fingerprint(a)}"))
+
+
+# Results of scanning one git blob, keyed by (sha, deny_only). The history
+# walk visits the same blob once per commit that contains it; the content and
+# therefore the verdict cannot change, so it is read and scanned once.
+_BLOB_CACHE = {}
+
+
+def scan_git_blob(sha, path, deny_hashes, allow, findings):
+    key = (sha, path in DENY_ONLY_CONTENT)
+    if key not in _BLOB_CACHE:
+        local = []
+        scan_blob(git("cat-file", "blob", sha), path, deny_hashes, allow, local)
+        _BLOB_CACHE[key] = [(line, why) for _, line, why in local]
+    findings.extend((path, line, why) for line, why in _BLOB_CACHE[key])
 
 
 def check_path(path, bad_base, bad_path):
-    """Case-folded, NFC-normalized path check. Returns a reason or None."""
-    base = path.rsplit("/", 1)[-1]
-    if norm(base) in bad_base:
+    """Case-folded, NFC-normalized path check. Returns a reason or None.
+    Basenames are glob patterns (`*`, `?`, `[...]`), as CI's `find -iname`
+    reads them; paths are exact."""
+    base = norm(path.rsplit("/", 1)[-1])
+    if any(fnmatch.fnmatchcase(base, pat) for pat in bad_base):
         return "FORBIDDEN BASENAME"
     if norm(path) in bad_path:
         return "FORBIDDEN PATH"
@@ -270,7 +346,8 @@ def decoded_forms(sha, obj, message, encodings, kind="commit"):
         if kind == "commit":
             forms.append((decoded_path,
                           git("log", "-1", "--no-show-signature", "--encoding=UTF-8",
-                              "--format=%an%n%ae%n%cn%n%ce%n%B", sha)))
+                              "--format=author %an <%ae>%ncommitter %cn <%ce>%n%n%B",
+                              sha)))
     return forms, problems
 
 
@@ -288,12 +365,16 @@ def metadata_object(sha, kind):
 def scan_metadata(sha, kind, headers, message, forms, problems,
                   deny_hashes, allow, findings):
     # Strict UTF-8 for raw bytes, even when a declared encoding is also read.
-    scan_blob(headers, f"<{kind} header> {sha[:12]}", deny_hashes, allow, findings)
+    # Headers (and decoded whole objects, which start with them) may carry a
+    # GitHub no-reply identity; messages may not.
+    scan_blob(headers, f"<{kind} header> {sha[:12]}", deny_hashes, allow, findings,
+              identity_headers=True)
     scan_blob(message, f"<{kind} message> {sha[:12]}", deny_hashes, allow, findings)
     for label, problem in problems:
         findings.append((f"{label} {sha[:12]}", 0, problem))
     for label, form in forms:
-        scan_blob(form, f"{label} {sha[:12]}", deny_hashes, allow, findings)
+        scan_blob(form, f"{label} {sha[:12]}", deny_hashes, allow, findings,
+                  identity_headers=(label == f"<{kind} decoded>"))
 
 
 def commit_objects(tips=()):
@@ -353,8 +434,7 @@ def scan_history_tree(tree, deny_hashes, allow, bad_base, bad_path, findings):
             findings.append((name, 0, "FORBIDDEN IN HISTORY"))
         scan_name(name, deny_hashes, allow, findings)
         if kind == b"blob":
-            scan_blob(git("cat-file", "blob", sha.decode("ascii")), name,
-                      deny_hashes, allow, findings)
+            scan_git_blob(sha.decode("ascii"), name, deny_hashes, allow, findings)
     return scanned
 
 
@@ -402,7 +482,7 @@ def main():
                 commit_tips.add(sha)
             elif kind == b"blob":
                 scanned += 1
-                scan_blob(git("cat-file", "blob", sha), name, deny_hashes, allow, findings)
+                scan_git_blob(sha, name, deny_hashes, allow, findings)
             elif kind == b"tree":
                 scanned += scan_history_tree(sha, deny_hashes, allow,
                                              bad_base, bad_path, findings)
@@ -420,11 +500,19 @@ def main():
             scan_metadata(sha, "commit", headers, message, forms, problems,
                           deny_hashes, allow, findings)
     elif tree:
-        # CI has no index. Scan every tracked file, read from the working tree.
-        paths = [p for p in git("ls-files", "-z").split(b"\0") if p]
-        if not paths:
+        # Every tracked path, read as the blob git tracks for it (the index),
+        # never through the filesystem: a tracked symlink is scanned as its
+        # link text and never followed out of the repo.
+        entries = [e for e in git("ls-files", "-s", "-z").split(b"\0") if e]
+        if not entries:
             die("git ls-files returned no paths -- refusing to certify an empty scan")
-        for raw in paths:
+        for entry in entries:
+            meta, sep, raw = entry.partition(b"\t")
+            fields = meta.split()
+            if (not sep or len(fields) != 3 or
+                    not re.fullmatch(rb"[0-9a-f]{40}", fields[1])):
+                die("git ls-files -s returned an invalid index entry")
+            mode, sha = fields[0], fields[1].decode("ascii")
             path = raw.decode("utf-8", "surrogateescape")
             scanned += 1
             why = check_path(path, bad_base, bad_path)
@@ -432,15 +520,12 @@ def main():
                 findings.append((path, 0, why))
                 continue
             scan_name(path, deny_hashes, allow, findings)
-            f = ROOT / path
-            if not f.exists():
-                continue  # deleted in a dirty local tree; CI checkouts are clean
-            if not f.is_file():
-                # A submodule or a directory where a file is tracked: nothing
-                # was read, so nothing may be certified.
+            if mode in (b"100644", b"100755", b"120000"):
+                scan_git_blob(sha, path, deny_hashes, allow, findings)
+            else:
+                # A submodule (160000) or anything else: nothing was read,
+                # so nothing may be certified.
                 findings.append((path, 0, "UNSCANNABLE — not a regular file"))
-                continue
-            scan_blob(f.read_bytes(), path, deny_hashes, allow, findings)
     else:
         for raw in [p for p in git("diff", "--cached", "-z", "--name-only",
                                    "--diff-filter=ACMR").split(b"\0") if p]:
@@ -455,8 +540,11 @@ def main():
 
     if findings:
         print("BLOCKED — private data in the commit:", file=sys.stderr)
+        # Paths and ref names are redacted: CI logs are public, and a finding
+        # in a file name would otherwise print the very address it caught.
         for path, line, why in sorted(set(findings)):
-            print(f"  {path}{f':{line}' if line else ''}  [{why}]", file=sys.stderr)
+            print(f"  {redact(path)}{f':{line}' if line else ''}  [{why}]",
+                  file=sys.stderr)
         sys.exit(1)
 
     mode = ("message" if msg_file is not None else
