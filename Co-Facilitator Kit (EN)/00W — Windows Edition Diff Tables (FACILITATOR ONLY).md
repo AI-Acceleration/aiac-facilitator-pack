@@ -25,10 +25,10 @@ silently drifts from the kit.
 | Document | Status |
 |---|---|
 | `01 — Pre-Session Setup Instructions` | **Shared** — no Windows variant. It was already OS-branched; the Windows section was strengthened in place (5 additions below). |
-| `02W — Main Setup Prompt (Windows)` | Variant — **17 changes** |
+| `02W — Main Setup Prompt (Windows)` | Variant — **18 changes** |
 | `03W — Skills & Config Setup Prompt (Windows)` | Variant — **10 changes** |
 | `04 — Next Steps Brief` | **Shared, unchanged.** Reading material; nothing OS-specific executes. |
-| `02-S — Sandbox Setup` | **Not available on Windows.** Native Windows has no sandbox; WSL2 required. |
+| `02-S — Sandbox Setup` | **Shared, WSL2 only on Windows.** Native Windows has no sandbox; it works with Claude Code running inside a WSL2 distribution (02-S Part 2), where the Linux instructions apply. |
 
 ## The four landmines this edition exists to defuse
 
@@ -48,8 +48,9 @@ Verified against Anthropic's live docs, then against a real Windows machine.
    **the bar is only the display — the 75% override and the two hooks are the actual guardrail**,
    and none of them depend on it.
 4. **`python3` usually isn't a command on Windows** (it's `python` or `py`; bare `python3` opens the
-   Microsoft Store) — **and Doc 03's STEP 7, the kit's final verification, writes and runs a Python
-   script.** As shipped, the kit's last check fails on Windows for a reason unrelated to the setup.
+   Microsoft Store) — **and Doc 02's STEP 3 settings merge and Doc 03's STEP 7, the kit's final
+   verification, both run Python.** Written with `python3`, both fail on Windows for a reason unrelated
+   to the setup.
 
 ## Doc 01 — strengthened in place (5 additions)
 
@@ -61,7 +62,7 @@ Verified against Anthropic's live docs, then against a real Windows machine.
 | 4 | **PATH verification after the installer** | The official installer finished and reported in its own output that it had NOT added `.local/bin` to PATH → `'claude' is not recognized`, twice, across a week |
 | 5 | **"This is prose, not commands" banner** | Prose pasted into PowerShell produced a `ParserError` and a stuck `>>` prompt — an unclosed quote from the apostrophe in *"you're"* |
 
-## Doc 02W — 17 changes vs `02 — Main Setup Prompt (Participant)`
+## Doc 02W — 18 changes vs `02 — Main Setup Prompt (Participant)`
 
 | # | Where | Kit says | 02W says | Why |
 |---|---|---|---|---|
@@ -82,6 +83,7 @@ Verified against Anthropic's live docs, then against a real Windows machine.
 | 15 | STEP 5 | `gh` check | adds **`winget install --id GitHub.cli -e`** if missing | Same install route as the prerequisites |
 | 16 | STEP 6 `~/dev` + location check | Mac-only phrasing; plain path compare | adds the `C:/Users/YOUR-USER/dev` translation; compare normalised with **`cd … && pwd -P`** | Git prints `C:/…`, Git Bash `/c/…` — a correct repo would show a false `WRONG LOCATION` |
 | 17 | STEP 7 `.gitignore` | `.DS_Store` | adds `Thumbs.db`, `desktop.ini` | Windows equivalents |
+| 18 | STEP 3 + 3.5 settings merge | `python3 ~/.claude/aiac-merge-settings.py` | **`py`** (fallback `python`, never `python3`); the statusline fallback 3 sets the absolute path with `--replace statusLine.command` | Landmine #4 — the merge script itself is byte-identical |
 
 ## Doc 03W — 10 changes vs `03 — Skills & Config Setup Prompt (Participant)`
 
@@ -91,8 +93,8 @@ Verified against Anthropic's live docs, then against a real Windows machine.
 | 3 | STEP 1 router check | read back 20 lines, 2 checks | 25 lines + **3rd check: zero backslashes** | The check that catches landmine #2 |
 | 4 | STEP 1 routing test | second window, trust `~/dev` | second window **as Git Bash**; trust default is "No, exit" | Same two Windows traps as Doc 02W |
 | 5 | STEP 3 `lessons.md` | empty | seeded with the forward-slash rule | Puts the Windows rule where Claude re-reads it every session |
-| 6 | ⭐ **STEP 7** | "Create a Python script … run it once" | **Detect `python`/`py`/`python3` first**; missing Python explicitly NOT a blocker; run once with normal approval, never added to `allow` | ⭐ Landmine #4 — the kit's final check otherwise fails on Windows for an unrelated reason |
-| 7 | STEP 7 | (none) | `jq .` JSON-validity check on `settings.json`, with a read-back fallback when `jq` is missing | Cheap; catches a corrupted merge from Doc 02W |
+| 6 | ⭐ **STEP 7** | "Create a Python script … run it once" | **Detect `py`/`python`/`python3` first**; missing Python is a prerequisite gap (Doc 01 install line, note it for the facilitator), not a reason to stop the list; run once with normal approval, never added to `allow` | ⭐ Landmine #4 — the kit's final check otherwise fails on Windows for an unrelated reason |
+| 7 | STEP 7 | (none) | silent `jq .` JSON-validity check on `settings.json`; without `jq`, rely on item 3's check, which already parsed it — never read the file back | Cheap; catches a corrupted merge from Doc 02W without displaying keys |
 | 8 | STEP 7 | (none) | adds `claude doctor` | First thing to run when something breaks later |
 | 9–10 | STEP 6 cheat sheet | OS-neutral | Windows notes block (window · paths · paste · `claude doctor`) | The four things they'll forget by next week |
 
@@ -102,19 +104,20 @@ Removed from the kit in v0.2 (so no longer Windows rows): the Granola cached-tok
 
 | Check | 02W | 03W |
 |---|---|---|
-| Code-fence balance | ✅ 82, balanced | ✅ 26, balanced |
+| Code-fence balance | ✅ 94 fence lines, balanced | ✅ 34 fence lines, balanced |
 | macOS commands inside code blocks | ✅ 0 | ✅ 0 |
 | `~/Library` paths inside code blocks | ✅ 0 | ✅ 0 |
-| `bash -n` on every bash block | ✅ 18 clean / 3 placeholder-only (`<repo-name>`) — same 3 as the EN baseline | ✅ 9 clean, 0 failing |
+| `bash -n` on every bash block | ✅ 23 clean / 5 placeholder-only (`<repo-name>`, `<file>`) — same 5 as the EN baseline | ✅ 11 clean, 0 failing |
 | `settings.json` block parses, Stop hook de-escapes correctly | ✅ `powershell.exe -c "[console]::beep(1000,400)"` | n/a |
 | Smart quotes inside code blocks | ✅ 0 | ✅ 0 |
 
 **Note on permissions:** like the rest of the kit, these variants use the **narrow** permissions
-block: only exact, read-only git commands (`git status`, `git status --short`, `git diff`,
-`git log --oneline`, `git remote -v`), plus `ls`, `mkdir`, `wc`, `Glob`, `Grep`. No git wildcards
-(options like `--output`, `--ext-diff`, `--template` write files, run programs or plant hooks), so
-`git add`/`commit`/`init`/`push` ask each time. No blanket git rule, no `cat`/`head`, no
-interpreter (`python`, `py`, `python3`, `node`), no `pip install`, no bare `Read`/`Write`/`Edit` — and
-the block is merged into existing settings, never overwritten. The Windows STEP 7 change above keeps
+block. `allow` holds only read-only commands: exact git commands (`git status`, `git status --short`,
+`git diff`, `git log --oneline`, `git remote -v`) plus `ls` and `wc` — no lasting write grant, no
+`mkdir`. `ask` makes `cat`, `head`, `tail`, `grep`, `git add`, `git commit`, `git push` and
+`gh repo create` ask every time (Claude Code runs built-in read-only commands such as `cat` without a
+prompt unless an `ask` or `deny` rule covers them). No git wildcard in `allow`, no interpreter
+(`python`, `py`, `python3`, `node`), no `pip install`, no bare `Read`/`Write`/`Edit`/`Glob`/`Grep` —
+and the block is merged locally by `aiac-merge-settings.py`, which never prints existing values. The Windows STEP 7 change above keeps
 that hardening: it runs the greeting once with normal approval using the Python command that actually
 exists, without adding it to `allow`.

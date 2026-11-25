@@ -149,7 +149,7 @@ Two things you get for free, worth knowing: the sandbox **automatically denies w
 
 ### 3b — Global settings: `~/.claude/settings.json`
 
-This covers the built-in file tools, which the sandbox does not. The `allow` list is **the same as Doc 02's STEP 3**; what this block adds is the **targeted `deny` list** (crown-jewel paths). Use it instead of Doc 02's block — and like Doc 02, **merge it into your existing `~/.claude/settings.json`**: back the file up first, add these entries, and keep every key, allow rule and deny rule you already had.
+This covers the built-in file tools, which the sandbox does not. The `allow` and `ask` lists are **the same as Doc 02's STEP 3**; what this block adds is the **targeted `deny` list** (crown-jewel paths, below). Use it instead of Doc 02's block — and like Doc 02, **merge it into your existing `~/.claude/settings.json` without displaying it** (that file can hold API keys): back the file up, save the block, and run the merge script from this section in a **normal terminal**.
 
 ```json
 {
@@ -161,10 +161,17 @@ This covers the built-in file tools, which the sandbox does not. The `allow` lis
       "Bash(git log --oneline)",
       "Bash(git remote -v)",
       "Bash(ls *)",
-      "Bash(mkdir *)",
-      "Bash(wc *)",
-      "Glob",
-      "Grep"
+      "Bash(wc *)"
+    ],
+    "ask": [
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(grep *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(gh repo create *)"
     ],
     "deny": [
       "Read(~/.ssh/**)",
@@ -172,9 +179,9 @@ This covers the built-in file tools, which the sandbox does not. The `allow` lis
       "Read(~/.gnupg/**)",
       "Read(~/.config/gh/**)",
       "Read(~/Library/Keychains/**)",
-      "Read(**/.env)",
-      "Read(**/*.pem)",
-      "Read(**/*.key)"
+      "Read(~/**/.env)",
+      "Read(~/**/*.pem)",
+      "Read(~/**/*.key)"
     ]
   },
   "hooks": {
@@ -189,13 +196,156 @@ This covers the built-in file tools, which the sandbox does not. The `allow` lis
 }
 ```
 
+#### Canonical deny list
+
+This is the complete list. Every entry is required — the status check (`--sandbox`) marks this part
+`NOT DONE` if any one of them is missing from `permissions.deny`:
+
+```text
+Read(~/.ssh/**)
+Read(~/.aws/**)
+Read(~/.gnupg/**)
+Read(~/.config/gh/**)
+Read(~/Library/Keychains/**)
+Read(~/**/.env)
+Read(~/**/*.pem)
+Read(~/**/*.key)
+```
+
+Every path is anchored at your home folder (`~/`). That is deliberate: in Claude Code's path syntax a
+pattern with no prefix, such as `**/*.key`, is relative to the folder Claude was started in, so it would
+miss a key file anywhere outside the vault ([path patterns](https://code.claude.com/docs/en/permissions)).
+`~/**/*.key` covers your whole home folder, vault included. Deny rules block Claude's file tools and the
+file commands Claude Code recognizes in Bash (`cat`, `head`, `tail`, `sed`), not arbitrary scripts —
+that part is the sandbox's job.
+
+**Merge it without reading your existing file.** In a normal terminal:
+
+```bash
+mkdir -p ~/.claude
+cp -a ~/.claude/settings.json ~/.claude/settings.json.bak 2>/dev/null
+```
+
+Then save the JSON block above as `~/.claude/aiac-02s-block.json` (edit the `Stop` line first — see
+below), save the script below as `~/.claude/aiac-merge-settings.py` (it is the same script Doc 02 Step 3
+uses), and run `python3 ~/.claude/aiac-merge-settings.py ~/.claude/aiac-02s-block.json`. It adds each
+missing entry, keeps every key and rule you already had, prints only the kit's entries and the *names*
+of keys it left alone, and its last line must start with `Verified:`.
+
+```python
+# aiac-merge-settings.py - merges the AIAC kit's entries into ~/.claude/settings.json.
+# It never prints existing values: only the kit entries it added and the names
+# of keys you already had. Usage: python3 aiac-merge-settings.py [--replace KEY] - < block
+import json
+import os
+import shutil
+import sys
+
+TARGET = os.path.expanduser("~/.claude/settings.json")
+DEEP = ("permissions", "hooks", "env")  # top-level objects merged key by key
+
+
+def merge(dst, new, path, added, kept):
+    for key, val in new.items():
+        name = ".".join(path + [key])
+        if key not in dst:
+            dst[key] = val
+            added.append(name)
+        elif isinstance(val, list) and isinstance(dst[key], list):
+            for item in val:
+                if item not in dst[key]:
+                    dst[key].append(item)
+                    added.append(name + ": " + (item if isinstance(item, str) else "1 entry"))
+        elif isinstance(val, dict) and isinstance(dst[key], dict) and (path or key in DEEP):
+            merge(dst[key], val, path + [key], added, kept)
+        elif dst[key] != val:
+            kept.append(name)
+
+
+def missing(dst, new, path, kept):
+    gaps = []
+    for key, val in new.items():
+        name = ".".join(path + [key])
+        if name in kept:
+            continue
+        if key not in dst:
+            gaps.append(name)
+        elif isinstance(val, list) and isinstance(dst[key], list):
+            gaps += [name for item in val if item not in dst[key]]
+        elif isinstance(val, dict) and isinstance(dst[key], dict) and (path or key in DEEP):
+            gaps += missing(dst[key], val, path + [key], kept)
+    return gaps
+
+
+def replace(dst, new, dotted):
+    keys = dotted.split(".")
+    for key in keys[:-1]:
+        new = new[key]
+        if not isinstance(dst.get(key), dict):
+            dst[key] = {}
+        dst = dst[key]
+    dst[keys[-1]] = new[keys[-1]]
+
+
+def main():
+    args, to_replace = sys.argv[1:], []
+    while len(args) >= 2 and args[0] == "--replace":
+        to_replace.append(args[1])
+        args = args[2:]
+    if args and args[0] != "-":
+        with open(args[0], encoding="utf-8") as f:
+            block = json.load(f)
+    else:
+        block = json.load(sys.stdin)
+    if not isinstance(block, dict):
+        sys.exit("STOP: the kit block is not a JSON object. Nothing was changed.")
+    current = {}
+    if os.path.exists(TARGET):
+        try:
+            with open(TARGET, encoding="utf-8") as f:
+                current = json.load(f)
+        except ValueError:
+            sys.exit("STOP: ~/.claude/settings.json is not valid JSON. Nothing was changed.")
+        if not isinstance(current, dict):
+            sys.exit("STOP: ~/.claude/settings.json is not a JSON object. Nothing was changed.")
+    added, kept = [], []
+    for dotted in to_replace:
+        try:
+            replace(current, block, dotted)
+        except (KeyError, TypeError):
+            sys.exit("STOP: " + dotted + " is not in the kit block. Nothing was changed.")
+        added.append(dotted + " (replaced, as you asked)")
+    merge(current, block, [], added, kept)
+    kept = [k for k in kept if not any(r.startswith(k + ".") for r in to_replace)]
+    if added:
+        tmp = TARGET + ".aiac-tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(current, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+        if os.path.exists(TARGET):
+            shutil.copymode(TARGET, tmp)
+        os.replace(tmp, TARGET)
+    for name in added:
+        print("added: " + name)
+    for name in kept:
+        print("kept your existing value (not shown): " + name)
+    with open(TARGET, encoding="utf-8") as f:
+        gaps = missing(json.load(f), block, [], kept)
+    if gaps:
+        sys.exit("STOP: still missing after the merge: " + ", ".join(gaps))
+    print("Verified: settings.json parses and has every kit entry (%d added)." % len(added))
+
+
+main()
+```
+
 Why the list looks like this, and why each choice is deliberate:
 
 - **No interpreter (`python`, `node`…) and no `pip install` in `allow`.** Pre-approving an interpreter means pre-approving "read or write any file, unconstrained by any permission rule." With the sandbox on, scripts are kernel-confined anyway — but there is no reason to *also* hand them a blanket pre-approval, and if the sandbox ever fails to load you want the prompt. (`failIfUnavailable: true` should make that impossible. Belt and braces.)
-- **No blanket git, no `cat`/`head`.** Same reasons as Doc 02: only exact, read-only git commands are pre-approved (no wildcards, because options like `--output`, `--ext-diff` or `--template` write files, run programs or plant hooks); `git add`, `git commit` and anything that publishes asks. `cat`/`head` would print any file; the built-in Read tool, which the `deny` list governs, does that job.
-- **No bare `Read`, `Write`, `Edit` in `allow`.** A bare tool name in `allow` pre-approves that tool for **any** input — including paths outside your vault. Removing them restores the real default: *"By default, Claude has access to files in the directory where you launched it."* Launch from the vault, and the vault is the scope. This is a case where deleting three lines buys more than adding ten.
+- **No blanket git, no lasting write grants, and `ask` rules for what prints or publishes.** Same reasons as Doc 02: only exact, read-only git commands plus `ls` and `wc` are pre-approved (no wildcards, because options like `--output`, `--ext-diff` or `--template` write files, run programs or plant hooks). `cat`, `head`, `tail` and `grep` are built-in read-only commands that Claude Code runs without a prompt anywhere on disk unless a rule says otherwise, so they sit in `ask`, together with `git add`, `git commit`, `git push` and `gh repo create`.
+- **No bare `Read`, `Write`, `Edit`, `Glob`, `Grep` in `allow`.** A bare tool name in `allow` pre-approves that tool for **any** input — including paths outside your vault. Leaving them out keeps the real default: *"By default, Claude has access to files in the directory where you launched it."* Launch from the vault, and the vault is the scope.
 - **Targeted `deny` entries, not a broad one.** Note what is deliberately **absent**: there is no `Read(~/Documents/**)` or `Read(//**)`. Your vault lives in your home folder (`~/AIAC-Vault` by default), and permission deny rules take precedence over allow rules with **no possible exception** — a broad deny like that would silently lock Claude out of the very vault you're trying to give it. These entries are narrow on purpose. The broad boundary is the sandbox's job; this list is for the built-in tools' crown jewels.
-- **Sound hook is macOS-only.** On Windows Git Bash/WSL use `powershell.exe -c "[console]::beep(1000,400)"`; on Linux `paplay /usr/share/sounds/freedesktop/stereo/bell.oga`. If unsure, delete the whole `"Stop"` block — it's a convenience, and a wrong command here fails on every single turn.
+- **Sound hook is macOS-only.** On Windows (WSL2) use `powershell.exe -c "[console]::beep(1000,400)"`; on Linux `paplay /usr/share/sounds/freedesktop/stereo/bell.oga`. If unsure, delete the whole `"Stop"` block — it's a convenience, and a wrong command here fails on every single turn.
 
 **Also check `additionalDirectories`.** If that key exists in any settings file, whatever it lists is added to Claude's built-in-tool scope. It should be absent or empty. Same for the `--add-dir` flag and the `/add-dir` command — don't use them.
 
@@ -225,6 +375,7 @@ Under this sandbox, Bash can read `~/.claude` but **cannot write to it**. A few 
 | Step | Why it fails sandboxed |
 |---|---|
 | Doc 02 Step 3.5 — `chmod +x` on the statusline and hook scripts | changes files in `~/.claude` |
+| Doc 02 Step 3.5 — the three settings merges (`aiac-merge-settings.py`) | writes `~/.claude/settings.json`, which sandboxed commands may never write |
 | Doc 03 Step 2 and 2.7b — `claude plugin install …` | writes to `~/.claude/plugins/` |
 | Doc 03 Step 2.7a — the starter-pack install | writes to `~/.claude/skills/` and `~/.aiac/` |
 
@@ -265,7 +416,7 @@ It should not silently read it — it's outside the vault, so you get a permissi
 
 > Read the file <CANARY_DIR>/test.key
 
-The `Read(**/*.key)` deny rule must block that outright, with no prompt. (This uses the synthetic key from step 2 — never point this test at a real key.)
+The `Read(~/**/*.key)` deny rule must block that outright, with no prompt — the canary folder is inside your home folder, so the home-anchored rule covers it. (This uses the synthetic key from step 2 — never point this test at a real key.)
 
 **5. Test the network boundary.** Ask Claude:
 
@@ -330,9 +481,9 @@ Run Doc 02 normally, with these overrides:
 | Doc 02 step | Change |
 |---|---|
 | **Before you start Doc 02** | `cd` into your vault. Confirm with `pwd`. The working directory *is* the boundary — if you launch Claude from anywhere else, the built-in-tool scope follows you there and `.` resolves somewhere else entirely. |
-| **STEP 3 — permissions block** | **Use Part 3b instead** — same `allow` list plus the `deny` list, already merged into your settings. Tell Claude not to overwrite it. |
+| **STEP 3 — permissions block** | **Already done in Part 3b** — same `allow` and `ask` lists plus the `deny` list, merged with the script. Tell Claude to skip the Step 3 merge: under the sandbox the script can't write `~/.claude/settings.json` anyway (Claude Code always denies sandboxed writes to it). |
 | **STEP 3 — global router** | Run normally. If you chose option (A) in Part 3c, tell Claude to change router rule 3 to point at `<vault>/dev/` instead of `~/dev/`. |
-| **STEP 3.5 — hooks** | Read both hook commands and the statusline script before they're written — they run unsandboxed. The `chmod +x` lines fail sandboxed: run them from a session outside the vault (Part 3d). `jq` must be installed (Doc 01 prerequisites). |
+| **STEP 3.5 — hooks** | Read both hook commands and the statusline script before they're written — they run unsandboxed. The `chmod +x` lines and the three settings merges fail sandboxed (they write in `~/.claude`): run them from a session outside the vault (Part 3d). `jq` must be installed (Doc 01 prerequisites). |
 | **STEP 6 — create the repo** | Use whichever location you picked in Part 3c. |
 | **STEP 12 — first push** | Under the sandbox Claude can't run git (Part 4.5). Claude shows you the staged file list and the commands; you check owner, **Private** visibility and files, and run `gh repo create … --private` and `git push` yourself in a normal terminal. |
 | **If `gh` fails** | Likely the Seatbelt/TLS issue with Go-based CLIs. Expected under strict mode. Run `gh` yourself in a normal terminal; don't create a classic personal access token. |

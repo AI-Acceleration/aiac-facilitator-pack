@@ -3,8 +3,8 @@
 [← Back to the repo front page](../README.md) · [Kit en español](../Co-Facilitator%20Kit%20(ES)/README%20%E2%80%94%20Kit%20Index%20%26%20How%20to%20Use.md)
 
 This is a self-contained, **docs-only** kit in English for running a **Phase 0
-onboarding session** with anyone. Nothing needs to be configured in advance
-and there is no intake form. The participant **builds their own project live
+onboarding session** with anyone. There is no intake form, and the only
+advance setup is two placeholders to fill in once (see below). The participant **builds their own project live
 during the session** through a guided interview. It is built for 1-on-1
 sessions; small groups work, but they need more time.
 
@@ -29,13 +29,13 @@ hours for your first sessions.
 | # | Document | Audience | When |
 |---|----------|----------|------|
 | **05** | [**Facilitator Manual — How to Run a Phase 0 Session**](05%20%E2%80%94%20Facilitator%20Manual%20%E2%80%94%20How%20to%20Run%20a%20Phase%200%20Session.md) | You (facilitator) | **Read this first.** Run-of-show, talking points, gates. |
-| 01 | [Pre-Session Setup Instructions](01%20%E2%80%94%20Pre-Session%20Setup%20Instructions%20(Participant).md) | Participant | Sent a few days before the session. |
-| 07 | [Vocabulary](07%20%E2%80%94%20Vocabulary%20(Participant).md) | Participant | Sent with Doc 01. Five minutes of reading, about a day before the session. |
+| 01 | [Pre-Session Setup Instructions](01%20%E2%80%94%20Pre-Session%20Setup%20Instructions%20(Participant).md) | Participant | Sent about a week before the session. |
+| 07 | [Vocabulary](07%20%E2%80%94%20Vocabulary%20(Participant).md) | Participant | Sent with Doc 01. The main terms, five minutes of reading, about a day before the session. |
 | 02 | [Main Setup Prompt](02%20%E2%80%94%20Main%20Setup%20Prompt%20(Participant).md) | Participant | Sent with Doc 01 (the pre-flight moves it into the vault). Loaded into Claude Code by file during **Block 2** (contains the live interview). |
 | 03 | [Skills & Config Setup Prompt](03%20%E2%80%94%20Skills%20%26%20Config%20Setup%20Prompt%20(Participant).md) | Participant | Sent with Doc 01. Loaded into Claude Code by file during **Block 3**. |
 | 04 | [Next Steps Brief](04%20%E2%80%94%20Next%20Steps%20Brief%20(Participant).md) | Participant | Handed over at **Block 5** as the homework roadmap. |
 | 06 | [Pro Plan Survival Kit](06%20%E2%80%94%20Pro%20Plan%20Survival%20Kit%20(Participant).md) | Participant | Handed over with Doc 04, to read before starting real work. How usage limits work and how to make Pro last. |
-| **02-S** | [**Sandbox Setup**](02-S%20%E2%80%94%20Sandbox%20Setup%20(Participant,%20opt-in).md) *(opt-in)* | Participant | **Only for participants who ask that Claude be confined to their vault.** Runs after Doc 01 and **before** Doc 02, and replaces Doc 02's STEP 3 permissions block. Not part of the default flow. Mac/Linux only. |
+| **02-S** | [**Sandbox Setup**](02-S%20%E2%80%94%20Sandbox%20Setup%20(Participant,%20opt-in).md) *(opt-in)* | Participant | **Only for participants who ask that Claude be confined to their vault.** Runs after Doc 01 and **before** Doc 02, and replaces Doc 02's STEP 3 permissions block. Not part of the default flow. macOS, Linux, or Windows with Claude Code inside WSL2 (not native Windows). |
 | **02W** | [**Main Setup Prompt (Windows)**](02W%20%E2%80%94%20Main%20Setup%20Prompt%20(Windows).md) | Participant | **Send instead of Doc 02 to a Windows participant.** |
 | **03W** | [**Skills & Config Setup Prompt (Windows)**](03W%20%E2%80%94%20Skills%20%26%20Config%20Setup%20Prompt%20(Windows).md) | Participant | **Send instead of Doc 03 to a Windows participant.** |
 | **00W** | [**Windows Edition Diff Tables**](00W%20%E2%80%94%20Windows%20Edition%20Diff%20Tables%20(FACILITATOR%20ONLY).md) | Maintainer | 🚨 **Facilitator only, never send.** The auditable record of every Windows deviation. |
@@ -46,16 +46,23 @@ hours for your first sessions.
 |---|---|
 | **Mac** | 01 · 02 · 03 · 07 before the session (02 and 03 are loaded during it); 04 · 06 at the end |
 | **Windows** | 01 · **02W** · **03W** · 07 before (02W and 03W are loaded during it); 04 · 06 at the end. Docs 01, 04, 06 and 07 are shared and need no variant |
-| **Wants Claude confined to their vault** (Mac/Linux) | 01 · 02 · 03 · 07 before, plus **02-S** after the pre-flight and before Doc 02; 04 · 06 at the end |
+| **Wants Claude confined to their vault** (macOS, Linux or WSL2) | 01 · 02 · 03 · 07 before, plus **02-S** after the pre-flight and before Doc 02; 04 · 06 at the end |
 
 Windows is a **variant, not a fork**: `02W`/`03W` are the EN docs plus a listed
 set of changes, recorded in `00W — Windows Edition Diff Tables`. When you change
 Doc 02 or 03, check whether the change belongs in the W variant too, and update
 the diff table either way.
 
-**Never available on Windows:** the `02-S` sandbox module. Native Windows has no
-sandbox (WSL2 required), so a Windows participant who asks for scoping needs a
-different answer.
+**Sandbox on Windows:** the `02-S` module works only with Claude Code running
+inside **WSL2** (02-S Part 2). Native Windows has no sandbox, so a Windows
+participant who asks for scoping either works inside WSL2 or needs a different
+answer.
+
+**Prerequisites:** everything in Doc 01 is required at the pre-flight check,
+including Python 3 (the settings merge in Doc 02 Step 3 uses it) and `jq`. The
+only optional items are the ones Doc 01 marks optional (Ghostty, a
+transcription tool). If `jq` truly can't be installed on the day, Doc 02 has a
+reduced path without the status bar.
 
 **Plan:** Claude **Pro** is the default and is enough to start. Upgrade to Max
 only when the limits keep getting in the way. Doc 06 explains how to tell.
@@ -129,8 +136,9 @@ subfolder that is the only place you ever share from.
 
 Docs 03/03W and 04 install the starter skills from the public
 [`AI-Acceleration/cc-starter-pack`](https://github.com/AI-Acceleration/cc-starter-pack)
-repo, **pinned to tag `v1.0.0`**, so every participant gets the same reviewed
-version. A new version means a new tag and an update to the docs.
+repo, **pinned to tag `v1.0.0`**, so every fresh install gets the same reviewed
+files (a skill the participant already has under the same name is skipped and
+keeps their version). A new version means a new tag and an update to the docs.
 
 ## Not locked to one AI tool
 

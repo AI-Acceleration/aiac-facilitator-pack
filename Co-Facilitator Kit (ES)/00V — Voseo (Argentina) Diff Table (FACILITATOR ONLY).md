@@ -200,10 +200,10 @@ Corre las cuatro. Las cuatro deben dar el resultado indicado.
 | Documento | Estado de la variante voseo |
 |---|---|
 | `01 — Pre-Session Setup Instructions` | ⬜ Pendiente — conversión mecánica según esta tabla |
-| `02 — Main Setup Prompt` | ⬜ Pendiente — ⚠ el de mayor riesgo (42 bloques de código) |
+| `02 — Main Setup Prompt` | ⬜ Pendiente — ⚠ el de mayor riesgo (46 bloques de código) |
 | `02-S — Sandbox Setup` | ⬜ Pendiente |
 | `02W — Main Setup Prompt (Windows)` | ⬜ Pendiente |
-| `03 — Skills & Config Setup Prompt` | ⬜ Pendiente — ⚠ 12 bloques de código |
+| `03 — Skills & Config Setup Prompt` | ⬜ Pendiente — ⚠ 14 bloques de código |
 | `03W — Skills & Config Setup Prompt (Windows)` | ⬜ Pendiente |
 | `04 — Next Steps Brief` | ⬜ Pendiente |
 | `06` y `07` (plan Pro y vocabulario, nuevos en v0.2) | ⬜ Pendiente |

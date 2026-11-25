@@ -216,7 +216,7 @@ Confirm the transcript source and that `~/.claude/skills/meeting-minutes/SKILL.m
 
 ## STEP 2.7: INSTALL THE STARTER SKILLS (ONE PACK, ONE CLONE)
 
-The starter skills come from one public, reviewed pack: **`AI-Acceleration/cc-starter-pack`, pinned at tag `v1.0.0`** (a fixed version, so everyone installs exactly the same files). It contains eleven skills, including the ones this kit uses every day:
+The starter skills come from one public, reviewed pack: **`AI-Acceleration/cc-starter-pack`, pinned at tag `v1.0.0`** (a fixed version, so every fresh install gets exactly the same files; a skill you already have under the same name is skipped and keeps your version — see 2.7a). It contains eleven skills, including the ones this kit uses every day:
 
 - **`/session-close`** — close a session: update the brief, log the work, leave a Continuation Prompt (Step 4)
 - **`/project-create`** — create a Project / Program brief through guided Q&A
@@ -229,16 +229,37 @@ Several skills ship helper files next to their `SKILL.md`, so install the whole 
 
 ### 2.7a — Clone the pack at `v1.0.0` and run its installer
 
+The installer runs **only** after a successful fresh clone — never on a leftover checkout:
+
 ```bash
 mkdir -p ~/.aiac
-git clone --depth 1 --branch v1.0.0 https://github.com/AI-Acceleration/cc-starter-pack.git ~/.aiac/cc-starter-pack
-(cd ~/.aiac/cc-starter-pack && bash ./install.sh)
+if [ -e ~/.aiac/cc-starter-pack ]; then
+  echo "STOP: ~/.aiac/cc-starter-pack already exists - not installed"
+else
+  git clone --depth 1 --branch v1.0.0 https://github.com/AI-Acceleration/cc-starter-pack.git ~/.aiac/cc-starter-pack \
+    && (cd ~/.aiac/cc-starter-pack && bash ./install.sh)
+fi
 ```
 
-(The parentheses keep this session's working folder on the vault.)
+(The parentheses keep this session's working folder on the vault. The `&&` means a failed clone never
+runs anything.)
 
-- If `~/.aiac/cc-starter-pack` already exists from an earlier attempt, tell me before touching it. Check its version with `git -C ~/.aiac/cc-starter-pack describe --tags` — it must print `v1.0.0`.
-- `install.sh` copies each skill folder into `~/.claude/skills/<skill>/`. It **skips** any skill I already have with the same name and prints `SKIP: …` for it. If you see a `SKIP`, show me the list and ask me what to do — never overwrite one of my skills without my OK (`bash ./install.sh force` overwrites).
+- **If it prints `STOP`** (a copy exists from an earlier attempt), tell me before touching it. Either,
+  with my OK, rename it out of the way (`mv ~/.aiac/cc-starter-pack ~/.aiac/cc-starter-pack.old`) and
+  run the block again, or verify it first — this installs only if the copy points at the official
+  repo, sits exactly on GitHub's `v1.0.0` commit and has no changed or extra files:
+
+  ```bash
+  (cd ~/.aiac/cc-starter-pack \
+    && test "$(git remote get-url origin)" = "https://github.com/AI-Acceleration/cc-starter-pack.git" \
+    && test -z "$(git status --porcelain --untracked-files=all)" \
+    && test "$(git rev-parse HEAD)" = "$(git ls-remote origin 'refs/tags/v1.0.0' 'refs/tags/v1.0.0^{}' | tail -n 1 | cut -f1)" \
+    && echo "VERIFIED: v1.0.0, clean" && bash ./install.sh)
+  ```
+
+  No `VERIFIED` line means one check failed and nothing was installed: show me, and use the rename
+  route instead.
+- `install.sh` copies each skill folder into `~/.claude/skills/<skill>/`. It **skips** any skill I already have with the same name and prints `SKIP: …` for it — that skill keeps my version, not the `v1.0.0` one. If you see a `SKIP`, show me the list and ask me what to do — never overwrite one of my skills without my OK (`bash ./install.sh force` overwrites).
 - It ends with "Restart Claude Code": **don't restart now.** The skills load in my next session.
 
 ### 2.7b — Install `/playground` (official Anthropic plugin)
@@ -445,23 +466,48 @@ Let's do a quick test to make sure everything works. Run this simple exercise:
 
 1. Check that the CLAUDE.md in this vault is readable — read it and tell me the first line.
 2. Check that `~/.claude/CLAUDE.md` exists and has the correct vault path.
-3. Check that `~/.claude/settings.json` has the permissions we set up earlier — and that it contains **no** blanket rules: no rule for all of `git` (`git *`), none for `cat` or `head`, no `git remote` wildcard (only `git remote -v`), and no rule for `python`, `py`, `python3` or `node`. If you find one, show it to me and ask before removing it.
+3. Check the permissions in `~/.claude/settings.json` **without opening or printing the file** (it can
+   hold keys). Run this check — it prints only rule names:
+
+   ```bash
+   py - <<'PY'
+   import json, os, re
+   s = json.load(open(os.path.expanduser("~/.claude/settings.json"), encoding="utf-8"))
+   p = s.get("permissions") or {}
+   allow = [r for r in p.get("allow") or [] if isinstance(r, str)]
+   ask = [r for r in p.get("ask") or [] if isinstance(r, str)]
+   broad = [r for r in allow if r in ("Bash", "Bash(*)", "Read", "Write", "Edit", "Glob", "Grep")
+            or re.match(r"Bash\((git|gh|gws|cat|head|tail|grep|mkdir)\b.*\*", r)
+            or re.match(r"Bash\((python3?|py|node|npx|pip3?)\b", r)]
+   need = ["Bash(cat *)", "Bash(head *)", "Bash(tail *)", "Bash(grep *)",
+           "Bash(git add *)", "Bash(git commit *)", "Bash(git push *)", "Bash(gh repo create *)"]
+   print("broad allow rules:", ", ".join(broad) or "none")
+   print("missing ask rules:", ", ".join(r for r in need if r not in ask) or "none")
+   print("additionalDirectories:", "present" if "additionalDirectories" in p else "absent")
+   PY
+   ```
+
+   PASS = `broad allow rules: none`, `missing ask rules: none`, `additionalDirectories: absent`. If
+   anything else shows up, show me the line and ask me before changing anything — I remove a rule
+   myself in a text editor, or tell you to re-run the Doc 02 merge for a missing one.
 4. Check that the six skills exist at `~/.claude/skills/<skill>/SKILL.md` (the loop from Step 2.7c): `session-close`, `project-create`, `inbox-clear`, `retro`, `skill-create`, `meeting-minutes`.
 5. Check with `claude plugin list` that `playground`, `compound-engineering` and `superpowers` are installed.
 6. **Find out which Python command exists on this machine before using one.** On Windows the
-   command is usually `python` or `py` — **bare `python3` normally does NOT exist, and typing it
+   command is usually `py` or `python` — **bare `python3` normally does NOT exist, and typing it
    opens the Microsoft Store**, which looks like a crash. Run this first:
 
    ```bash
-   for c in python py python3; do command -v $c >/dev/null 2>&1 && echo "FOUND: $c"; done
+   for c in py python python3; do command -v $c >/dev/null 2>&1 && echo "FOUND: $c"; done
    ```
 
    - **If one is found:** create a simple script at `05 AI/CLAUDE CODE/workspace/hello.py` that
      prints a personalized greeting with the vault and repo paths, run it once with normal approval
      using the command that actually exists, and show me the output. Do not add it to `permissions.allow`.
-   - **If none is found: that is NOT a blocker, and we do NOT install Python now.** Nothing else in
-     Phase 0 needs it. Note it as a Week-1 item and skip to the next check. Do not let this stop
-     the session — it is the last verification step, not a prerequisite.
+   - **If none is found, something is off:** Python is a prerequisite (Doc 01's pre-flight checks
+     it, and Doc 02W Step 3 used it). Tell me, give me the Doc 01 install line
+     (`winget install --id Python.Python.3.12 -e`) to run in a **second terminal window**, and check
+     again after I reopen the terminal. If it can't be installed today, note it for my facilitator and
+     go on with the next check.
 
 7. Validate that the settings file wasn't corrupted by the merges in Doc 02W:
 
@@ -469,7 +515,8 @@ Let's do a quick test to make sure everything works. Run this simple exercise:
    jq . ~/.claude/settings.json > /dev/null && echo "settings.json is valid JSON"
    ```
 
-   (If `jq` isn't installed — it doesn't come with Git for Windows — read the file back instead and confirm it is valid JSON.)
+   (If `jq` isn't installed — it doesn't come with Git for Windows — skip this line: the check in item 3
+   already parsed the file. Never open the file to check it; it can hold keys.)
 
 8. Run `claude doctor` and show me the output.
 

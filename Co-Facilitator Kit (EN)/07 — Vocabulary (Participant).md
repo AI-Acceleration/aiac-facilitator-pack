@@ -32,7 +32,7 @@ Before the individual terms, here is the whole picture. Everything we use comes 
 
 ---
 
-## Glossary: the terms, one by one
+## Glossary: the main terms, one by one
 
 ### Working with Claude
 
@@ -73,6 +73,8 @@ Before the individual terms, here is the whole picture. Everything we use comes 
 | **Terminal** (or console) | The window where you type text commands instead of clicking. On Mac it's "Terminal"; on Windows, Git Bash or PowerShell. |
 | **Shell** | The program that interprets what you type in the terminal (bash, zsh and PowerShell are shells). "Terminal" and "shell" are used almost interchangeably. |
 | **CLI** | *Command-Line Interface*: a tool you use by typing commands in the terminal. Claude Code is a CLI, and so is `gh`. |
+| **PATH** | The list of folders where the terminal looks for programs. If a freshly installed tool gives "command not found", its folder usually isn't on the PATH yet: close and reopen the terminal, or follow the installer's PATH step. |
+| **`jq`** | A small terminal tool for reading JSON files. The context bar in your status line uses it. It's built into recent macOS; on Windows and Linux you install it once. |
 | **Repo** (repository) | A folder of **code** with Git history. It lives in `~/dev/`, **outside** the vault, and the project brief in the vault points to it. Vault = knowledge; repo = code. |
 | **Git** | The system that keeps the history of changes to your code, like an unlimited "undo". |
 | **GitHub** | The cloud service where Git repos are backed up and shared. Your repos there are **Private** unless you choose otherwise. |
@@ -81,4 +83,4 @@ Before the individual terms, here is the whole picture. Everything we use comes 
 | **push** | Uploading your commits to GitHub. **pull** is the reverse: downloading changes from the cloud to your computer. |
 | **branch** / **PR** | A *branch* is a parallel line of work, and a *PR* (pull request) proposes merging that branch into the main one. You'll barely touch these in Phase 0. They're here so the words don't sound strange. |
 
-> That's it. Anything that still isn't clear, we'll cover live.
+> Those are the main terms, not every word you'll meet. Anything that still isn't clear, we'll cover live.

@@ -177,11 +177,11 @@ El inventario completo, por si necesitas auditar, replicar o resolver problemas 
 | Ruta | Qué es | Edítalo cuando... |
 |------|-----------|--------------|
 | `~/.claude/CLAUDE.md` | Enrutador global + tu perfil | Tu *vault* cambia de lugar, cambia tu rol, quieres agregar reglas globales |
-| `~/.claude/settings.json` | Permisos (una lista corta de comandos pre-aprobados, casi todos de lectura), hooks (sonido al terminar, avisos de contexto), auto-compactación al 75%, barra de estado | Quieres que Claude pregunte menos por un comando seguro concreto, o cambiar un hook |
+| `~/.claude/settings.json` | Permisos (una lista corta de comandos pre-aprobados de solo lectura, más reglas `ask` para imprimir archivos, hacer commit y publicar), hooks (sonido al terminar, avisos de contexto), auto-compactación al 75%, barra de estado | Quieres que Claude pregunte menos por un comando seguro concreto, o cambiar un hook |
 | `~/.claude/statusline.sh` y `~/.claude/hooks/` | La barra de contexto y los avisos del 50% y de antes de compactar | Casi nunca |
 | `~/.claude/skills/` | Tus *skills* iniciales (`/session-close`, `/project-create`, …) | Agregas o actualizas *skills* |
 
-> **Los permisos son acotados a propósito.** La configuración nunca pre-aprueba comandos generales (todo `git`, `cat`, Python, …). Claude pregunta antes de subir, borrar o correr scripts, y ésa es tu red de seguridad. Cuando agregues un permiso, agrega un comando concreto, nunca un comodín.
+> **Los permisos son acotados a propósito.** La configuración nunca pre-aprueba comandos generales (todo `git`, Python, …) ni nada que escriba. Claude pregunta antes de hacer commit, subir, borrar o correr scripts, y las reglas `ask` hacen que `cat`, `head`, `tail`, `grep`, `git add`, `git commit`, `git push` y `gh repo create` pregunten cada vez — ésa es tu red de seguridad. Cuando agregues un permiso, agrega un comando concreto, nunca un comodín, y nunca saques una regla de `ask`. El archivo de ajustes puede guardar llaves: cámbialo tú en un editor de texto en vez de pedirle a Claude que lo imprima.
 
 **Archivos creados en el *vault*:**
 

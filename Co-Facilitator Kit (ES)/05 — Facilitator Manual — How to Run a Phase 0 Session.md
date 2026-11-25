@@ -149,7 +149,7 @@ El participante tiene que llegar con **un proyecto concreto**: una entrada que p
 
 - Dile que corra **el nombre exacto del archivo que recibió**, por ejemplo `bash ~/Downloads/aiac-status-check.sh.txt` (Claude se lo puede correr; el Doc 01 trae el prompt).
 - Pídele que comparta **sólo** el bloque entre `----- AIAC STATUS (safe to share) -----` y `----- END -----`. Trae nombres de chequeos, `DONE` / `NOT DONE` / `SKIPPED (optional)`, el sistema operativo y un veredicto general. El script imprime en inglés a propósito. **Nunca pidas los detalles de arriba**, ni la salida de `--details`: esa parte es sólo para los ojos del participante.
-- El primer `NOT DONE` es el punto de retome. `SKIPPED (optional)` no es tarea pendiente. Antes de la sesión, una configuración completa dice `VERDICT: PRE-SESSION - homework complete, ready for the session`; después, `VERDICT: PHASE 0 SETUP COMPLETE - …`. El script sólo reporta «repo conectado a GitHub»: el repo lo verificas tú del lado del servidor (Compuerta 6).
+- El primer `NOT DONE` es el punto de retome. `SKIPPED (optional)` no es tarea pendiente. Antes de la sesión, una configuración completa dice `VERDICT: PRE-SESSION - homework complete, ready for the session`; después, `VERDICT: PHASE 0 SETUP COMPLETE - …`. El script sólo reporta lo que puede ver en la máquina — por ejemplo `GitHub CLI credentials present`, `Obsidian config found in this folder`, `repo origin points at GitHub` — y su lista `NOT CHECKED HERE` nombra lo que no puede probar: que las credenciales de `gh` sigan funcionando (`gh auth status`), que Obsidian tenga abierta esta carpeta exacta, y que el repo exista en GitHub, sea Private y tenga el commit. Eso lo verificas tú: la carpeta en su pantalla compartida, y el repo del lado del servidor (Compuerta 6).
 - Si el participante ya montó el sandbox del 02-S, lo corre en una terminal normal y no dentro de Claude Code, donde los comandos encerrados no ven `~/.claude`.
 
 ### 8. Grabación: opcional, con consentimiento
@@ -553,9 +553,15 @@ GitHub es el paso que sigue pasando en la sala y fallando en el disco. `git remo
 
 **PASA** = `nameWithOwner` es su repo, `visibility` es **`PRIVATE`**, y el SHA del commit que da GitHub coincide con los primeros 7 caracteres de la línea local de `git log`. Un error de `gh`, una respuesta vacía, un repo público o un SHA distinto es **FALLA**, sin importar lo que mostraba la terminal diez minutos antes.
 
-**Sin `gh`.** El participante le pide a Claude que corra `git ls-remote origin HEAD` y `git rev-parse --short HEAD`: el primero le pregunta a GitHub por su último commit, y sus primeros 7 caracteres tienen que coincidir con el segundo. Después abre la página del repo en el navegador mientras comparte pantalla, y tú confirmas la etiqueta **Private** junto al nombre del repositorio.
+**Sin `gh`.** El participante le pide a Claude que corra `git remote get-url --push --all origin`, `git ls-remote origin HEAD` y `git rev-parse --short HEAD`. El primero tiene que imprimir exactamente una línea, `https://github.com/<dueño>/<repo>.git` (o la misma dirección en la forma SSH de GitHub), con su dueño y su nombre de repo; el segundo le pregunta a GitHub por su último commit, y sus primeros 7 caracteres tienen que coincidir con el tercero. Después abre la página del repo en el navegador mientras comparte pantalla, y tú confirmas la etiqueta **Private** junto al nombre del repositorio.
 
-**Variante con repo del facilitador.** Corres tú, en tu máquina, `gh api repos/<dueño>/<repo>/collaborators --jq '.[].login'`. PASA = aparece su usuario. Una **invitación pendiente es FALLA**: que la acepte ya en `https://github.com/<dueño>/<repo>/invitations`.
+**Variante con repo del facilitador.** Ser colaborador no prueba nada sobre la privacidad ni sobre el push, así que corres tú las tres comprobaciones en tu máquina:
+
+1. `gh api repos/<dueño>/<repo>/collaborators --jq '.[].login'` — aparece su usuario. Una **invitación pendiente es FALLA**: que la acepte ya en `https://github.com/<dueño>/<repo>/invitations`.
+2. `gh repo view <dueño>/<repo> --json nameWithOwner,visibility` — `visibility` es **`PRIVATE`**.
+3. `gh api repos/<dueño>/<repo>/commits --jq '.[0].sha[0:7]'` — coincide con los primeros 7 caracteres de la línea de `git log --oneline -1` que el Claude del participante muestra en su pantalla.
+
+PASA = las tres. Si falta cualquiera, es **FALLA**.
 
 **Si el repo resulta público**, arréglalo antes que nada: en GitHub, Settings → General → Danger Zone → Change visibility → Private. Después revisa qué se subió.
 

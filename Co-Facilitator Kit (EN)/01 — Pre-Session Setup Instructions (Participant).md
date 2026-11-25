@@ -5,7 +5,7 @@ category: reference
 tags: [aiac, phase0, co-facilitator-kit, participant, pre-session, setup]
 ---
 
-**Supports:** Before the session. Start a few days ahead, not the night before, and finish every step, including the **pre-flight** at the end, before your facilitator's cutoff date.
+**Supports:** Before the session. You get this about a week ahead: start as soon as you can, not the night before, and finish every step, including the **pre-flight** at the end, before your facilitator's cutoff date.
 
 # Pre-Session Setup — AI Acceleration Club Phase 0
 
@@ -291,7 +291,7 @@ Run python3 --version (on Windows: py --version). Tell me READY if it's version 
 
 ## Step 7 — jq (small, but the session depends on it)
 
-Neither macOS nor Windows ships `jq`, and Git for Windows doesn't include it either, so install it now.
+macOS 15 and later include `jq`; older macOS and Windows don't, and Git for Windows doesn't include it either. Check with `jq --version` and install it now if it's missing.
 
 **Mac:**
 
