@@ -156,12 +156,10 @@ This covers the built-in file tools, which the sandbox does not. The `allow` lis
 {
   "permissions": {
     "allow": [
-      "Bash(git status *)",
-      "Bash(git diff *)",
-      "Bash(git log *)",
-      "Bash(git add *)",
-      "Bash(git commit *)",
-      "Bash(git init *)",
+      "Bash(git status)",
+      "Bash(git status --short)",
+      "Bash(git diff)",
+      "Bash(git log --oneline)",
       "Bash(git remote -v)",
       "Bash(ls *)",
       "Bash(mkdir *)",
@@ -195,7 +193,7 @@ This covers the built-in file tools, which the sandbox does not. The `allow` lis
 Why the list looks like this, and why each choice is deliberate:
 
 - **No interpreter (`python`, `node`…) and no `pip install` in `allow`.** Pre-approving an interpreter means pre-approving "read or write any file, unconstrained by any permission rule." With the sandbox on, scripts are kernel-confined anyway — but there is no reason to *also* hand them a blanket pre-approval, and if the sandbox ever fails to load you want the prompt. (`failIfUnavailable: true` should make that impossible. Belt and braces.)
-- **No blanket git, no `cat`/`head`.** Same reasons as Doc 02: only local, everyday git commands are pre-approved; anything that publishes asks. `cat`/`head` would print any file; the built-in Read tool, which the `deny` list governs, does that job.
+- **No blanket git, no `cat`/`head`.** Same reasons as Doc 02: only exact, read-only git commands are pre-approved (no wildcards, because options like `--output`, `--ext-diff` or `--template` write files, run programs or plant hooks); `git add`, `git commit` and anything that publishes asks. `cat`/`head` would print any file; the built-in Read tool, which the `deny` list governs, does that job.
 - **No bare `Read`, `Write`, `Edit` in `allow`.** A bare tool name in `allow` pre-approves that tool for **any** input — including paths outside your vault. Removing them restores the real default: *"By default, Claude has access to files in the directory where you launched it."* Launch from the vault, and the vault is the scope. This is a case where deleting three lines buys more than adding ten.
 - **Targeted `deny` entries, not a broad one.** Note what is deliberately **absent**: there is no `Read(~/Documents/**)` or `Read(//**)`. Your vault lives under `~/Documents`, and permission deny rules take precedence over allow rules with **no possible exception** — a broad deny like that would silently lock Claude out of the very vault you're trying to give it. These entries are narrow on purpose. The broad boundary is the sandbox's job; this list is for the built-in tools' crown jewels.
 - **Sound hook is macOS-only.** On Windows Git Bash/WSL use `powershell.exe -c "[console]::beep(1000,400)"`; on Linux `paplay /usr/share/sounds/freedesktop/stereo/bell.oga`. If unsure, delete the whole `"Stop"` block — it's a convenience, and a wrong command here fails on every single turn.

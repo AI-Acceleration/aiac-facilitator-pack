@@ -360,12 +360,10 @@ existe lo creas con exactamente este contenido:
 {
   "permissions": {
     "allow": [
-      "Bash(git status *)",
-      "Bash(git diff *)",
-      "Bash(git log *)",
-      "Bash(git add *)",
-      "Bash(git commit *)",
-      "Bash(git init *)",
+      "Bash(git status)",
+      "Bash(git status --short)",
+      "Bash(git diff)",
+      "Bash(git log --oneline)",
       "Bash(git remote -v)",
       "Bash(ls *)",
       "Bash(mkdir *)",
@@ -400,10 +398,13 @@ existe lo creas con exactamente este contenido:
 
 > **Por qué esta lista es más corta de lo que esperarías.** Varias cosas se dejaron fuera a propósito:
 >
-> - **Una regla general para git.** Solo se preaprueban comandos de git cotidianos y locales:
->   mirar (`status`, `diff`, `log`, `remote -v`) y guardar en tu propia máquina (`init`, `add`, `commit`).
->   Todo lo que publica o reconecta un repositorio — `git push`, `git remote add`, cambios de rama,
->   `git clone` — te sigue preguntando cada vez. Publicar siempre debe ser una decisión que tú ves.
+> - **Cualquier comodín de git.** Solo se preaprueban unos pocos comandos de git exactos y de solo
+>   lectura: `git status`, `git status --short`, `git diff`, `git log --oneline`, `git remote -v`. Todo
+>   lo demás te pregunta cada vez — incluidos `git add`, `git commit` y `git init`, y todo lo que publica
+>   o reconecta un repositorio (`git push`, `git remote add`, cambios de rama, `git clone`). Los
+>   comodines quedan fuera a propósito: opciones como `--output`, `--ext-diff` o `--template` pueden
+>   escribir archivos, ejecutar programas o plantar *hooks* de git, y una regla `git diff *` las
+>   aprobaría en silencio.
 > - **Python, Node y otros intérpretes, y `pip install`.** Un script puede leer y escribir cualquier
 >   archivo como subproceso, y las reglas de permisos no ven eso. Preaprobar un intérprete dejaría
 >   decorativa cualquier regla `deny` que agregues después. Vas a recibir una solicitud de permiso la

@@ -110,8 +110,10 @@ Removed from the kit in v0.2 (so no longer Windows rows): the Granola cached-tok
 | Smart quotes inside code blocks | ✅ 0 | ✅ 0 |
 
 **Note on permissions:** like the rest of the kit, these variants use the **narrow** permissions
-block: only local, everyday git commands (`status`, `diff`, `log`, `add`, `commit`, `init`,
-`remote -v`), plus `ls`, `mkdir`, `wc`, `Glob`, `Grep`. No blanket git rule, no `cat`/`head`, no
+block: only exact, read-only git commands (`git status`, `git status --short`, `git diff`,
+`git log --oneline`, `git remote -v`), plus `ls`, `mkdir`, `wc`, `Glob`, `Grep`. No git wildcards
+(options like `--output`, `--ext-diff`, `--template` write files, run programs or plant hooks), so
+`git add`/`commit`/`init`/`push` ask each time. No blanket git rule, no `cat`/`head`, no
 interpreter (`python`, `py`, `python3`, `node`), no `pip install`, no bare `Read`/`Write`/`Edit` — and
 the block is merged into existing settings, never overwritten. The Windows STEP 7 change above keeps
 that hardening: it runs the greeting once with normal approval using the Python command that actually

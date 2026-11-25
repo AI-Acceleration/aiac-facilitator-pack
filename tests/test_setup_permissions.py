@@ -23,12 +23,10 @@ SETUP_DOCS = SETTINGS_DOCS + (
 )
 # The one allow list every settings block must carry, in this order.
 EXPECTED_ALLOW = [
-    "Bash(git status *)",
-    "Bash(git diff *)",
-    "Bash(git log *)",
-    "Bash(git add *)",
-    "Bash(git commit *)",
-    "Bash(git init *)",
+    "Bash(git status)",
+    "Bash(git status --short)",
+    "Bash(git diff)",
+    "Bash(git log --oneline)",
     "Bash(git remote -v)",
     "Bash(ls *)",
     "Bash(mkdir *)",

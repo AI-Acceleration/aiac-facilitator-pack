@@ -26,7 +26,7 @@ cambió a propósito.
 | Paridad de conteo de bloques y de encabezados, archivo por archivo | ✅ exacta en los documentos con gemelo EN |
 | Comillas tipográficas en documentos del participante | ✅ 0 |
 | Voseo en documentos del participante | ✅ 0 (el registro por defecto es español latinoamericano neutro con tuteo) |
-| Lista de permisos de 12 entradas (`allow` estrecho) en los Documentos 02 / 02W / 02-S | ✅ idéntica al EN, byte por byte (la verifica `tests/test_setup_permissions.py`) |
+| Lista de permisos de 10 entradas (`allow` estrecho, git sólo con reglas exactas de lectura) en los Documentos 02 / 02W / 02-S | ✅ idéntica al EN, byte por byte (la verifica `tests/test_setup_permissions.py`) |
 | `tools/aiac-status-check.sh` | ✅ idéntico al EN — **compartido a propósito, no bifurcado** |
 
 ## Las desviaciones — 8 en total

@@ -112,8 +112,10 @@ Retirado del kit en v0.2 (por eso ya no son filas de Windows): el ayudante de Gr
 | Comillas tipográficas dentro de bloques de código | ✅ 0 | ✅ 0 |
 
 **Nota sobre los permisos:** como el resto del kit, estas variantes usan el bloque de permisos
-**acotado**: solo comandos de git locales y cotidianos (`status`, `diff`, `log`, `add`, `commit`, `init`,
-`remote -v`), más `ls`, `mkdir`, `wc`, `Glob`, `Grep`. Nada de permiso amplio para todo git, nada de `cat`/`head`,
+**acotado**: solo comandos de git exactos y de solo lectura (`git status`, `git status --short`,
+`git diff`, `git log --oneline`, `git remote -v`), más `ls`, `mkdir`, `wc`, `Glob`, `Grep`. Sin comodines
+de git (opciones como `--output`, `--ext-diff`, `--template` escriben archivos, ejecutan programas o
+plantan *hooks*), así que `git add`/`commit`/`init`/`push` preguntan cada vez. Nada de permiso amplio para todo git, nada de `cat`/`head`,
 ningún intérprete (`python`, `py`, `python3`, `node`), nada de `pip install`, nada de `Read`/`Write`/`Edit`
 a secas — y el bloque se fusiona con la configuración existente, nunca la sobrescribe. El cambio del STEP 7
 de Windows descrito arriba mantiene ese endurecimiento: ejecuta el saludo una sola vez con la aprobación

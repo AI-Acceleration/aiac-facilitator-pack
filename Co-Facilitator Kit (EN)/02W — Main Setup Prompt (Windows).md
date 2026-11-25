@@ -352,12 +352,10 @@ create it with exactly this content:
 {
   "permissions": {
     "allow": [
-      "Bash(git status *)",
-      "Bash(git diff *)",
-      "Bash(git log *)",
-      "Bash(git add *)",
-      "Bash(git commit *)",
-      "Bash(git init *)",
+      "Bash(git status)",
+      "Bash(git status --short)",
+      "Bash(git diff)",
+      "Bash(git log --oneline)",
       "Bash(git remote -v)",
       "Bash(ls *)",
       "Bash(mkdir *)",
@@ -392,10 +390,12 @@ create it with exactly this content:
 
 > **Why this list is shorter than you might expect.** Several things were deliberately left out:
 >
-> - **A blanket git rule.** Only everyday, local git commands are pre-approved: looking
->   (`status`, `diff`, `log`, `remote -v`) and saving on your own machine (`init`, `add`, `commit`).
->   Anything that publishes or rewires a repo — `git push`, `git remote add`, branch changes,
->   `git clone` — still asks you every time. Publishing should always be a decision you see.
+> - **Any git wildcard.** Only a handful of exact, read-only git commands are pre-approved:
+>   `git status`, `git status --short`, `git diff`, `git log --oneline`, `git remote -v`. Everything
+>   else asks you each time — including `git add`, `git commit` and `git init`, and anything that
+>   publishes or rewires a repo (`git push`, `git remote add`, branch changes, `git clone`). Wildcards
+>   are left out on purpose: options such as `--output`, `--ext-diff` or `--template` can write files,
+>   run programs or plant git hooks, and a `git diff *` rule would approve them silently.
 > - **Python, Node and other interpreters, and `pip install`.** A script can read and write any file
 >   as a subprocess, which permission rules cannot see. Pre-approving an interpreter would make any
 >   `deny` rule you add later decorative. You'll get a prompt the first time Claude runs one — that is
