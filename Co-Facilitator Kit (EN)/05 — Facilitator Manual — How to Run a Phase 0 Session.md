@@ -147,7 +147,7 @@ The participant must arrive with **one concrete project**: an input they can bri
 
 - Tell them to run **the exact filename they received**, for example `bash ~/Downloads/aiac-status-check.sh.txt` (Claude can run it for them; Doc 01 has the prompt).
 - Ask them to share **only** the block between `----- AIAC STATUS (safe to share) -----` and `----- END -----`. It holds check names, `DONE` / `NOT DONE` / `SKIPPED (optional)`, the OS and an overall verdict. **Never ask for the details above it**, and never ask for `--details` output: that part is for the participant's own eyes.
-- The first `NOT DONE` is the resume point. `SKIPPED (optional)` is not homework.
+- The first `NOT DONE` is the resume point. `SKIPPED (optional)` is not homework. Before the session, a complete setup reads `VERDICT: PRE-SESSION - homework complete, ready for the session`; after it, `VERDICT: PHASE 0 SETUP COMPLETE - …`. The script only reports "repo connected to GitHub": you still verify the repo on the server yourself (Gate 6).
 - If the participant has already set up the 02-S sandbox, they run it in a plain terminal rather than inside Claude Code, where sandboxed commands can't see `~/.claude`.
 
 ### 8. Recording: optional, with consent

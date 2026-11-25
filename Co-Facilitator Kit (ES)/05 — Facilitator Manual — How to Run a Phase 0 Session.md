@@ -149,7 +149,7 @@ El participante tiene que llegar con **un proyecto concreto**: una entrada que p
 
 - Dile que corra **el nombre exacto del archivo que recibió**, por ejemplo `bash ~/Downloads/aiac-status-check.sh.txt` (Claude se lo puede correr; el Doc 01 trae el prompt).
 - Pídele que comparta **sólo** el bloque entre `----- AIAC STATUS (safe to share) -----` y `----- END -----`. Trae nombres de chequeos, `DONE` / `NOT DONE` / `SKIPPED (optional)`, el sistema operativo y un veredicto general. El script imprime en inglés a propósito. **Nunca pidas los detalles de arriba**, ni la salida de `--details`: esa parte es sólo para los ojos del participante.
-- El primer `NOT DONE` es el punto de retome. `SKIPPED (optional)` no es tarea pendiente.
+- El primer `NOT DONE` es el punto de retome. `SKIPPED (optional)` no es tarea pendiente. Antes de la sesión, una configuración completa dice `VERDICT: PRE-SESSION - homework complete, ready for the session`; después, `VERDICT: PHASE 0 SETUP COMPLETE - …`. El script sólo reporta «repo conectado a GitHub»: el repo lo verificas tú del lado del servidor (Compuerta 6).
 - Si el participante ya montó el sandbox del 02-S, lo corre en una terminal normal y no dentro de Claude Code, donde los comandos encerrados no ven `~/.claude`.
 
 ### 8. Grabación: opcional, con consentimiento

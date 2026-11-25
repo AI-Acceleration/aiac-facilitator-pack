@@ -469,10 +469,10 @@ Hola, Claude. Me estoy preparando para mi sesión de inicio con Claude Code. Vam
 Tu facilitador también te puede mandar `aiac-status-check.sh` (muchas veces como `aiac-status-check.sh.txt`, porque las apps de chat y el correo bloquean los archivos `.sh`). Es un script chiquito de **sólo lectura**: no instala nada, no cambia nada y no envía nada. Sólo mira e imprime un reporte. Guárdalo en Descargas y dile a Claude, con el **nombre exacto del archivo que recibiste**:
 
 ```
-Corre bash ~/Downloads/aiac-status-check.sh.txt y muéstrame sólo el bloque entre "----- AIAC STATUS (safe to share) -----" y "----- END -----".
+Corre `bash ~/Downloads/aiac-status-check.sh.txt` y muéstrame el bloque entre `----- AIAC STATUS (safe to share) -----` y `----- END -----` tal cual como se imprime.
 ```
 
-(Si tu archivo se llama `aiac-status-check.sh`, usa ese nombre.) **Manda sólo ese bloque.** Trae nombres de chequeos y `DONE` (hecho) / `NOT DONE` (falta) / `SKIPPED (optional)` (opcional, omitido), nada personal. El script imprime en inglés a propósito. Los detalles más largos de arriba son sólo para ti. El primer `NOT DONE` es donde retomas. Si Claude Code todavía no funciona, puedes correr ese mismo comando tú en la terminal.
+(Si tu archivo se llama `aiac-status-check.sh`, usa ese nombre; los dos funcionan.) **Comparte sólo el bloque que empieza con `----- AIAC STATUS (safe to share) -----` y termina con `----- END -----`. Todo lo que está arriba es sólo para tus ojos.** El bloque trae nombres de chequeos y `DONE` (hecho) / `NOT DONE` (falta) / `SKIPPED (optional)` (opcional, omitido) más una línea de veredicto, nada personal. El script imprime en inglés a propósito. Nunca compartas la salida de `--details`. El primer `NOT DONE` es donde retomas. Si Claude Code todavía no funciona, corre ese mismo comando tú en la terminal (Git Bash en Windows): `bash ~/Downloads/aiac-status-check.sh.txt`.
 
 ---
 
