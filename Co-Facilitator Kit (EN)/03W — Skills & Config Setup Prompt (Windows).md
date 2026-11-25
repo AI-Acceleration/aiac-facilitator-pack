@@ -182,7 +182,7 @@ Skip this today. The connectors above already cover reading Gmail, Drive, Calend
 If a later project needs it, set it up in a dedicated session with your facilitator, and keep it narrow:
 
 - **Log in with only the scopes the project needs** (for example Sheets only), not "grant all scopes".
-- **No blanket permission rule** for it (no `Bash(gws *)` or `Bash(~/bin/gws *)` in `allow`). Approve its commands one at a time, or add an exact rule for one specific read-only command you run often.
+- **No blanket permission rule** for it (no `gws` wildcard in `allow`). Approve its commands one at a time, or add an exact rule for one specific read-only command you run often.
 
 Tell me "noted" and move to Step 2.6.
 
@@ -446,7 +446,7 @@ Let's do a quick test to make sure everything works. Run this simple exercise:
 
 1. Check that the CLAUDE.md in this vault is readable — read it and tell me the first line.
 2. Check that `~/.claude/CLAUDE.md` exists and has the correct vault path.
-3. Check that `~/.claude/settings.json` has the permissions we set up earlier — and that it contains **no** blanket rules: no `Bash(git *)`, no `Bash(cat *)` / `Bash(head *)`, no `Bash(git remote *)`, no rule for `python`, `py`, `python3` or `node`. If you find one, show it to me and ask before removing it.
+3. Check that `~/.claude/settings.json` has the permissions we set up earlier — and that it contains **no** blanket rules: no rule for all of `git` (`git *`), none for `cat` or `head`, no `git remote` wildcard (only `git remote -v`), and no rule for `python`, `py`, `python3` or `node`. If you find one, show it to me and ask before removing it.
 4. Check that the six skills exist at `~/.claude/skills/<skill>/SKILL.md` (the loop from Step 2.7c): `session-close`, `project-create`, `inbox-clear`, `retro`, `skill-create`, `meeting-minutes`.
 5. Check with `claude plugin list` that `playground`, `compound-engineering` and `superpowers` are installed.
 6. **Find out which Python command exists on this machine before using one.** On Windows the

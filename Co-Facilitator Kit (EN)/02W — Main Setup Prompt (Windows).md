@@ -392,7 +392,7 @@ create it with exactly this content:
 
 > **Why this list is shorter than you might expect.** Several things were deliberately left out:
 >
-> - **Blanket git (`Bash(git *)`).** Only everyday, local git commands are pre-approved: looking
+> - **A blanket git rule.** Only everyday, local git commands are pre-approved: looking
 >   (`status`, `diff`, `log`, `remote -v`) and saving on your own machine (`init`, `add`, `commit`).
 >   Anything that publishes or rewires a repo — `git push`, `git remote add`, branch changes,
 >   `git clone` — still asks you every time. Publishing should always be a decision you see.

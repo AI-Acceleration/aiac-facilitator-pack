@@ -89,7 +89,7 @@ Verify availability before you trust anything: start Claude Code and run `/sandb
 
 ## Part 3 — The configuration
 
-Two files. Create both **before** you paste Doc 02 into Claude Code, by hand, so that Claude is confined from its very first tool call rather than after it has already built half your vault.
+Two files. Create both **before** you give Doc 02 to Claude Code, by hand, so that Claude is confined from its very first tool call rather than after it has already built half your vault.
 
 ### 3a — Project settings: `<YOUR_VAULT>/.claude/settings.json`
 
@@ -237,7 +237,7 @@ Do those steps from a Claude Code session started **outside the vault** — for 
 
 ## Part 4 — Verify it yourself
 
-Do not take Part 1 on faith. These are the tests that distinguish a real boundary from a config file that looks reassuring. Run them **before** pasting Doc 02.
+Do not take Part 1 on faith. These are the tests that distinguish a real boundary from a config file that looks reassuring. Run them **before** you give Doc 02 to Claude.
 
 **1. Confirm the sandbox actually loaded.** In Claude Code, run `/sandbox` and open the **Config** tab. It shows the *resolved* settings — what's actually in effect after all scopes merge, not what you typed. Confirm `enabled: true` and your filesystem rules are there. Confirm the panel is not showing a Dependencies tab.
 
@@ -332,7 +332,7 @@ Run Doc 02 normally, with these overrides:
 
 | Doc 02 step | Change |
 |---|---|
-| **Before pasting** | `cd` into your vault. Confirm with `pwd`. The working directory *is* the boundary — if you launch Claude from anywhere else, the built-in-tool scope follows you there and `.` resolves somewhere else entirely. |
+| **Before you start Doc 02** | `cd` into your vault. Confirm with `pwd`. The working directory *is* the boundary — if you launch Claude from anywhere else, the built-in-tool scope follows you there and `.` resolves somewhere else entirely. |
 | **STEP 3 — permissions block** | **Use Part 3b instead** — same `allow` list plus the `deny` list, already merged into your settings. Tell Claude not to overwrite it. |
 | **STEP 3 — global router** | Run normally. If you chose option (A) in Part 3c, tell Claude to change router rule 3 to point at `<vault>/dev/` instead of `~/dev/`. |
 | **STEP 3.5 — hooks** | Read both hook commands and the statusline script before they're written — they run unsandboxed. The `chmod +x` lines fail sandboxed: run them from a session outside the vault (Part 3d). `jq` must be installed (Doc 01 prerequisites). |
