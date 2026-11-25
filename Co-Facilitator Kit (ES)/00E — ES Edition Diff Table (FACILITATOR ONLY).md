@@ -20,50 +20,43 @@ cambió a propósito.
 
 ## Invariante que se mantiene
 
-| Comprobación | Resultado (2026-08-28) |
+| Comprobación | Resultado (2026-11-25) |
 |---|---|
-| Bloques de código byte por byte idénticos al EN | **157 de 159** — las 2 excepciones están abajo |
-| Paridad de conteo de bloques y de encabezados, archivo por archivo | ✅ exacta en los 11 documentos |
+| Bloques de código byte por byte idénticos al EN | **161 de 169** — las 8 excepciones están abajo |
+| Paridad de conteo de bloques y de encabezados, archivo por archivo | ✅ exacta en los documentos con gemelo EN |
 | Comillas tipográficas en documentos del participante | ✅ 0 |
-| Voseo en documentos del participante | ✅ 0 (el registro por defecto es tuteo venezolano) |
-| Lista de permisos de 8 entradas en el Documento 02 | ✅ intacta, byte por byte |
+| Voseo en documentos del participante | ✅ 0 (el registro por defecto es español latinoamericano neutro con tuteo) |
+| Lista de permisos de 12 entradas (`allow` estrecho) en los Documentos 02 / 02W / 02-S | ✅ idéntica al EN, byte por byte (la verifica `tests/test_setup_permissions.py`) |
 | `tools/aiac-status-check.sh` | ✅ idéntico al EN — **compartido a propósito, no bifurcado** |
 
-## Las desviaciones — 2 en total
+## Las desviaciones — 8 en total
 
 | # | Dónde | El Kit EN dice | La edición ES dice | Por qué |
 |---|---|---|---|---|
-| 1 | `03 — Skills & Config Setup Prompt`, bloque de la *skill* `session-close` (índice 18) | `- Respond in English.` | `- Respond in Spanish.` | El bloque se escribe **literalmente** dentro del archivo de la *skill* del participante. Sin este cambio, un participante hispanohablante instala una *skill* que le responde en inglés — lo cual anula la premisa de "una superficie completa por idioma". |
-| 2 | `03W — Skills & Config Setup Prompt (Windows)`, mismo bloque (índice 18) | `- Respond in English.` | `- Respond in Spanish.` | Idéntico al #1. Se aplica a los dos para que `03W` siga siendo variante de `03` y no adquiera una desviación propia no listada. |
+| 1–4 | `02`, `02W`, `03`, `03W` — la línea que el participante escribe para entregarle el archivo a Claude (bloque 0) | `Read the file <path> and follow its instructions, starting at "FOR CLAUDE — START HERE".` | `Lee el archivo <ruta> y sigue sus instrucciones, empezando en "PARA CLAUDE — EMPIEZA AQUÍ".` | La línea nombra el encabezado donde Claude empieza, y en la edición ES ese encabezado está en español. No es un comando de terminal: es lo que el participante le escribe a Claude. |
+| 5–6 | `02` y `02W` — router global `~/.claude/CLAUDE.md`, sección `## Defaults` | `- Language: English. English for code comments and variable names.` | `- Language: Spanish. English for code comments and variable names.` | El bloque se escribe **literalmente** en el archivo de configuración del participante. Sin este cambio, un participante hispanohablante queda con un router que le pide a Claude responder en inglés en cada sesión. |
+| 7–8 | `02` y `02W` — `CLAUDE.md` del repo, sección `## Rules` | `- Language: English (comments, variable names, and output).` | `- Language: Spanish for output and documentation; English for code comments and variable names.` | Igual que 5–6, para las sesiones abiertas dentro del repo. |
 
 > [!note] **Por qué esto vale una excepción a la regla de "no toques los bloques de código".**
-> La regla existe porque los Documentos 02 y 03 se pegan en una terminal viva y un comando mal traducido
-> falla en vivo. Esta línea **no es un comando**: es una instrucción en markdown que termina dentro de un
-> archivo de configuración. No se ejecuta, no se parsea, y traducirla no puede romper un pegado. Es la única
-> clase de contenido dentro de un *fence* donde el idioma sí importa para el participante.
+> La regla existe porque Claude ejecuta los comandos de los Documentos 02 y 03 tal cual están escritos, y
+> un comando mal traducido falla en vivo. Estas líneas **no son comandos**: una es lo que el participante le
+> escribe a Claude, y las otras son instrucciones en markdown que terminan dentro de un archivo de
+> configuración. No se ejecutan ni se parsean. Es la única clase de contenido dentro de un *fence* donde el
+> idioma sí importa para el participante.
 >
-> Detectada por el agente que tradujo `03`, que **la reportó en vez de arreglarla por su cuenta** — que es
-> exactamente el comportamiento correcto: la excepción la decide el mantenedor y queda registrada aquí.
+> La desviación anterior (la línea `Respond in Spanish.` de la *skill* `session-close` escrita a mano en
+> `03`/`03W`) ya no existe: desde v0.2 esa *skill* se instala desde el paquete público
+> `AI-Acceleration/cc-starter-pack` `v1.0.0`, que no fija un idioma y responde en el del participante.
 
 ## Decisión de alcance registrada — el cuerpo del prompt SÍ se traduce
 
-Los Documentos 02 / 02W / 03 / 03W traducen **todo el cuerpo pegable**, no sólo la envoltura dirigida al
-participante. Los cuatro usan `PASO`, no `STEP` (18 / 18 / 13 / 13 — verificado).
+Los Documentos 02 / 02W / 03 / 03W traducen **todo el cuerpo** que Claude lee, no sólo la envoltura
+dirigida al participante. Los cuatro usan `PASO`, no `STEP` (18 / 18 / 11 / 11 — verificado el 2026-11-25).
 
-Esto se registra porque hay un precedente en contra: las plantillas semilla de `aiac-pipeline`
-(`main-setup-prompt-template.md`, `skills-config-prompt-template.md`) dejan ese cuerpo **en inglés**
-(`STEP` ×17 y ×13, `PASO` ×0). La decisión de apartarse de ellas fue deliberada:
+La decisión fue deliberada:
 
-- La spec aprobada dice, textualmente, traducir **el Kit completo** — *"una superficie completa por idioma"*.
-- Las semillas son plantillas **del mantenedor del programa**, para que él las rellene por participante; están en inglés
-  porque él trabaja en inglés. El Kit es el artefacto **del participante**. Audiencias distintas.
-- La semilla de `03` no tiene prosa en español **en absoluto**, así que "precedente de la semilla" en
-  realidad significa *"las semillas nunca se tradujeron"*, no *"se decidió dejar el cuerpo en inglés"*.
-- El riesgo que la spec nombra es el **comando** mal traducido — y los comandos viven en bloques de código,
-  que quedan byte por byte idénticos. La prosa en español alrededor de ellos no rompe ningún pegado.
-
-## Requisito de convergencia (pendiente)
-
-Ahora que existe la edición ES, **ella** — no las plantillas ES de `aiac-pipeline` — es la fuente de verdad
-en español. Mientras eso no se refleje, hay dos superficies en español y el próximo parche hay que aplicarlo
-dos veces, que es exactamente el defecto que el parche del 2026-08-19 ya pagó una vez.
+- La regla del kit es **una superficie completa por idioma**: el participante hispanohablante lee y
+  revisa lo que Claude va a hacer, en su idioma.
+- El riesgo real es el **comando** mal traducido — y los comandos viven en bloques de código, que quedan
+  byte por byte idénticos salvo las 8 excepciones de arriba. La prosa en español alrededor de ellos no
+  rompe nada.

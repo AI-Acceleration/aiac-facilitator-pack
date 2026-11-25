@@ -11,10 +11,10 @@ translated_from: "00W — Windows Edition Diff Tables (FACILITATOR ONLY).md"
 
 > # 🚨 NO SE LO ENVÍES A UN PARTICIPANTE
 >
-> Los documentos del participante le dicen que *"abra el archivo, seleccione todo, copie, pegue"* — cualquier
-> cosa añadida a un documento termina pegada dentro de Claude Code junto con él. Este archivo existe
-> **por separado** para que las variantes de Windows queden auditables sin viajar de contrabando en el
-> portapapeles de alguien.
+> Los participantes le entregan los documentos de configuración a Claude Code por su ruta (*"Lee el
+> archivo … y sigue sus instrucciones"*) — Claude lee el archivo **completo**, así que cualquier cosa
+> añadida a un documento se leería como instrucciones. Este archivo existe **por separado** para que las
+> variantes de Windows queden auditables sin colarse en la configuración de nadie.
 >
 > Patrón tomado de Mangan, que casi pierde sus propias tablas de diferencias dentro del copy-paste de un alumno.
 
@@ -27,8 +27,8 @@ nunca se desvía en silencio del kit.
 | Documento | Estado |
 |---|---|
 | `01 — Pre-Session Setup Instructions` | **Compartido** — sin variante de Windows. Ya estaba ramificado por sistema operativo; la sección de Windows se reforzó en el mismo sitio (5 añadidos abajo). |
-| `02W — Main Setup Prompt (Windows)` | Variante — **12 cambios** |
-| `03W — Skills & Config Setup Prompt (Windows)` | Variante — **11 cambios** |
+| `02W — Main Setup Prompt (Windows)` | Variante — **17 cambios** |
+| `03W — Skills & Config Setup Prompt (Windows)` | Variante — **10 cambios** |
 | `04 — Next Steps Brief` | **Compartido, sin cambios.** Material de lectura; no se ejecuta nada específico del sistema operativo. |
 | `02-S — Sandbox Setup` | **No disponible en Windows.** Windows nativo no tiene sandbox; se requiere WSL2. |
 
@@ -63,50 +63,58 @@ Verificadas contra la documentación viva de Anthropic, y luego contra una máqu
 | 4 | **Verificación del PATH después del instalador** | El instalador oficial terminó y reportó en su propia salida que NO había añadido `.local/bin` al PATH → `'claude' is not recognized`, dos veces, a lo largo de una semana |
 | 5 | **Banner "esto es prosa, no comandos"** | Prosa pegada en PowerShell produjo un `ParserError` y un prompt `>>` trancado — una comilla sin cerrar por el apóstrofo de *"you're"* |
 
-## Documento 02W — 12 cambios frente a `02 — Main Setup Prompt (Participant)`
+## Documento 02W — 17 cambios frente a `02 — Main Setup Prompt (Participant)`
 
 | # | Dónde | El kit dice | 02W dice | Por qué |
 |---|---|---|---|---|
 | 1 | Frontmatter | genérico | title/tags marcados como Windows | Descubribilidad |
-| 2 | Encabezado | (ninguno) | Tres reglas de Windows encima de la línea de pegado | Pegar con clic derecho · Git Bash · barras inclinadas |
-| 3 | Preámbulo | (ninguno) | Una declaración de entorno de una línea para pegar primero | Elimina ~6 idas y vueltas de "detecta mi sistema operativo" en una sesión en vivo |
-| 4 | Ruta del *vault* | `pwd` | **`pwd -W`** | `pwd` imprime `/c/Users/…`; el router necesita `C:/Users/…` |
-| 5 | Verificación del router | `head -20` | `head -25` + **`grep -c '\\'` debe dar 0** | Atrapa una ruta con barra invertida antes de que rompa el router en silencio |
-| 6 | *Hook* Stop del STEP 3 | `afplay …` | **beep de Windows ya incorporado** + una comprobación "¿lo escuchaste? / bórralo" | Se dispara en cada turno; una línea equivocada = un error en cada turno durante 90 min |
-| 7 | Callout del STEP 3 | lista para elegir según el sistema operativo | Reescrito: no sustituyas por `afplay`; borra el bloque si no hay beep | Elimina la elección que produce la falla |
-| 8 | STEP 4 | `xcode-select --install` | git-scm.com/download/win, aceptar Git Bash | Comando de macOS en una sesión de Windows |
-| 9 | `.gitignore` del STEP 7 | `.DS_Store` | añade `Thumbs.db`, `desktop.ini` | Equivalentes de Windows |
-| 10 | `~/dev` | redacción solo para Mac | añade la traducción `C:\Users\…\dev` | Para que después lo consigan en el Explorador de archivos |
-| 11 | Statusline del STEP 3.5 | una nota de Windows | **Bug conocido documentado + plan alterno de 3 pasos + límite de 3 min + el replanteamiento de "la barra es solo pantalla"** | Mina #3 |
-| 12 | Sonido del STEP 3.5 | `afplay` en `statusline.sh` | **beep de Windows incorporado dentro del script**; nota reescrita | El único `afplay` genuinamente ejecutable del documento |
+| 2 | Encabezado | pasos de carga por archivo para todos los sistemas | **Tres reglas de Windows** (dar el archivo por su ruta, clic derecho para pegar líneas cortas · Git Bash · barras normales) | Las tres cosas que rompen las sesiones en Windows |
+| 3 | Encabezado, cómo cargar | Finder / Explorador de archivos / copiar ruta en Linux | Solo **Copiar como ruta de acceso** del Explorador de archivos, más **Open Git Bash here** + `pwd -W` | Arranca Claude en la carpeta correcta desde el shell correcto |
+| 4 | Encabezado, pregunta de confianza | "elige Yes" | añade: **en Windows la opción resaltada por defecto es "No, exit"** | La gente presiona Enter y Claude Code se cierra |
+| 5 | Inicio de la sección para Claude | (ninguno) | **Declaración de entorno** (Windows, Git Bash, barras normales, nada de comandos de macOS) dentro del archivo | Elimina ~6 idas y vueltas de "detecta mi sistema operativo"; no hace falta un pegado aparte |
+| 6 | Revisión de la ubicación del *vault* | `pwd`; ramas de sincronización en la nube para Windows y macOS | **`pwd -W`**; solo la rama de OneDrive de Windows (redirección de `Documents`/`Desktop`), por defecto `C:/Users/YOUR-USER/AIAC-Vault` | La redirección de OneDrive es la trampa de Windows; la rama de iCloud de macOS no aplica |
+| 7 | Router, ruta del *vault* | `pwd` | **`pwd -W`** | `pwd` imprime `/c/Users/…`; el router necesita `C:/Users/…` |
+| 8 | Verificación del router | releer 20 líneas | 25 líneas + **`grep -c '\\'` debe dar 0** | Atrapa una ruta con barra invertida antes de que rompa el router en silencio |
+| 9 | *Hook* Stop del STEP 3 | `afplay …` | **beep de Windows ya incorporado** + una comprobación "¿lo escuchaste? / bórralo" | Se dispara en cada turno; una línea equivocada = un error en cada turno durante 90 min |
+| 10 | Callout del STEP 3 | lista para elegir según el sistema operativo | Reescrito: no sustituyas por `afplay`; borra el bloque si no hay beep | Elimina la elección que produce la falla |
+| 11 | Detección de SO + `jq` del STEP 3.5 | `uname`, líneas de instalación de `jq` por sistema | SO ya declarado; **`winget install jqlang.jq`** (no viene con Git for Windows) | Que falte `jq` es la falla común de Windows en las Capas 2–3 |
+| 12 | Statusline del STEP 3.5 | una nota de Windows | **Bug conocido documentado + plan alterno de 3 pasos + límite de 3 min + el replanteamiento de "la barra es solo pantalla"** | Mina #3 |
+| 13 | Sonido del STEP 3.5 | `afplay` en `statusline.sh` | **beep de Windows incorporado dentro del script**; nota reescrita | El único `afplay` genuinamente ejecutable del documento |
+| 14 | STEP 4 | `xcode-select --install` | `winget install --id Git.Git -e` o git-scm.com/download/win, conservando Git Bash | Comando de macOS en una sesión de Windows |
+| 15 | STEP 5 | revisión de `gh` | añade **`winget install --id GitHub.cli -e`** si falta | La misma vía de instalación que en los prerrequisitos |
+| 16 | `~/dev` + revisión de ubicación del STEP 6 | redacción solo para Mac; comparación simple de rutas | añade la traducción `C:/Users/YOUR-USER/dev`; compara normalizando con **`cd … && pwd -P`** | Git imprime `C:/…` y Git Bash `/c/…` — un repo bien ubicado mostraría un falso `WRONG LOCATION` |
+| 17 | `.gitignore` del STEP 7 | `.DS_Store` | añade `Thumbs.db`, `desktop.ini` | Equivalentes de Windows |
 
-## Documento 03W — 11 cambios frente a `03 — Skills & Config Setup Prompt (Participant)`
+## Documento 03W — 10 cambios frente a `03 — Skills & Config Setup Prompt (Participant)`
 
 | # | Dónde | El kit dice | 03W dice | Por qué |
 |---|---|---|---|---|
-| 1–2 | Frontmatter + encabezado | genérico | title/tags de Windows; las tres reglas repetidas; declaración de entorno | Una sesión nueva pierde el contexto del Documento 02 |
-| 3 | STEP 1 | `head -20`, 2 comprobaciones | `head -25` + **3ra comprobación: cero barras invertidas** | La comprobación que atrapa la mina #2 |
-| 4 | Granola del STEP 2.6b | `~/Library/Application Support/Granola/` + launchd/cron | `%APPDATA%\Granola\` (`~/AppData/Roaming/…`) + **Programador de tareas de Windows**, y "confirma los nombres de archivo reales, no asumas la estructura de Mac" | Opcional/diferido, pero las rutas de Mac sencillamente no existen |
-| 5 | `gws` del STEP 2.5b | `~/bin/gws`, `chmod +x`, perfil de zsh | `~/bin/gws.exe`, windows-amd64, línea de PATH en `~/.bashrc` | Las instrucciones de Mac eran inejecutables |
-| 6 | `lessons.md` del STEP 3 | vacío | sembrado con la regla de la barra inclinada | Pone la regla de Windows donde Claude la vuelve a leer cada sesión |
-| 7 | ⭐ **STEP 7** | "Crea un script de Python … y ejecútalo" | **Detectar primero `python`/`py`/`python3`**; que falte Python explícitamente NO es un bloqueo; añadir el comando real a `allow` | ⭐ Mina #4 — de lo contrario la comprobación final del kit falla en Windows por una razón ajena |
-| 8 | STEP 7 | 8 comprobaciones | añade la comprobación de validez JSON `jq .` sobre `settings.json` | Barato; atrapa una fusión corrompida del Documento 02 |
-| 9 | STEP 7 | (ninguno) | añade `claude doctor` | Lo primero que hay que correr cuando algo se rompa después |
-| 10–11 | Chuleta del STEP 6 | neutral respecto a Mac | Bloque de notas de Windows (ventana · rutas · pegado · `claude doctor`) | Las cuatro cosas que van a olvidar para la semana que viene |
+| 1–2 | Frontmatter + encabezado | genérico | title/tags de Windows; las tres reglas repetidas; copiar ruta en el Explorador de archivos + Open Git Bash here; declaración de entorno dentro del archivo | Una sesión nueva pierde el contexto del Documento 02W |
+| 3 | Revisión del router del STEP 1 | releer 20 líneas, 2 comprobaciones | 25 líneas + **3ra comprobación: cero barras invertidas** | La comprobación que atrapa la mina #2 |
+| 4 | Prueba de ruteo del STEP 1 | segunda ventana, confiar en `~/dev` | segunda ventana **como Git Bash**; la opción por defecto de confianza es "No, exit" | Las mismas dos trampas de Windows que en el Documento 02W |
+| 5 | `lessons.md` del STEP 3 | vacío | sembrado con la regla de la barra inclinada | Pone la regla de Windows donde Claude la vuelve a leer cada sesión |
+| 6 | ⭐ **STEP 7** | "Crea un script de Python … córrelo una vez" | **Detectar primero `python`/`py`/`python3`**; que falte Python explícitamente NO es un bloqueo; ejecutar una vez con la aprobación normal, nunca agregarlo a `allow` | ⭐ Mina #4 — de lo contrario la comprobación final del kit falla en Windows por una razón ajena |
+| 7 | STEP 7 | (ninguno) | comprobación de validez JSON `jq .` sobre `settings.json`, con alternativa de releer el archivo si falta `jq` | Barato; atrapa una fusión corrompida del Documento 02W |
+| 8 | STEP 7 | (ninguno) | añade `claude doctor` | Lo primero que hay que correr cuando algo se rompa después |
+| 9–10 | Chuleta del STEP 6 | neutral respecto al sistema | Bloque de notas de Windows (ventana · rutas · pegado · `claude doctor`) | Las cuatro cosas que van a olvidar para la semana que viene |
 
-## Corrida de verificación (2026-08-19)
+Retirado del kit en v0.2 (por eso ya no son filas de Windows): el ayudante de Granola con el token en caché (antiguo STEP 2.6b) y la instalación del CLI `gws` (antiguo STEP 2.5b, ahora "hoy no").
+
+## Corrida de verificación (2026-11-25)
 
 | Comprobación | 02W | 03W |
 |---|---|---|
-| Balance de bloques de código (un "seleccionar todo" no trunca) | ✅ 68, balanceados | ✅ 44, balanceados |
-| Comandos de macOS dentro de bloques de código | ✅ 0 ejecutables (1 textual, dentro de la instrucción "no me ofrezcas estos") | ✅ 0 |
+| Balance de bloques de código | ✅ 82, balanceados | ✅ 26, balanceados |
+| Comandos de macOS dentro de bloques de código | ✅ 0 | ✅ 0 |
 | Rutas `~/Library` dentro de bloques de código | ✅ 0 | ✅ 0 |
-| `bash -n` sobre cada bloque bash | ✅ 10 limpios / 5 solo con marcadores — **idéntico a la línea base EN**, sin regresiones | ✅ 15 limpios, 0 fallando |
+| `bash -n` sobre cada bloque bash | ✅ 18 limpios / 3 solo con marcadores (`<repo-name>`) — los mismos 3 que la línea base EN | ✅ 9 limpios, 0 fallando |
 | El bloque `settings.json` parsea, el *hook* Stop desescapa correctamente | ✅ `powershell.exe -c "[console]::beep(1000,400)"` | n/a |
 | Comillas tipográficas dentro de bloques de código | ✅ 0 | ✅ 0 |
 
-**Nota sobre el defecto #12:** a diferencia del paquete que Mangan armó para uno de sus participantes — que deliberadamente despachó el
-bloque de permisos original — estas variantes heredan el bloque **endurecido** (`Bash(python3 *)`,
-`Bash(pip install *)`, `Read`/`Write`/`Edit` a secas eliminados), según la decisión del mantenedor del 2026-08-19.
-El cambio del STEP 7 de Windows descrito arriba es lo que hace que ese endurecimiento no cueste nada: hace que
-Claude añada el comando *real* de Python a `allow` solo si Python existe de verdad.
+**Nota sobre los permisos:** como el resto del kit, estas variantes usan el bloque de permisos
+**acotado**: solo comandos de git locales y cotidianos (`status`, `diff`, `log`, `add`, `commit`, `init`,
+`remote -v`), más `ls`, `mkdir`, `wc`, `Glob`, `Grep`. Nada de permiso amplio para todo git, nada de `cat`/`head`,
+ningún intérprete (`python`, `py`, `python3`, `node`), nada de `pip install`, nada de `Read`/`Write`/`Edit`
+a secas — y el bloque se fusiona con la configuración existente, nunca la sobrescribe. El cambio del STEP 7
+de Windows descrito arriba mantiene ese endurecimiento: ejecuta el saludo una sola vez con la aprobación
+normal usando el comando de Python que existe de verdad, sin agregarlo a `allow`.

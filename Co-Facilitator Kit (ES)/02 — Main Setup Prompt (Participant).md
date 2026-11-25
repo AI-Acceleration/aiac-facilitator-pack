@@ -8,29 +8,51 @@ lang: es
 translated_from: "02 — Main Setup Prompt (Participant).md"
 ---
 
-**Apoya:** Pégalo en Claude Code durante el Bloque 2 de la sesión.
+**Apoya:** el Bloque 2 de la sesión. Le das este archivo a Claude Code con su ruta; no lo pegas.
 
 # Prompt de Configuración Principal — AI Acceleration Club Fase 0
 
-Este es el prompt que construye todo tu entorno de trabajo: tu vault de Obsidian, tu configuración de Claude Code y tu primer proyecto real (lo vamos a llamar **el caso**). Es autocontenido — todo lo que está debajo de la línea de pegado entra en Claude Code, y Claude te lleva paso a paso, empezando por una entrevista corta para conocer tu trabajo y escoger el caso juntos.
+Este es el prompt que construye todo tu entorno de trabajo: tu vault de Obsidian, tu configuración de Claude Code y tu primer proyecto real (lo vamos a llamar **el caso**). Es autocontenido: Claude lee este archivo y te lleva paso a paso, empezando por una entrevista corta para conocer tu trabajo y escoger el caso juntos.
 
-Para ejecutarlo: abre tu terminal, haz `cd` a la carpeta de tu vault de Obsidian, ejecuta `claude` y pega todo lo que está debajo de la línea.
+> **El método son archivos simples y herramientas estándar** — notas en Markdown dentro de carpetas,
+> un repositorio git, unos pocos archivos de configuración. Claude Code es la herramienta recomendada
+> hoy para manejarlos, pero nada aquí te amarra: el vault y el repositorio funcionan con cualquier
+> editor o herramienta de IA que uses después.
+
+## Cómo darle este archivo a Claude (lee esto primero)
+
+**No copies y pegues este documento.** Es largo, y las terminales cortan los pegados largos (la
+terminal de Windows es la peor). Le entregas a Claude el archivo mismo:
+
+1. **Guarda este archivo en tu computadora** — te lo manda tu facilitador, o descárgalo de GitHub
+   (abre el archivo → **Download raw file**). Déjalo en un lugar que encuentres, como `Descargas`.
+2. **Copia la ruta completa del archivo.**
+   - **macOS:** en Finder, haz clic derecho sobre el archivo, mantén presionada la tecla **Option** y elige **Copiar "…" como nombre de ruta**.
+   - **Windows:** en el Explorador de archivos, mantén presionada **Shift**, haz clic derecho sobre el archivo y elige **Copiar como ruta de acceso**.
+   - **Linux:** la mayoría de los gestores de archivos tienen **Copiar ruta** en el menú del clic derecho; si no, arrastra el archivo a la terminal.
+3. **Abre la terminal y arranca Claude Code** en la carpeta correcta: haz `cd` a la carpeta de tu
+   vault si ya existe (puede que tu revisión previa la haya creado); si no, quédate en tu carpeta de
+   usuario. Ejecuta `claude`.
+4. Si Claude Code pregunta **"Do you trust the files in this folder?"**, elige **Yes** para tu vault
+   o tu carpeta de usuario. (En Windows la opción resaltada por defecto es "No, exit" — muévete primero a **Yes**.)
+5. Escribe esto, pega la ruta donde dice `<ruta>` y presiona Enter:
+
+   ```
+   Lee el archivo <ruta> y sigue sus instrucciones, empezando en "PARA CLAUDE — EMPIEZA AQUÍ".
+   ```
+
+6. **Si tienes que parar a mitad de camino** (por ejemplo, para cerrar la terminal e instalar algo),
+   arranca Claude otra vez en la carpeta de tu vault y escribe:
+   `Lee el archivo <ruta> y continúa desde el Paso N.`
+
+> **Si Claude Code te bloquea una edición de `~/.claude/settings.json` y menciona "auto mode":**
+> presiona **Shift+Tab** (cada vez que lo presionas cambia el modo que se ve en la barra inferior)
+> hasta que muestre el modo normal **default**, sin "auto". En modo auto, algunas ediciones de
+> configuración quedan bloqueadas. Cuando termine la edición, puedes presionar Shift+Tab otra vez para volver.
 
 ---
 
-> **⚠️ NOTA PARA USUARIOS DE WINDOWS — leer antes de pegar:**
-> En PowerShell y Windows Terminal, **Ctrl+V no siempre funciona para pegar bloques largos**.
-> Si el prompt no aparece al pegar, usa el **clic del scroll del mouse** (clic medio) o
-> **clic derecho** dentro de la terminal. Guarda este tip — lo vas a necesitar en cada paso.
->
-> **Si Claude Code te bloquea al editar `~/.claude/settings.json` y menciona "auto mode":**
-> Escribe `/model` o cambia el modo a **default** antes de continuar (en la barra inferior
-> de Claude Code, cambia de "auto" a "default"). En modo auto, algunas ediciones de
-> configuración quedan bloqueadas. Una vez editado el archivo, puedes volver a auto.
-
----
-
-## PEGA TODO LO QUE ESTÁ DEBAJO EN CLAUDE CODE
+## PARA CLAUDE — EMPIEZA AQUÍ
 
 ---
 
@@ -42,6 +64,10 @@ Me estás ayudando a montar desde cero mi entorno de trabajo completo durante un
 - Si algo falla, ayúdame a resolverlo antes de seguir.
 - Todos los archivos de configuración e instrucciones de Claude Code deben vivir dentro de este vault de Obsidian (no escondidos) para que yo pueda verlos y editarlos en Obsidian.
 - Empezamos con una entrevista corta (Paso 0) para que entiendas mi trabajo y escojamos el caso juntos — luego construyes todo lo demás alrededor de él.
+- Cuando un paso diga **PARA**, detente de verdad: muéstrame el mensaje y espera a que yo te diga que sigamos.
+- Nunca me agregues un permiso general o permanente. Todo lo que publique algo (un `git push`, crear un repositorio en GitHub) o cambie configuración fuera de este vault, primero me lo explicas y esperas mi OK.
+- Si un archivo que vas a escribir ya existe, **fusiona**: conserva todo lo que yo ya tenía, muéstrame lo que vas a agregar y nunca borres contenido existente.
+- Algunas acciones me necesitan en una **segunda ventana de terminal** (inicios de sesión que hacen preguntas en pantalla, instaladores). Cuando pase, dame la línea exacta que debo escribir ahí y espera a que te diga que funcionó.
 
 ---
 
@@ -57,13 +83,13 @@ git config --global user.email
 ```
 
 - Si ambos imprimen un valor, confírmalos conmigo: "Te tengo como `<name>` `<<email>>` — ¿así está bien para tus commits de Git?"
-- Si falta alguno, pídeme mi nombre completo y el correo que quiero en mis commits.
+- Si falta alguno, pídeme mi nombre completo y el correo que quiero en mis commits. Menciona que puedo usar mi dirección "no-reply" de GitHub (GitHub → Settings → Emails) si prefiero no poner mi correo real en el historial de commits.
 
 Guarda mi nombre y mi correo — los vas a usar en la configuración de Git (Paso 4), en el CLAUDE.md del vault (Paso 2), en las plantillas y en los briefs.
 
 **2. Mi trabajo.** Pregúntame: ¿a qué me dedico? Mi rol, mi organización o equipo, y el tipo de trabajo del que soy responsable en el día a día. Presta atención a las áreas de mi vida laboral — esas se convierten en las áreas de responsabilidad de mi vault en el Paso 1.
 
-**3. Mis problemas.** Pídeme que describa **1–3 problemas reales de trabajo** en los que me gustaría que Claude ayude — las tareas repetitivas, manuales o lentas que se comen mi tiempo. (Me pidieron traerlos a la sesión.) Para cada uno, profundiza un nivel más: qué datos o herramientas están involucrados, con qué frecuencia ocurre y cómo se vería "resuelto".
+**3. Mis problemas.** Pídeme que describa **1–3 problemas reales de trabajo** en los que me gustaría que Claude ayude — las tareas repetitivas, manuales o lentas que se comen mi tiempo. (Me pidieron traerlos a la sesión.) Para cada uno, profundiza un nivel más: qué datos o herramientas están involucrados, con qué frecuencia ocurre y cómo se vería "resuelto". Recuérdame que para el primer ejercicio de hoy usamos **datos de muestra o no sensibles** — un extracto inventado, una copia anonimizada o un archivo público con la misma forma. Los datos reales del negocio pueden venir después, cuando ya sepa adónde va cada cosa.
 
 **4. Calibración (para fijar el ritmo).** Hazme 1–2 preguntas ligeras para saber cuánto explicar en cada paso — no me examines, mantenlo amable:
 - ¿Qué tan cómodo me siento en una terminal / línea de comandos — nunca, un poco, o cómodo?
@@ -87,19 +113,53 @@ Confirma el resumen conmigo, luego pasa a la verificación de ubicación del vau
 
 ---
 
-**⚠️ Ubicación y nombre del vault — confírmalo antes de empezar:**
-La carpeta de tu vault de Obsidian ya debe existir antes de ejecutar este prompt. Si todavía
-no la has creado:
-- **Ponle un nombre permanente** (no "Prueba", "Vault2", "Borrador", etc.) — algo como tu
-  nombre, tu empresa o "Mi Vault". Vas a usar este nombre durante años.
-- **Guárdalo en una ubicación estable:** `Documents/` o tu carpeta de usuario. **NO
-  lo guardes en Descargas, el Escritorio, ni en ninguna carpeta que se limpie periódicamente.**
-- **macOS:** `~/Documents/Mi Vault/` es el estándar. Abre Obsidian → "Create new vault"
-  → ponle nombre → escoge `Documents/` como carpeta madre.
-- **Windows:** `C:\Users\[tu nombre]\Documents\Mi Vault\` es el estándar. Evita rutas
-  con espacios o caracteres acentuados si puedes.
-Dime la ruta completa a la carpeta de tu vault (por ejemplo `C:\Users\Jose\Documents\JRamirez Vault`
-o `/Users/jose/Documents/Mi Vault`) antes de empezar — la voy a usar durante toda la configuración.
+## VERIFICACIÓN DE LA UBICACIÓN DEL VAULT — antes del Paso 1
+
+El vault es la carpeta donde viven todas mis notas. Claude Code funciona mejor cuando **se arranca
+desde dentro de esa carpeta**: la carpeta desde donde lo lanzas es la carpeta de trabajo de Claude.
+Revisa dónde estamos:
+
+```bash
+pwd
+ls -a
+```
+
+**Caso A — ya estamos dentro de mi vault** (lo creó una revisión previa, o lo hice yo antes): el
+listado muestra una carpeta `.obsidian`, o yo te confirmo que este es mi vault. Sigue con la regla dura de abajo.
+
+**Caso B — todavía no hay vault.** Créalo con estas reglas:
+
+- **Ponle un nombre permanente** — algo como `AIAC-Vault`, mi nombre o mi empresa. No "Prueba",
+  "Vault2" ni "Borrador". Lo voy a usar durante años.
+- **Ubicación por defecto:** `~/AIAC-Vault` (en Windows es `C:/Users/YOUR-USER/AIAC-Vault`). Una carpeta
+  directamente en mi carpeta de usuario es la opción más segura.
+- Créala con `mkdir -p ~/AIAC-Vault` (o el nombre que yo escoja), y luego dime que abra **Obsidian** y
+  elija **"Open folder as vault"** (en la pantalla de inicio, o en **Manage vaults**, en el selector de
+  vaults de abajo a la izquierda) y escoja **exactamente esa carpeta**. **Nunca "Create new vault"** — eso
+  crea una segunda carpeta distinta, y entonces Obsidian y Claude miran dos lugares diferentes.
+- Cuando te diga que está abierta, verifica que Obsidian la marcó: `ls -a ~/AIAC-Vault` tiene que
+  listar una carpeta `.obsidian`. Si no aparece, Obsidian abrió otra carpeta — **PARA** y ayúdame a
+  arreglar eso primero.
+- Luego dime que escriba `/exit`, haga `cd` al vault, arranque `claude` otra vez y diga
+  `Lee el archivo <ruta> y continúa desde el Paso 1.` Desde ahí, la carpeta de trabajo de Claude es el vault.
+
+**⚠️ REGLA DURA (en los dos casos): el vault NO puede vivir dentro de una carpeta sincronizada con la
+nube** — OneDrive, Dropbox, Google Drive (`Google Drive`, `GoogleDrive`, `My Drive`) o iCloud (`iCloud`,
+`Mobile Documents`). Los clientes de sincronización pelean con Obsidian y con git y corrompen archivos.
+Si la ruta contiene cualquiera de esos nombres, **PARA** y ayúdame a mover el vault a `~/AIAC-Vault`
+antes de cualquier otra cosa.
+
+- **Windows:** `Documents` y `Desktop` muchas veces están redirigidas a OneDrive en silencio, aunque la
+  ruta no lo diga. Si el vault está bajo `Documents` o `Desktop`, pregúntame si OneDrive respalda esas
+  carpetas (ícono de OneDrive → Configuración → Copia de seguridad); si es así o no estoy seguro, usa
+  `C:/Users/YOUR-USER/AIAC-Vault`.
+- **macOS:** con la opción "Carpetas Escritorio y Documentos" de iCloud activada, `~/Documents` y
+  `~/Desktop` se sincronizan aunque la ruta no diga iCloud. Si el vault está ahí, pregúntame si esa
+  opción está activada (Configuración del Sistema → Cuenta de Apple → iCloud → iCloud Drive); si es así
+  o no estoy seguro, usa `~/AIAC-Vault`.
+- Evita también `Descargas` y cualquier carpeta que se limpie automáticamente.
+
+Cuando la ruta del vault esté resuelta, dime la ruta completa que vas a usar durante toda la configuración (la de `pwd`).
 
 ---
 
@@ -267,17 +327,33 @@ Confirma que el archivo se creó. Luego pasa al Paso 3.
 
 Ahora configura los ajustes globales de Claude Code. Viven en `~/.claude/settings.json` (fuera del vault — esta es la única excepción, porque Claude Code los exige ahí).
 
-Crea o actualiza `~/.claude/settings.json` con:
+**Primero, respalda lo que ya exista** (en una máquina nueva estos comandos no hacen nada, y eso está bien):
+
+```bash
+mkdir -p ~/.claude
+cp -a ~/.claude/settings.json ~/.claude/settings.json.bak 2>/dev/null
+cp -a ~/.claude/CLAUDE.md ~/.claude/CLAUDE.md.bak 2>/dev/null
+```
+
+**Luego fusiona — nunca sobrescribas.** Si `~/.claude/settings.json` ya existe, léelo primero y
+**agrégale** las entradas de abajo: añade cada regla de `allow` que no esté ya, agrega el *hook* `Stop`
+junto a los *hooks* que yo ya tenga, y **conserva cada clave, regla allow y regla deny existente**
+exactamente como estaba. Muéstrame lo que vas a agregar antes de escribir. Solo si el archivo no
+existe lo creas con exactamente este contenido:
 
 ```json
 {
   "permissions": {
     "allow": [
-      "Bash(git *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git init *)",
+      "Bash(git remote -v)",
       "Bash(ls *)",
       "Bash(mkdir *)",
-      "Bash(cat *)",
-      "Bash(head *)",
       "Bash(wc *)",
       "Glob",
       "Grep"
@@ -308,40 +384,35 @@ Crea o actualiza `~/.claude/settings.json` con:
 > - **No estás seguro / no quieres sonido:** borra el bloque `"Stop"` completo. Es opcional —
 >   nada más de la configuración depende de él.
 
-> **Antes de escribir este archivo:** si `~/.claude/settings.json` o `~/.claude/CLAUDE.md`
-> ya existen, respáldalos primero — este paso los sobrescribe.
+> **Por qué esta lista es más corta de lo que esperarías.** Varias cosas se dejaron fuera a propósito:
 >
-> ```bash
-> cp -a ~/.claude/settings.json ~/.claude/settings.json.bak 2>/dev/null
-> cp -a ~/.claude/CLAUDE.md    ~/.claude/CLAUDE.md.bak    2>/dev/null
-> ```
+> - **Una regla general para git.** Solo se preaprueban comandos de git cotidianos y locales:
+>   mirar (`status`, `diff`, `log`, `remote -v`) y guardar en tu propia máquina (`init`, `add`, `commit`).
+>   Todo lo que publica o reconecta un repositorio — `git push`, `git remote add`, cambios de rama,
+>   `git clone` — te sigue preguntando cada vez. Publicar siempre debe ser una decisión que tú ves.
+> - **Python, Node y otros intérpretes, y `pip install`.** Un script puede leer y escribir cualquier
+>   archivo como subproceso, y las reglas de permisos no ven eso. Preaprobar un intérprete dejaría
+>   decorativa cualquier regla `deny` que agregues después. Vas a recibir una solicitud de permiso la
+>   primera vez que Claude ejecute uno — ese es el resultado correcto el día uno, y lo apruebas una vez.
+> - **`cat` y `head`.** Imprimen cualquier archivo de tu disco. La herramienta Read integrada de Claude
+>   hace el mismo trabajo y está sujeta a las reglas de permisos, así que no se pierde nada.
+> - **`Read` / `Write` / `Edit` a secas.** Listadas sin una ruta, preaprueban esas herramientas para
+>   **cualquier lugar de tu disco**, lo que anula el comportamiento por defecto de Claude Code de
+>   trabajar en la carpeta desde donde lo lanzaste.
 >
-> En una máquina nueva ambos comandos no hacen nada, y eso está bien.
-
-> **Por qué esta lista es más corta de lo que esperarías.** Dos cosas se dejaron fuera a propósito:
->
-> - **`Bash(python3 *)` y `Bash(pip install *)`.** Python puede leer y escribir cualquier archivo como
->   subproceso, y las reglas de permisos no ven eso. Pre-aprobarlo significaría que cualquier regla
->   `deny` que agregues después es decorativa, a menos que también quites esta línea. Vas a recibir una
->   solicitud de permiso la primera vez que Claude ejecute Python — ese es el resultado correcto el día
->   uno, y puedes aprobarla.
-> - **`Read` / `Write` / `Edit` a secas.** Listadas sin una ruta, pre-aprueban esas herramientas para
->   **cualquier lugar de tu disco**, lo que anula el sensato comportamiento por defecto de Claude Code de
->   quedarse en el directorio desde donde lo lanzaste. Dejarlas fuera hace tu configuración **más**
->   acotada, no menos — tu vault se convierte en el límite, gratis.
->
-> Todo lo que de verdad hace fluido el día de la sesión (`git`, `ls`, `mkdir`, `cat`, `head`,
-> `wc`, `Glob`, `Grep`) sigue estando aquí.
+> **Qué te da esto y qué no:** tu vault es la carpeta de trabajo de Claude. Claude sigue preguntando
+> antes de tocar cualquier cosa fuera de esa carpeta, a menos que lo preapruebes — es una solicitud de
+> permiso, no un muro. Si quieres un límite duro y verificable, eso es el Documento 02-S (el sandbox opcional).
 
 **Qué hace esto:**
-- **Permisos:** Pre-aprueba comandos comunes y seguros para que Claude no pida permiso cada vez. Puedes agregar más después.
+- **Permisos:** Preaprueba unos pocos comandos cotidianos y seguros para que Claude no pida permiso cada vez. Todo lo demás sigue preguntando. Puedes agregar más después, una regla a la vez.
 - **Hook de sonido:** Reproduce un sonido cuando Claude termina una tarea. Esencial cuando te alejas y regresas.
 
 ### Router global — `~/.claude/CLAUDE.md`
 
 Ahora crea el **router global** en `~/.claude/CLAUDE.md`. Este es el archivo que hace que Claude Code cargue las reglas de tu vault al inicio de CADA sesión, sin importar desde qué carpeta lo lances. Importan dos partes: ARRIBA va un **router imperativo** (CARGA el CLAUDE.md del vault al arrancar); ABAJO va tu **perfil** (quién eres, qué estás construyendo).
 
-Emite el archivo con esta estructura exacta, llenando `Who I Am`, la ruta del brief del proyecto y la ruta del repositorio a partir de la entrevista del Paso 0 y del caso que escogimos:
+Emite el archivo con esta estructura exacta, llenando `Who I Am`, la ruta del brief del proyecto y la ruta del repositorio a partir de la entrevista del Paso 0 y del caso que escogimos. **Si `~/.claude/CLAUDE.md` ya existe** (se respaldó arriba), muéstramelo primero: pon este bloque router arriba y conserva mi contenido existente debajo, a menos que yo te diga otra cosa.
 
 ```markdown
 # CLAUDE.md — Global Router
@@ -380,7 +451,7 @@ My current project brief is at: <VAULT_PATH>/01 PROJECTS/<Project Name>/<Project
 
 ## Defaults
 
-- Language: English. English for code comments and variable names.
+- Language: Spanish. English for code comments and variable names.
 - Database access: READ-ONLY by default. Confirm before any write operation.
 - No fake data. If you don't have real data, say so.
 - After every correction I give you, update the relevant CLAUDE.md so you don't make the same mistake twice.
@@ -392,13 +463,7 @@ My current project brief is at: <VAULT_PATH>/01 PROJECTS/<Project Name>/<Project
 - Llena `## Who I Am` con la entrevista del Paso 0, y define la ruta del brief del proyecto y la ruta del repositorio a partir del nombre del caso y del nombre del repositorio que escogimos.
 - El bloque router "Default Workspace" DEBE ir arriba, encima del perfil — Claude usa señales de posición en el archivo y el router va primero.
 
-Verifica antes de seguir:
-
-```bash
-head -20 ~/.claude/CLAUDE.md
-```
-
-Confirma: (1) que la primera sección es `## Default Workspace` (no `## Who I Am`), y (2) que no queda ningún `<VAULT_PATH>` literal. La prueba completa de ruteo desde fuera del vault viene después, en la compuerta de validación final.
+Verifica antes de seguir: lee de vuelta las primeras 20 líneas de `~/.claude/CLAUDE.md` y confirma: (1) que la primera sección es `## Default Workspace` (no `## Who I Am`), y (2) que no queda ningún `<VAULT_PATH>` literal. La prueba completa de ruteo desde fuera del vault viene después, en la compuerta de validación final.
 
 Confirma. Pasa al Paso 3.5.
 
@@ -409,6 +474,16 @@ Confirma. Pasa al Paso 3.5.
 > **Por qué existe este paso.** Claude Code tiene una ventana de contexto limitada. Cuando se llena por encima de su umbral por defecto hace **auto-compactación** — resume y bota detalle, y ahí es donde las sesiones pierden trabajo en silencio. Este paso te da una **barra visible** que muestra qué tan lleno está el contexto, una **alerta audible al 50%** y un **freno duro antes de la auto-compactación** para que TÚ decidas cuándo compactar (con `/session-close`, que preserva planes y tareas en disco antes de que hagas `/clear`) en vez de que te agarre por sorpresa. Cuatro capas pequeñas — instala una a la vez y prueba cada una con el pipe-test antes de seguir.
 
 **Primero, detecta mi sistema operativo.** Ejecuta `uname` (macOS/Linux). En Windows, pregúntame si estoy en **PowerShell**, **Git Bash** o **WSL** — la línea de sonido y la ejecución de scripts dependen de eso (notas más abajo).
+
+**Luego revisa si está `jq`** (una herramienta pequeña para JSON que usan las Capas 2 y 3): ejecuta `jq --version`.
+- Si imprime una versión, sigue.
+- Si falta: macOS 15 y posteriores ya lo traen; en macOS más viejos es `brew install jq`; en Linux
+  `sudo apt install jq`; en Windows `winget install jqlang.jq` (**no** viene incluido con Git for
+  Windows). Dame la línea para ejecutar en una **segunda ventana de terminal**, luego haz que cierre y
+  vuelva a abrir la terminal y retome desde el Paso 3.5.
+- **Si hoy no se puede instalar `jq`** (sin derechos de administrador, sin gestor de paquetes): haz solo
+  las Capas 1 y 4, sáltate las Capas 2 y 3, y anótalo como pendiente de la Semana 1. Donde una
+  verificación de abajo use `jq`, lee el archivo de vuelta y confirma que es JSON válido con la clave esperada.
 
 ### Capa 1 — Sube el umbral de auto-compactación a 75% (todos los sistemas; hazlo aunque te saltes el resto)
 
@@ -532,7 +607,7 @@ EOF
 
 Valida (los tres deben salir con código 0): `jq -e '.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE' ~/.claude/settings.json`, `jq -e '.hooks.UserPromptSubmit[0].hooks[0].command' ~/.claude/settings.json`, `jq -e '.hooks.PreCompact[] | select(.matcher=="auto")' ~/.claude/settings.json`. Confirma que `jq . ~/.claude/settings.json` sale con código 0 (sin JSON corrupto).
 
-Dime: qué archivos se crearon/modificaron, si hubo que fusionar *hooks*/`env` existentes, cualquier cambio de sonido por sistema operativo, y que quizá tenga que abrir `/hooks` una vez (o reiniciar Claude Code) para que las nuevas entradas de *hooks* se registren. Termina con: "El monitoreo de contexto está activo. La próxima sesión, cuando el contexto pase de 50%, vas a ver un ⚠ amarillo en la barra de estado, escuchar una alerta y recibir un recordatorio en cada turno hasta que compactes."
+Dime: qué archivos se crearon/modificaron, si hubo que fusionar *hooks*/`env` existentes, cualquier cambio de sonido por sistema operativo, y que la nueva statusline y los *hooks* entran en efecto en mi **próxima** sesión de Claude Code (o después de abrir `/hooks` una vez). Termina con: "El monitoreo de contexto está activo. La próxima sesión, cuando el contexto pase de 50%, vas a ver un ⚠ amarillo en la barra de estado, escuchar una alerta y recibir un recordatorio en cada turno hasta que compactes."
 
 Confirma. Pasa al Paso 4.
 
@@ -560,14 +635,42 @@ Confirma. Pasa al Paso 5.
 
 ---
 
-## PASO 5: CUENTA DE GITHUB
+## PASO 5: CUENTA DE GITHUB Y `gh`
 
 Pregúntame: **"¿Tienes una cuenta de GitHub? Si sí, ¿cuál es tu nombre de usuario?"**
 
 - Si sí: anota mi nombre de usuario y sigue.
 - Si no: llévame a crear una en https://github.com (solo el registro). Después pídeme el nombre de usuario.
 
-**Sobre la autenticación (importa cuando creemos el repositorio y hagamos push, Pasos 6 y 12) — `gh` es OPCIONAL, no es obligatorio para la Fase 0:** Si el CLI `gh` está instalado, `gh auth login` es el camino fácil. Si no lo está (común en Windows corporativo sin derechos de administrador), el primer `git push` abre el navegador vía **Git Credential Manager** (viene con Git for Windows) — o pega un **Personal Access Token** (github.com → Settings → Developer settings → Personal access tokens (classic), *scopes* `repo` + `workflow`) como contraseña cuando git te la pida. Ninguna de las dos vías necesita derechos de administrador. Anota cuál aplica en mi caso para que los Pasos 6 y 12 salgan fluidos.
+`gh` es la herramienta de línea de comandos de GitHub. Es parte de los prerrequisitos (Documento 01), y
+la usamos en el Paso 12 para crear mi repositorio como **Private** y comprobarlo. Revísala:
+
+```bash
+gh --version
+gh auth status
+```
+
+- **`gh` está instalado pero sin sesión iniciada:** no ejecutes tú el inicio de sesión — hace preguntas
+  en pantalla que desde aquí no puedes contestar. Dime que ejecute esto en una **segunda ventana de
+  terminal**, que siga lo que le pide el navegador y que te avise cuando termine:
+
+  ```
+  gh auth login --hostname github.com --git-protocol https --web
+  ```
+
+  Luego ejecuta `gh auth status` otra vez, y conecta git con esa sesión para que los push no pidan contraseña:
+
+  ```bash
+  gh auth setup-git
+  ```
+
+- **Revisa la cuenta:** `gh api user --jq .login` tiene que imprimir el nombre de usuario que te di. Si
+  imprime otra cuenta, dímelo y déjame decidir cuál usar — no decidas por mí.
+- **`gh` no está instalado y hoy no se puede instalar** (por ejemplo, una laptop del trabajo sin
+  derechos de administrador): anótalo, y usamos el camino del navegador en el Paso 12. En Windows,
+  **Git Credential Manager** (incluido con Git for Windows) abre un inicio de sesión en el navegador en
+  el primer push. **Nunca crees un *personal access token* clásico** para esto — el inicio de sesión en
+  el navegador es más seguro y es todo lo que necesita la Fase 0.
 
 Pasa al Paso 6.
 
@@ -581,14 +684,14 @@ Dos espacios de trabajo, una sola regla para distinguirlos: **si tiene su propio
 
 (Esto NO significa "el código no puede vivir en el vault". Los scripts pequeños que operan sobre el vault mismo — *hooks*, ayudantes, análisis puntuales — se quedan en el vault bajo `05 AI/`. No tienen `.git` propio. La regla es sobre *repositorios*, no sobre *código*.)
 
-> **⚠️ Windows:** `~/dev` funciona tal cual en **Git Bash** y **WSL**. En **PowerShell** nativo la misma carpeta es `$HOME\dev` (o sea `C:\Users\[tu nombre]\dev`). Dime en qué shell estás y uso la forma correcta en todo el proceso.
+> **⚠️ Windows:** `~/dev` funciona tal cual en **Git Bash** y **WSL**. En **PowerShell** nativo la misma carpeta es `$HOME\dev` (o sea `C:/Users/YOUR-USER/dev`). Dime en qué shell estás y uso la forma correcta en todo el proceso.
 
 Como estamos arrancando un proyecto nuevo desde cero, no hay nada que clonar todavía — creamos un repositorio local nuevo. Primero asegúrate de que `~/dev` existe, luego crea e inicializa el repositorio:
 
 ```bash
 mkdir -p ~/dev
 mkdir -p ~/dev/<repo-name>
-cd ~/dev/<repo-name> && git init
+cd ~/dev/<repo-name> && git init -b main
 ```
 
 **Verifica que el repositorio quedó en `~/dev` — NO TE SALTES ESTO:**
@@ -599,9 +702,9 @@ cd ~/dev/<repo-name> && test "$(git rev-parse --show-toplevel)" = "$HOME/dev/<re
   || echo "WRONG LOCATION: $(git rev-parse --show-toplevel)"
 ```
 
-Esa sola verificación afirma dos cosas: que el repositorio SÍ está en `~/dev/<repo-name>` y que NO está dentro del vault. Si imprime `WRONG LOCATION`, **PARA** — no sigas con el repositorio en el lugar equivocado. Pégame la ruta que imprimió y lo arreglamos antes del Paso 7.
+Esa sola verificación afirma dos cosas: que el repositorio SÍ está en `~/dev/<repo-name>` y que NO está dentro del vault. Si imprime `WRONG LOCATION`, **PARA** — no sigas con el repositorio en el lugar equivocado. Muéstrame la ruta que imprimió y lo arreglamos antes del Paso 7.
 
-Pégame la salida del comando de verificación.
+Muéstrame la salida del comando de verificación.
 
 > **⚠️ ALTO — consulta con tu facilitador antes de continuar.**
 > Muéstrale al facilitador la salida del comando de verificación de arriba para que confirme que el
@@ -619,7 +722,7 @@ Dentro de la carpeta `<repo-name>`, crea esta estructura. Estas subcarpetas son 
 ```
 data/raw/        — original untouched inputs (gitignored)
 data/working/    — intermediate files you are still shaping (gitignored)
-data/processed/  — clean, final datasets (committed)
+data/processed/  — clean, final datasets (gitignored by default — see below)
 scripts/         — Python scripts for extraction and analysis
 reports/         — generated reports and output
 docs/            — project documentation
@@ -639,7 +742,12 @@ __pycache__/
 node_modules/
 data/raw/
 data/working/
+data/processed/
 ```
+
+Las tres carpetas de `data/` quedan en el `.gitignore` a propósito: el repositorio es privado, pero
+GitHub sigue siendo un tercero, y el primer ejercicio usa datos de muestra de todos modos. Más adelante,
+quita la línea `data/processed/` solo para archivos que estés seguro de que se pueden subir a GitHub.
 
 **`README.md`:** Escribe un README para el caso definido en la entrevista del Paso 0. Incluye:
 - una descripción de una línea del proyecto y qué problema resuelve,
@@ -680,7 +788,7 @@ Genéralo a partir del caso que definimos en la entrevista del Paso 0. Escribe u
 
 ## Rules
 
-- Language: English (comments, variable names, and output).
+- Language: Spanish for output and documentation; English for code comments and variable names.
 - Data files → `data/`; scripts → `scripts/`; generated reports → `reports/`; documentation → `docs/`.
 - Explain what you're doing and why before writing code.
 - Ask before complex tasks — don't assume.
@@ -906,7 +1014,6 @@ Reach an expert level of Claude Code fluency by working through Phase 0 → Phas
 ## Reference
 
 - [[AI Acceleration Club]] — master program brief
-- [[AI Acceleration Club - Phase 0 Playbook]]
 - [[Next Steps Brief]] — week-by-week homework
 - [[<Project Name>]] — my case project
 
@@ -925,28 +1032,72 @@ Confirma. Pasa al Paso 12.
 
 ## PASO 12: PRIMER COMMIT
 
-Ve al repositorio `<repo-name>` (en `~/dev` — ver Paso 6) y haz commit de todo:
+Ve al repositorio `<repo-name>` (en `~/dev` — ver Paso 6) y prepara todo para el commit:
 
 ```bash
 cd ~/dev/<repo-name>
 git add -A
+git status --short
+```
+
+**Muéstrame la lista de archivos preparados y espera mi OK.** Señala todo lo que parezca que no debería
+ir a GitHub — un archivo `.env`, contraseñas o llaves, datos reales de clientes o del negocio,
+exportaciones grandes. Si tengo dudas sobre un archivo, sácalo del área de preparación
+(`git restore --staged <file>`) y agrégalo al `.gitignore`. Solo después de que yo confirme, haz el commit:
+
+```bash
 git commit -m "Initial project setup: CLAUDE.md, folder structure, README, .gitignore"
 ```
 
-**Ahora ponlo en GitHub bajo mi propia cuenta.** Crea primero el repositorio en GitHub y luego haz push:
+**Ahora ponlo en GitHub — como repositorio Private y bajo la cuenta correcta.** Antes de crear nada,
+confirma tres cosas conmigo y espera mi "sí":
 
-- **Si `gh` está instalado:** `gh repo create <repo-name> --private --source=. --remote=origin --push` crea el repositorio bajo mi cuenta y hace push en un solo paso.
-- **Si `gh` no está instalado:** crea un repositorio vacío llamado `<repo-name>` en https://github.com/new (bajo mi cuenta, sin README/gitignore/licencia), luego conéctalo y haz push:
+1. **Dueño:** la cuenta bajo la que se va a crear (`gh api user --jq .login`, o mi nombre de usuario del Paso 5).
+2. **Visibilidad: Private.**
+3. **Nombre:** `<repo-name>`.
+
+**Con `gh`** (el camino por defecto):
 
 ```bash
-git remote add origin https://github.com/<my-username>/<repo-name>.git
-git branch -M main
+gh repo create <owner>/<repo-name> --private --source . --remote origin
+gh repo view <owner>/<repo-name> --json nameWithOwner,visibility
+```
+
+El segundo comando tiene que imprimir mi `nameWithOwner` **y `"visibility": "PRIVATE"`**. Si dice
+cualquier otra cosa, **PARA** — no hagas push; ayúdame primero a arreglar la visibilidad (en el
+repositorio: **Settings → General → Danger Zone → Change visibility**). Solo entonces haz push (esto me
+pide aprobación — es intencional):
+
+```bash
 git push -u origin main
 ```
 
-**Si el push pide credenciales o falla la autenticación:** `gh` no es obligatorio. El primer push abre el navegador vía **Git Credential Manager** (viene con Git for Windows) — inicia sesión y autoriza. Alternativa manual: cuando git pida usuario/contraseña, usa mi nombre de usuario de GitHub y pega un **Personal Access Token** (github.com → Settings → Developer settings → Personal access tokens (classic), *scopes* `repo` + `workflow`) como contraseña. Ninguna de las dos vías necesita derechos de administrador. (Ver Paso 5.)
+**Sin `gh`** (camino del navegador): llévame por https://github.com/new — **Owner** = mi cuenta,
+**Repository name** = `<repo-name>`, selecciona **Private**, y deja sin marcar README, .gitignore y
+licencia. Cuando lo haya creado, haz que confirme que la página del repositorio muestra la etiqueta
+**Private**. Luego conéctalo y haz push:
 
-Si no podemos conectarnos a GitHub ahora mismo, un commit solo local está bien — nos conectamos después.
+```bash
+git remote add origin https://github.com/<owner>/<repo-name>.git
+git push -u origin main
+```
+
+**Si el push pide credenciales o falla la autenticación:** con `gh`, ejecuta `gh auth setup-git` y vuelve
+a hacer push. Sin `gh`, Git Credential Manager (incluido con Git for Windows) abre un inicio de sesión en
+el navegador — inicia sesión y autoriza ahí. **No crees un *personal access token* clásico.** Si sigue
+fallando, **PARA** y muéstrame el error para que se lo pueda pasar a mi facilitador.
+
+**Luego verifica que el push de verdad llegó** — no lo des por hecho:
+
+```bash
+git log origin/main --oneline -1
+```
+
+Tiene que mostrar el commit. Con `gh`, `gh repo view <owner>/<repo-name> --json nameWithOwner,visibility`
+otra vez confirma que el repositorio existe en GitHub y que sigue siendo `PRIVATE`.
+
+Si no podemos conectarnos a GitHub ahora mismo, un commit solo local está bien por hoy — dilo claramente
+en el resumen, y nos conectamos después.
 
 Confirma. Pasa al Paso 12.5.
 
@@ -962,7 +1113,7 @@ Crea un único archivo de referencia rápida que yo siempre pueda encontrar. **R
 
 Guárdalo en `00 HUB/00 INBOX/` — la carpeta INBOX del vault, creada en el Paso 1. NO lo mandes a `05 AI/`, `CLAUDE CODE RESOURCES/` ni a ninguna carpeta tipo "Cloud Code Resources" — esas son ubicaciones flotantes que no voy a recordar.
 
-Llena el nombre del repositorio, el nombre del proyecto y mi nombre de pila. Contenido (usa cercas de 4 backticks al pegar esto en Claude Code para que los triples backticks anidados no cierren antes de tiempo):
+Llena el nombre del repositorio, el nombre del proyecto y mi nombre de pila. Contenido (la cerca exterior de 4 backticks de abajo solo está para que los bloques anidados de triple backtick se vean bien; escribe el archivo sin ella):
 
 ````markdown
 # AIAC Cheat Sheet — Quick Reference
@@ -1039,9 +1190,9 @@ Dame un resumen final:
 **Qué se configuró:**
 1. Vault de Obsidian con estructura PARA + espacio de trabajo de IA — más los ajustes centrales de Files and links (notas nuevas → `00 HUB/00 INBOX`, wikilinks ON, todos los tipos de archivo visibles, actualización automática de enlaces internos ON)
 2. CLAUDE.md del vault (las reglas de comportamiento de Claude)
-3. Configuración global de Claude Code (permisos + notificación de sonido + **monitoreo de contexto** — barra visible en la statusline, ⚠ amarillo al 50% con sonido, umbral de auto-compactación al 75% y un freno duro antes de la auto-compactación para que puedas hacer `/session-close` primero)
+3. Configuración global de Claude Code, fusionada con lo que ya había (una lista corta de permisos cotidianos — nada que publique o ejecute scripts queda preaprobado — más notificación de sonido + **monitoreo de contexto** — barra visible en la statusline, ⚠ amarillo al 50% con sonido, umbral de auto-compactación al 75% y un freno duro antes de la auto-compactación para que puedas hacer `/session-close` primero)
 4. Git configurado con mi identidad
-5. El repositorio de código de mi caso en `~/dev/<repo-name>` — fuera del vault — con CLAUDE.md (contexto completo del proyecto + un puntero de vuelta al brief del vault)
+5. El repositorio de código de mi caso en `~/dev/<repo-name>` — fuera del vault — con CLAUDE.md (contexto completo del proyecto + un puntero de vuelta al brief del vault), subido a GitHub como repositorio **Private** (o solo local por ahora, si no pudimos conectarnos)
 6. Plantilla de Brief de Proyecto para proyectos futuros
 7. El brief de mi proyecto del caso con todo el detalle (outcome, hitos, contactos) en `01 PROJECTS/<Project Name>/` — la carpeta PROPIA del proyecto del caso (solo el brief de Journey vive bajo `01 PROJECTS/AI Acceleration/<My Name>/`)
 8. MOC de Área que enlaza todo
@@ -1074,8 +1225,8 @@ Claude lee el CLAUDE.md de la carpeta en la que estés. Ya sabe todo sobre tu pr
 
 **La tarea de esta semana (3 tareas):**
 
-1. **Abre Claude Code todos los días** (aunque sean 10 minutos). En la carpeta `<repo-name>`, mete un archivo de datos y pídele a Claude que lo analice.
-2. **Reúne tus datos iniciales** y guárdalos en `<repo-name>/data/` (o en la subcarpeta que corresponda)
+1. **Abre Claude Code todos los días** (aunque sean 10 minutos). En la carpeta `<repo-name>`, mete un archivo de datos de muestra (o no sensible) en `data/raw/` y pídele a Claude que lo analice.
+2. **Reúne tus datos iniciales** y guárdalos en `<repo-name>/data/raw/` (está en el `.gitignore` — se queda en tu máquina)
 3. **Ejecuta este prompt** en la carpeta `<repo-name>`:
 
 ```
