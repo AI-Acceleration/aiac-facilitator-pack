@@ -31,6 +31,8 @@ GIT_EMAIL = "t" + "@" + DOMAIN  # fragments: this file is itself scanned by the 
 # A GitHub no-reply identity of a contributor who is not the maintainer.
 NOREPLY_DOMAIN = "users.noreply" + ".github.com"
 OUTSIDE = "98765+outside-contrib" + "@" + NOREPLY_DOMAIN
+# The legacy login-only no-reply form older accounts still use.
+LEGACY = "outside-contrib" + "@" + NOREPLY_DOMAIN
 WEB_MERGE = "noreply" + "@" + "github.com"
 
 
@@ -630,10 +632,31 @@ class GateSandbox(unittest.TestCase):
         self.write("doc.md", "write to %s\n" % OUTSIDE)
         self.assertBlocked(run_gate(self.tmp, "--tree"), "UNALLOWLISTED")
 
+    def test_legacy_login_only_noreply_identity_passes_history(self):
+        self.commit_as(LEGACY, LEGACY)
+        self.clean_commit()
+        self.git("-c", "user.email=" + LEGACY, "tag", "-a", "legacy",
+                 "-m", "clean message")
+        r = run_gate(self.tmp, "--history")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_legacy_noreply_in_message_or_file_is_still_caught(self):
+        self.commit_as(LEGACY, LEGACY, "thanks to %s" % LEGACY)
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "UNALLOWLISTED")
+        self.assertIn("commit message", r.stderr)
+        self.assertRedacted(r, LEGACY)
+        self.write("doc.md", "write to %s\n" % LEGACY)
+        self.assertBlocked(run_gate(self.tmp, "--tree"), "UNALLOWLISTED")
+
     def test_noreply_lookalikes_in_headers_are_caught(self):
         base = self.clean_commit()
-        for fake in ("outside-contrib" + "@" + NOREPLY_DOMAIN,          # no id
+        for fake in ("out.side" + "@" + NOREPLY_DOMAIN,                  # dot in login
+                     "-outside" + "@" + NOREPLY_DOMAIN,                  # leading hyphen
+                     "x" * 40 + "@" + NOREPLY_DOMAIN,                    # login too long
+                     "98765+" + "@" + NOREPLY_DOMAIN,                    # id, no login
                      OUTSIDE + ".evil.test",                             # suffix
+                     "outside" + "@" + "users-noreply.github.com",       # wrong host
                      "98765+outside" + "@" + "users.noreply.github.co"):  # typo
             with self.subTest(fake=fake):
                 self.git("reset", "-q", "--hard", base)
@@ -645,6 +668,47 @@ class GateSandbox(unittest.TestCase):
                 self.assertBlocked(r, "UNALLOWLISTED")
                 self.assertIn("commit header", r.stderr)
                 self.assertRedacted(r, fake)
+
+    # --- Co-authored-by trailers: users' no-reply forms, exact line only ---
+    def test_noreply_coauthor_trailer_passes_history_and_message_hook(self):
+        msg = ("clean message\n\nCo-authored-by: Outside One <%s>\n"
+               "co-authored-by: Outside Two <%s>\n" % (OUTSIDE, LEGACY))
+        self.commit_message_bytes(msg.encode("utf-8"))
+        r = run_gate(self.tmp, "--history")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        f = self.tmp / "COMMIT_EDITMSG"
+        f.write_text(msg, encoding="utf-8")
+        r = run_gate(self.tmp, "--message", str(f))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_coauthor_trailer_lookalikes_are_caught(self):
+        for line in ("Thanks Outside <%s>" % OUTSIDE,                 # not a trailer
+                     "Co-authored-by: <%s>" % OUTSIDE,                 # no name
+                     "Co-authored-by: Outside %s" % OUTSIDE,           # no brackets
+                     "Co-authored-by: Outside <%s> extra" % OUTSIDE,   # trailing text
+                     "Signed-off-by: Outside <%s>" % OUTSIDE,          # other trailer
+                     "Co-authored-by: Outside <%s>" % WEB_MERGE,       # service address
+                     "Co-authored-by: Outside <%s>" % UNKNOWN):        # not no-reply
+            with self.subTest(line=line):
+                f = self.tmp / "COMMIT_EDITMSG"
+                f.write_text("clean message\n\n%s\n" % line, encoding="utf-8")
+                r = run_gate(self.tmp, "--message", str(f))
+                self.assertBlocked(r, "UNALLOWLISTED")
+                self.assertRedacted(r, OUTSIDE, UNKNOWN)
+
+    def test_denied_address_in_coauthor_trailer_is_never_excused(self):
+        f = self.tmp / "COMMIT_EDITMSG"
+        f.write_text("clean message\n\nCo-authored-by: X <%s>\n" % DENIED,
+                     encoding="utf-8")
+        self.assertBlocked(run_gate(self.tmp, "--message", str(f)), "KNOWN-PRIVATE")
+
+    def test_noreply_coauthor_trailer_in_tag_message_is_caught(self):
+        self.clean_commit()
+        self.git("tag", "-a", "release", "-m",
+                 "clean\n\nCo-authored-by: Outside <%s>" % OUTSIDE)
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "UNALLOWLISTED")
+        self.assertIn("tag message", r.stderr)
 
     def test_denied_address_in_header_is_never_excused(self):
         self.commit_as(DENIED, OUTSIDE)
@@ -695,6 +759,20 @@ class GateSandbox(unittest.TestCase):
         self.git("update-index", "--add", "--cacheinfo",
                  "160000,%s,vendored" % ("a" * 40))
         self.assertBlocked(run_gate(self.tmp, "--tree"), "UNSCANNABLE")
+
+    def test_history_mode_reports_historical_submodule_unscannable(self):
+        # A gitlink that existed in an earlier commit: --tree no longer sees
+        # it, --history must give it the same verdict --tree would have.
+        self.write("doc.md", "clean\n")
+        self.git("update-index", "--add", "--cacheinfo",
+                 "160000,%s,vendored" % ("a" * 40))
+        self.git("commit", "-q", "--no-verify", "-m", "add a submodule")
+        self.git("rm", "-q", "--cached", "vendored")
+        self.git("commit", "-q", "--no-verify", "-m", "drop the submodule")
+        self.assertEqual(run_gate(self.tmp, "--tree").returncode, 0)
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "UNSCANNABLE — not a regular file")
+        self.assertIn("vendored", r.stderr)
 
     def test_shared_blob_is_reported_under_every_path(self):
         # Blob scans are memoised by SHA; each path must still be reported.

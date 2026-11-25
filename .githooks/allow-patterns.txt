@@ -4,7 +4,9 @@
 # commit-msg hook and `--history` scan.
 noreply@anthropic.com
 
-# GitHub no-reply identities (<id>+<login>@users.noreply.github.com and the
-# web-UI merge committer) are NOT listed here: bin/gate_scan.py accepts any of
-# them, but only as the identity in a commit or tag author/committer/tagger
-# header. Written in a file or a message they still fail as UNALLOWLISTED.
+# GitHub no-reply identities (<id>+<login>@users.noreply.github.com, the
+# legacy <login>@users.noreply.github.com and the web-UI merge committer) are
+# NOT listed here: bin/gate_scan.py accepts them only as the identity in a
+# commit or tag author/committer/tagger header, and users' forms also on an
+# exact `Co-authored-by: Name <address>` line of a commit message. Written
+# anywhere else in a file or a message they still fail as UNALLOWLISTED.

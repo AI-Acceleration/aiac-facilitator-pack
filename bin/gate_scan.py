@@ -14,7 +14,10 @@ Modes:
   --history   every object reachable from every ref, including commit and tag
               headers and messages (raw and, if re-encoded, decoded). A GitHub
               no-reply address is accepted only as the identity in an author,
-              committer or tagger header.
+              committer or tagger header, or (users' no-reply forms only) on an
+              exact `Co-authored-by: Name <address>` line of a commit message.
+              Historical submodule entries are reported UNSCANNABLE, as in
+              --tree.
 
 Findings never print an address: addresses are shown as `address#<8 hex>`
 (prefix of the deny-list hash) and path components holding one are redacted.
@@ -70,15 +73,27 @@ CANARY = "canary.probe" + "@" + "example-invalid" + ".test"
 # The exemption must apply to precisely the one file load() actually reads.
 DENY_ONLY_CONTENT = {".githooks/allow-patterns.txt"}
 COMMIT_MSG_PATH = "<commit message>"
-# GitHub-issued no-reply identities: `<id>+<login>@users.noreply.github.com`
-# (Settings > Emails > "Keep my email addresses private") and the committer
-# GitHub stamps on web-UI merges. They route to no one, so any contributor
-# may commit with one. Allowed ONLY as the identity in a commit or tag header
-# (see github_identity); written anywhere else they are ordinary addresses.
-GITHUB_NOREPLY_RE = re.compile(
-    r"\d+\+[A-Za-z0-9-]+@users\.noreply\.github\.com|noreply@github\.com",
+# GitHub-issued no-reply identities. A user's address comes in two forms:
+# `<id>+<login>@users.noreply.github.com` (accounts since 2017) and the legacy
+# `<login>@users.noreply.github.com` (older accounts still show it under
+# Settings > Emails > "Keep my email addresses private"). The third form is
+# the committer GitHub stamps on web-UI merges. They route to no one, so any
+# contributor may commit with one. Allowed ONLY as the identity in a commit or
+# tag header (see github_identity) or, users' forms only, on an exact
+# Co-authored-by trailer line (see github_coauthor); written anywhere else
+# they are ordinary addresses. A login is 1-39 letters, digits and hyphens,
+# never starting with a hyphen.
+GITHUB_USER_NOREPLY_RE = re.compile(
+    r"(?:\d+\+)?[A-Za-z0-9][A-Za-z0-9-]{0,38}@users\.noreply\.github\.com",
     re.IGNORECASE)
+GITHUB_NOREPLY_RE = re.compile(
+    GITHUB_USER_NOREPLY_RE.pattern + r"|noreply@github\.com", re.IGNORECASE)
 IDENTITY_HEADERS = ("author ", "committer ", "tagger ")
+# The one trailer form in which a co-author's no-reply address may appear in a
+# commit message: the whole line, `Co-authored-by: Name <address>`.
+COAUTHOR_LINE_RE = re.compile(
+    r"co-authored-by:[ \t]+[^<>\n]*[^<>\s][ \t]+<([^<>\s]+)>[ \t]*\r?",
+    re.IGNORECASE)
 
 
 def die(msg):
@@ -221,11 +236,30 @@ def github_identity(variant, m):
     return variant.startswith(IDENTITY_HEADERS, line_start)
 
 
-def scan_blob(data, path, deny_hashes, allow, findings, identity_headers=False):
+def github_coauthor(variant, m):
+    """True for a GitHub user no-reply address that is the address of an
+    exact `Co-authored-by: Name <address>` line (the trailer GitHub itself
+    writes). The address must be the whole <...> of that line; the same
+    address in prose, in another trailer or in a file is still UNALLOWLISTED."""
+    if not GITHUB_USER_NOREPLY_RE.fullmatch(m.group(0)):
+        return False
+    start, end = m.span()
+    line_start = variant.rfind("\n", 0, start) + 1
+    line_end = variant.find("\n", end)
+    if line_end == -1:
+        line_end = len(variant)
+    line = COAUTHOR_LINE_RE.fullmatch(variant, line_start, line_end)
+    return bool(line) and line.span(1) == (start, end)
+
+
+def scan_blob(data, path, deny_hashes, allow, findings, identity_headers=False,
+              coauthor_trailers=False):
     """Content scan. A deny-hash match is unconditional; the allowlist can
     only suppress the generic UNALLOWLISTED rule, never a known address.
     identity_headers=True (commit and tag objects only) also lets GitHub
-    no-reply identities through, see github_identity()."""
+    no-reply identities through, see github_identity(). coauthor_trailers=True
+    (commit messages only) lets a user's no-reply address through on an exact
+    Co-authored-by line, see github_coauthor()."""
     deny_only = path in DENY_ONLY_CONTENT
     try:
         text = data.decode("utf-8")
@@ -242,7 +276,8 @@ def scan_blob(data, path, deny_hashes, allow, findings, identity_headers=False):
             a = m.group(0)
             known = h(a) in deny_hashes
             if not known and (deny_only or a.lower() in allow_l or
-                              (identity_headers and github_identity(variant, m))):
+                              (identity_headers and github_identity(variant, m)) or
+                              (coauthor_trailers and github_coauthor(variant, m))):
                 continue
             line = variant.count("\n", 0, m.start()) + 1
             why = "KNOWN-PRIVATE" if known else "UNALLOWLISTED"
@@ -369,12 +404,19 @@ def scan_metadata(sha, kind, headers, message, forms, problems,
     # GitHub no-reply identity; messages may not.
     scan_blob(headers, f"<{kind} header> {sha[:12]}", deny_hashes, allow, findings,
               identity_headers=True)
-    scan_blob(message, f"<{kind} message> {sha[:12]}", deny_hashes, allow, findings)
+    # Commit messages may carry a co-author's no-reply address on an exact
+    # Co-authored-by line; tag messages may not.
+    commit = kind == "commit"
+    scan_blob(message, f"<{kind} message> {sha[:12]}", deny_hashes, allow, findings,
+              coauthor_trailers=commit)
     for label, problem in problems:
         findings.append((f"{label} {sha[:12]}", 0, problem))
     for label, form in forms:
+        # Decoded whole objects and git's re-encoded view both hold the
+        # message after the headers, so the trailer rule applies to them too.
         scan_blob(form, f"{label} {sha[:12]}", deny_hashes, allow, findings,
-                  identity_headers=(label == f"<{kind} decoded>"))
+                  identity_headers=(label == f"<{kind} decoded>"),
+                  coauthor_trailers=commit)
 
 
 def commit_objects(tips=()):
@@ -435,6 +477,10 @@ def scan_history_tree(tree, deny_hashes, allow, bad_base, bad_path, findings):
         scan_name(name, deny_hashes, allow, findings)
         if kind == b"blob":
             scan_git_blob(sha.decode("ascii"), name, deny_hashes, allow, findings)
+        elif kind != b"tree":
+            # A submodule (gitlink, type commit) or anything else: nothing was
+            # read, so nothing may be certified -- the same verdict as --tree.
+            findings.append((name, 0, "UNSCANNABLE — not a regular file"))
     return scanned
 
 
@@ -460,7 +506,8 @@ def main():
         if not msg_file.is_file():
             die(f"commit message file not found: {msg_file}")
         scanned = 1
-        scan_blob(msg_file.read_bytes(), COMMIT_MSG_PATH, deny_hashes, allow, findings)
+        scan_blob(msg_file.read_bytes(), COMMIT_MSG_PATH, deny_hashes, allow, findings,
+                  coauthor_trailers=True)
     elif history:
         refs = list(ref_objects())
         tag_targets, commit_tips = {}, set()
