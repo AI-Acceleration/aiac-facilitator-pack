@@ -6,34 +6,55 @@ status: draft
 tags: [aiac, phase0, co-facilitator-kit, participant, skills, config, setup-prompt, windows]
 ---
 
-**Supports:** Block 3 of your live Phase 0 session. Paste the block below into Claude Code when your facilitator tells you to.
+**Supports:** Block 3 of your live Phase 0 session. You give this file to Claude Code by its path when your facilitator tells you to; you do not paste it.
 
 # Phase 0 — Skills & Config Setup Prompt (WINDOWS)
 
-> ## Same three Windows rules as Doc 02
+> ## Same three Windows rules as Doc 02W
 >
-> 1. **Right-click to paste**, not Ctrl+V.
+> 1. **Give Claude this file by its path — don't paste it.** For the short lines you do paste, use
+>    **right-click**, not Ctrl+V.
 > 2. **Git Bash**, not PowerShell and not CMD.
 > 3. **Forward slashes `/` in every path.** An unquoted `\` is silently stripped in Git Bash and the
 >    command fails with no visible error.
->
-> **If you started a new Claude Code session since Doc 02, paste this first:**
->
-> ```
-> Environment: Windows, Git Bash. Forward slashes in all paths. Do not offer me macOS commands
-> (afplay, xcode-select, brew, open) or macOS paths (~/Library/...). Take the Windows branch
-> without asking.
-> ```
 
-This is the **second** prompt you'll paste into Claude Code during the session. It comes right after the Main Setup Prompt (Doc 2) has finished scaffolding your vault and your project. Paste everything below the line into Claude Code and let it walk you through each step, one at a time.
+This is the **second** prompt of the session. It comes right after the Main Setup Prompt (Doc 2) has finished scaffolding your vault and your project. Claude reads it and walks you through each step, one at a time.
+
+## How to give this file to Claude
+
+Same as Doc 02 — **don't paste it**, hand Claude the file:
+
+1. Save this file on your computer and copy its full path: File Explorer → hold **Shift**, right-click
+   the file → **Copy as path**.
+2. Open **Git Bash** in your vault (File Explorer → vault folder → right-click an empty spot → **Open
+   Git Bash here**; check with `pwd -W`) and start `claude` — or keep the session from Doc 02W open.
+3. Type this, paste the path (right-click) where it says `<path>`, and press Enter:
+
+   ```
+   Read the file <path> and follow its instructions, starting at "FOR CLAUDE — START HERE".
+   ```
+
+4. If you have to stop midway: start Claude again in your vault and type
+   `Read the file <path> and continue from Step N.`
+
+> **Two things to know before you start**
+>
+> - **Plugins, skills and connectors you install during a session load in the *next* session.** They
+>   won't show up in the session that installed them. Step 8 ends with a check in a fresh session.
+> - **Work or school Claude account (Team / Enterprise)?** Your organization's admin controls which
+>   connectors you can turn on, and may already give you plugins. Step 2 checks this first.
 
 ---
 
-## PASTE EVERYTHING BELOW INTO CLAUDE CODE
+## FOR CLAUDE — START HERE
 
 ---
 
-We just finished setting up my vault and project. Now I need you to install the essential plugins, create key skills, and configure a few more things. Walk me through each step one at a time. Confirm each step before moving on.
+**Environment: Windows, Git Bash.** Forward slashes in all paths. Do not offer me macOS commands (`afplay`, `xcode-select`, `brew`, `open`) or macOS paths (`~/Library/...`). Take the Windows branch without asking.
+
+We just finished setting up my vault and project. Now I need you to install the essential plugins, install the starter skills, and configure a few more things. Walk me through each step one at a time. Confirm each step before moving on.
+
+**Rules for this part:** don't add blanket or lasting permissions for me; merge into existing settings files, never overwrite them; anything that needs a login with questions on screen goes in a **second terminal window** (give me the exact line and wait); when a step says **STOP**, really stop and wait for me.
 
 ---
 
@@ -41,28 +62,23 @@ We just finished setting up my vault and project. Now I need you to install the 
 
 My global router `~/.claude/CLAUDE.md` was already created in the **Main Setup prompt (Doc 2)** — the "Global Router" step. Here we just confirm it's in place and run the live routing test before installing skills.
 
-Verify the file:
+Verify the file — read back its first 25 lines and confirm that:
+1. The first section is `## Default Workspace` (the imperative router), NOT `## Who I Am`.
+2. The vault path is resolved (no literal placeholder remains in the file).
+3. **Windows-specific:** there are no backslashes in it. This must print `0` — any other number means a backslash path is in the router, which breaks it silently:
 
 ```bash
-head -25 ~/.claude/CLAUDE.md
-
-# Third check, Windows-specific. This MUST print 0.
-# Any other number means a backslash path is in the router, which breaks it silently.
 grep -c '\\' ~/.claude/CLAUDE.md
 ```
 
-Confirm that:
-1. The first section is `## Default Workspace` (the imperative router), NOT `## Who I Am`.
-2. The vault path is resolved (no literal placeholder remains in the file).
+Then the **outside-the-vault routing test** — critical for catching the "profile-only, not router" failure mode. I do this myself, in a **second terminal window**, so this session stays open:
 
-Then run the **outside-the-vault routing test** — critical for catching the "profile-only, not router" failure mode:
-
-```bash
-cd ~
+```
+cd ~/dev
 claude
 ```
 
-Once Claude Code starts, ask: *"What files are in my vault INBOX?"* If Claude reads my vault's `00 HUB/00 INBOX/` without me giving it the path, the router is working. If it says "I don't know where your vault is", the router was generated as a profile doc, not a router — go back to the Main Setup prompt's "Global Router" step and recreate `~/.claude/CLAUDE.md` with the `## Default Workspace` block at the TOP.
+(Open the second window as **Git Bash**. If Claude Code asks whether to trust `~/dev`, answer **Yes** — that is where my repos live; on Windows the highlighted default is "No, exit", so move to Yes first.) Once it starts, I ask: *"What files are in my vault INBOX?"* If Claude reads my vault's `00 HUB/00 INBOX/` without me giving it the path, the router is working. If it says "I don't know where your vault is", the router was generated as a profile doc, not a router — go back to the Main Setup prompt's "Global Router" step and recreate `~/.claude/CLAUDE.md` with the `## Default Workspace` block at the TOP. Either way, I type `/exit` in that second window and come back here to tell you the result.
 
 Confirm both checks pass. Move to Step 2.
 
@@ -70,7 +86,22 @@ Confirm both checks pass. Move to Step 2.
 
 ## STEP 2: INSTALL PLUGINS
 
-Run these commands to install essential plugins:
+**First, check what kind of Claude account I'm on:**
+
+```bash
+grep -o '"organizationType": *"[^"]*"' ~/.claude.json
+claude plugin list
+```
+
+- **No output, or a personal type** → personal account (Pro or Max). Install the plugins below.
+- **A team or enterprise type** → an organization account. Its admin controls connectors and may
+  already distribute plugins to me. **Use the organization's plugins first:** if `claude plugin list`
+  already shows a plugin below, don't install it again. Install manually **only as a fallback** for one
+  the organization doesn't provide — and tell me, because a manually installed copy with the same name
+  can shadow (hide) the organization's copy. (Whether that shadowing happens the same way on Windows is
+  unverified; check with `claude plugin list` either way.)
+
+Then install what's missing:
 
 ```bash
 # Compound Engineering — the Plan -> Build workflow
@@ -84,7 +115,7 @@ claude plugin install compound-engineering@compound-engineering-plugin
 claude plugin install superpowers@claude-plugins-official
 ```
 
-If `superpowers` or `playground` says the marketplace is unknown, first run `claude plugin marketplace add anthropics/claude-plugins-official`. (`claude /install-plugin` and `claude plugins add` do not exist — corrected 2026-09-23.)
+If `superpowers` or `playground` says the marketplace is unknown, first run `claude plugin marketplace add anthropics/claude-plugins-official`.
 
 If none of those work, tell me what error you got and we'll troubleshoot.
 
@@ -93,7 +124,7 @@ If none of those work, tell me what error you got and we'll troubleshoot.
 - **Compound Engineering:** Gives you `/ce:plan` (create a structured plan with research) and `/ce:work` (execute a plan step by step). The core idea: "unless it's a one-line change, there's always a plan first."
 - **Superpowers:** Gives you structured workflows for debugging (`/systematic-debugging`), brainstorming (`/brainstorm`), code review (`/requesting-code-review`), and test-driven development (`/test-driven-development`).
 
-Confirm both are installed. Move to Step 2.5.
+Confirm both are installed: run `claude plugin list` (the plain text view) and show me the lines for both. They become usable in my **next** session — don't expect `/ce:plan` to work in this one. Move to Step 2.5.
 
 ---
 
@@ -114,78 +145,59 @@ For Gmail, Drive, Calendar, and Granola, the **default install path is claude.ai
 Walk me through:
 
 1. Open the Claude desktop app (or https://claude.ai in the browser).
-2. Go to **Settings → Connectors → Explore**.
-3. Install these four connectors one by one, accepting the OAuth consent on each:
+2. Go to **Connectors** (under **Settings** or **Customize**, depending on the app version) → **Browse / Explore**. On a work account, if a connector isn't listed, your organization's admin has to enable it first — note it and move on.
+3. Install these connectors one by one, accepting the OAuth consent on each:
    - **Gmail** (read/send/search)
    - **Google Drive** (search/read/create files)
    - **Google Calendar** (list events, create events, respond to invites)
-   - **Granola** (meeting transcripts + AI summaries)
+   - **Granola** (meeting transcripts + AI summaries) — only if Granola is my meeting tool (Step 2.6)
 4. For each connector, the browser opens a Google consent screen. **If the browser tab doesn't open automatically, copy the URL Claude shows and paste it into your browser manually** — this is the most common friction point, not a failure.
-5. After installing, the connectors are available in any Claude Code session as `mcp__claude_ai_<connector>__*` tools — no further config needed.
+5. After installing, the connectors are available in Claude Code sessions as `mcp__claude_ai_<connector>__*` tools — no further config needed. Like plugins, they show up reliably in a **new** session.
 
-**Verification:** in this Claude Code session, ask: *"List my 3 most recent Gmail messages."* and *"List my upcoming calendar events for today."* If both return real data, the connectors are wired.
+**Verification:** at the end of this setup, in a fresh session (Step 8), ask: *"List my 3 most recent Gmail messages."* and *"List my upcoming calendar events for today."* If both return real data, the connectors are wired.
 
 ### Path B — Microsoft 365 / Outlook
 
-Email/calendar integration is **deferred to Phase 1** — there is no first-party Connector for Outlook yet and the MCP options are under evaluation. **Skip the Google Connectors above entirely** (they don't touch an Outlook mailbox). If you need Outlook data during Phase 0, export/import manually; we'll wire a proper integration in Phase 1. *(Granola is standalone — if you use it for meetings, install just that one Connector.)*
+There is a first-party **Microsoft 365 connector** (Outlook mail and calendar, OneDrive, SharePoint, Teams). **Skip the Google connectors above** — they don't touch an Outlook mailbox.
+
+1. In the Claude desktop app or https://claude.ai, go to **Connectors** → find **Microsoft 365** → **Connect**, and sign in with my Microsoft account.
+2. **Work or school Microsoft account:** a Microsoft administrator must approve the connector once for the whole organization, and on a Claude Team/Enterprise plan the Claude organization owner must enable it too. If the sign-in says approval is needed, **don't fight it today** — note "ask IT to approve the Microsoft 365 connector" as a Week-1 item and move on. A personal Microsoft account needs no admin.
+3. By default the connector is **read-only** (it can read mail, events and files, not send or change them). That is the right setting for Phase 0.
+4. Verification (in a fresh session, Step 8): *"List my 3 most recent emails"* and *"What's on my calendar today?"*
+
+*(Granola is standalone — if you use it for meetings, install just that one connector.)*
 
 ### Path C — Other / unknown stack
 
 Skip email integration for Phase 0 and defer to Phase 1. Tell me what you use (Fastmail, Zoho, Proton, etc.) and we'll evaluate options later. Nothing here blocks the rest of setup.
 
-Once verified (Google) or skipped (Microsoft / other) per your path, move to Step 2.5b.
+Once connected (Google or Microsoft) or skipped (other) per your path, move to Step 2.5b.
 
 ---
 
-### STEP 2.5b: ADVANCED — gws CLI (OPTIONAL, DEFER TO PHASE 0.5 — Google stack only)
+### STEP 2.5b: GOOGLE WORKSPACE CLI (`gws`) — NOT TODAY
 
-> **Decide:** install gws CLI only if you need to **edit Google Sheets programmatically from Claude Code** (write formulas, batch-update ranges, manage spreadsheet schema). The Connectors above already cover Sheets *read*, plus all Gmail / Drive / Calendar operations. If your project doesn't write to Sheets from terminal scripts, skip this step entirely — you can always come back later in Phase 0.5.
+Skip this today. The connectors above already cover reading Gmail, Drive, Calendar and Sheets. The `gws` command-line tool is only for **writing to Google Sheets from scripts**, and setting it up takes over an hour (a Google Cloud OAuth client, API enablement, scope grants).
 
-For projects that need it, `gws` is the command-line tool that wraps the full Google Workspace API surface (Sheets writes included) into one binary. **On Windows** get the `windows-amd64` build, save it as `~/bin/gws.exe`, and add `export PATH="$HOME/bin:$PATH"` to `~/.bashrc` — the macOS instructions (`chmod +x ~/bin/gws`, editing a zsh profile) do not apply. Install adds ~1.5h (gcloud install + OAuth client setup + scope grants).
+If a later project needs it, set it up in a dedicated session with your facilitator, and keep it narrow:
 
-Walk me through the install step by step:
+- **Log in with only the scopes the project needs** (for example Sheets only), not "grant all scopes".
+- **No blanket permission rule** for it (no `Bash(gws *)` or `Bash(~/bin/gws *)` in `allow`). Approve its commands one at a time, or add an exact rule for one specific read-only command you run often.
 
-1. Check if gcloud CLI is installed: `gcloud --version`
-   - If not, go to https://cloud.google.com/sdk/docs/install and guide me through install
-   - After install: `gcloud auth login` (opens browser)
-
-2. Download the gws binary from https://github.com/googleworkspace/cli/releases
-   - Pick the binary for my OS/architecture
-   - Place at `~/bin/gws` (create `~/bin/` if needed)
-   - `chmod +x ~/bin/gws`
-   - Add `~/bin` to my PATH if not already (check my shell profile)
-   - Verify: `~/bin/gws --version`
-
-3. OAuth setup: `~/bin/gws auth setup` — creates an OAuth client, enables needed Google APIs.
-
-4. Authenticate: `~/bin/gws auth login` — browser OAuth consent, grant all scopes.
-
-5. Test: `~/bin/gws drive files list --params '{"pageSize": 3}'` and `~/bin/gws calendar events list --params '{"calendarId": "primary", "maxResults": 3}'`.
-
-6. Add `"Bash(~/bin/gws *)"` to the `allow` array in `~/.claude/settings.json` so Claude Code doesn't prompt every time.
-
-7. Append a "Google Workspace Tools" section to the vault CLAUDE.md with these rules:
-   - Primary tool: `gws` CLI at `~/bin/gws`
-   - Syntax: `gws <service> <resource> [sub-resource] <method> --params <JSON>`
-   - Two flags: `--params` = URL/query parameters, `--json` = request body
-   - Important: the `!` character in Sheets ranges (e.g., `Sheet1!A1:Z10`) gets mangled by bash. When working with ranges, always use Python `subprocess.run()` to call gws — never raw bash.
-
-If any step fails, help me troubleshoot before moving on.
-
-Confirm Connectors are working (and optionally gws if installed). Move to Step 2.6.
+Tell me "noted" and move to Step 2.6.
 
 ---
 
 ## STEP 2.6: MEETING TRANSCRIPTS + /meeting-minutes SKILL
 
-My meeting-transcription tool is **[TOOL]** *(the facilitator fills this in before the session: `Granola` (default) · `SpeakUp` · `Otter` · `Plaud` · `none / pasted transcript`)*. Install the `/meeting-minutes` skill against **that** source — do not assume Granola.
+My meeting-transcription tool is **[TOOL]** *(FACILITATOR PLACEHOLDER — replace before sending: `Granola` · another transcription tool by name · `none / pasted transcript`. If it still says [TOOL], ask me which one I use)*. Install the `/meeting-minutes` skill against **that** source — do not assume Granola. **Recording is optional:** a pasted transcript works just as well. Whatever the tool, **everyone in a meeting is asked before it is recorded.**
 
 **Branch by tool:**
 - **Granola** → In Step 2.5 I installed the **Granola Connector** via claude.ai. Verify it: ask *"List my 3 most recent Granola meetings."* If it returns real meetings it works; if not, re-install the connector and **if the browser tab didn't open during OAuth, copy the URL and paste it manually**. The skill reads via the `mcp__claude_ai_Granola__*` tools.
-- **SpeakUp / Otter / Plaud / other** → If the tool publishes an MCP server or connector, install it now (SpeakUp has one — 2026-09-10) and verify by listing recent recordings. If it has none, the skill's input is **a transcript I paste or export to a file**; do not try to wire a Granola connector.
+- **Any other tool (SpeakUp, Otter, Plaud…)** → If the tool publishes an MCP server or connector, install it now and verify by listing recent recordings. If it has none, the skill's input is **a transcript I paste or export to a file**; do not try to wire a Granola connector.
 - **None** → The skill accepts a pasted transcript; skip any connector work.
 
-**Prerequisite:** the tool's app is installed and I have at least one test recording. If not, do that first (see the Pre-Session Setup Instructions, Doc 1) and come back.
+**For the test, no real meeting is needed:** a 30-second recording of just me, or a short made-up transcript pasted in, is enough. Don't use a real client or internal meeting for the first test.
 
 Walk me through:
 
@@ -197,243 +209,57 @@ Walk me through:
    - Generates a structured Meeting Minutes note in `03 REFERENCE/<area>/`. If `Templates/Meeting Minutes Template.md` does not exist yet, create it first (attendees, date, agenda, decisions, action items with owners, next steps) — Doc 02 only ships a Project Brief template
    - Extracts Decisions, Action Items, and Next Actions as wikilinks
 
-3. **Verification:** Record a 30-second test meeting in [TOOL] (or paste any short transcript), then run `/meeting-minutes latest`. Claude should fetch/read the transcript, generate a minutes file, and show me the path.
+3. **Verification:** the skill becomes available in my **next** session. In the fresh session at the end (Step 8), record a 30-second test in [TOOL] (or paste a short made-up transcript), then run `/meeting-minutes latest` (or `/meeting-minutes` and paste). Claude should read the transcript, generate a minutes file, and show me the path.
 
-Confirm the transcript source + `/meeting-minutes` skill are working. Move to Step 2.7.
-
----
-
-### STEP 2.6b: ADVANCED — Granola MCP via CLI (OPTIONAL, DEFER TO PHASE 0.5)
-
-> **Decide:** install the CLI-based Granola MCP only if you want vault-side automation that runs **outside a Claude Code session** (e.g., a cron job that processes new meetings every morning). The Connector above already covers in-session use — running `/meeting-minutes` live during or after a session. Skip this entirely unless you have a concrete automation need.
-
-For projects that need it, Granola exposes a REST API that a local wrapper can call directly. If/when needed, walk me through:
-
-1. Read the auth token from Granola's app-data folder. **On Windows that is `%APPDATA%\Granola\`
-   (in Git Bash: `~/AppData/Roaming/Granola/`), NOT the macOS `~/Library/Application Support/` path.**
-   Confirm the real filenames on disk first (`ls ~/AppData/Roaming/Granola/`) — do not assume the
-   Mac layout carries over. Look for the nested `workos_tokens.access_token`.
-2. Use the meeting cache in that same folder to list IDs/titles/dates (again: confirm the actual filename rather than assuming `cache-v6.json`).
-3. Build a small Python helper at `~/bin/granola-fetch` that accepts `--meeting-id` or `--latest` and prints transcript + AI summary as JSON. API endpoints: `https://api.granola.ai/v1/get-document-transcript` and `https://api.granola.ai/v1/get-document-panels`.
-4. Wire the helper into **Windows Task Scheduler** for unattended processing (launchd and cron are macOS/Linux only).
-
-Confirm the CLI helper works (only if you chose to install it). Move to Step 2.7.
+Confirm the transcript source and that `~/.claude/skills/meeting-minutes/SKILL.md` exists. Move to Step 2.7.
 
 ---
 
-## STEP 2.7: INSTALL THE PHASE E CORE SKILLS
+## STEP 2.7: INSTALL THE STARTER SKILLS (ONE PACK, ONE CLONE)
 
-Beyond `/session-close` (Step 4) and `/meeting-minutes` (Step 2.6), five more skills are part of the Phase E required install set — these came out of repeated friction in Phase 0 sessions where members had to invent flows from scratch instead of using a battle-tested skill:
+The starter skills come from one public, reviewed pack: **`AI-Acceleration/cc-starter-pack`, pinned at tag `v1.0.0`** (a fixed version, so everyone installs exactly the same files). It contains eleven skills, including the ones this kit uses every day:
 
-- **`/project-create`** — used in the demo flow ("always start with a plan"); creates Project / Program briefs via guided Q&A
-- **`/inbox-clear`** — daily INBOX processing; classify each note, propose actions, execute after approval
-- **`/retro`** — session retrospectives; routes to the right protocol per session mode
-- **`/playground`** — interactive HTML playgrounds for exploring concepts visually
-- **`/skill-create`** — build new skills from a guided conversation; used for the Week-1 weekly-review skill and called by `/retro` when it proposes codifying a recurring workflow.
+- **`/session-close`** — close a session: update the brief, log the work, leave a Continuation Prompt (Step 4)
+- **`/project-create`** — create a Project / Program brief through guided Q&A
+- **`/inbox-clear`** — process `00 HUB/00 INBOX/`: classify each note, propose moves, act only after approval
+- **`/retro`** — session retrospectives that turn friction into CLAUDE.md rules
+- **`/skill-create`** — build new skills from a guided conversation (your Week-1 weekly-review skill)
+- plus `/context`, `/permissions`, `/extract`, `/deep-research`, `/deep-planning`, `/fermi-decomposition`
 
-### 2.7a — Install `/project-create` (curl one-liner)
+Several skills ship helper files next to their `SKILL.md`, so install the whole pack, not single files. The pack's copy goes in `~/.aiac/`, **not** in `~/dev/` — it's a program tool, not one of my repos.
 
-The `/project-create` skill ships in the public AIAC starter-pack repo. Install via a single curl:
+### 2.7a — Clone the pack at `v1.0.0` and run its installer
 
 ```bash
-mkdir -p ~/.claude/skills/project-create/ && curl -fsSL https://raw.githubusercontent.com/wildbuffaloman/cc-starter-pack/main/project-create/SKILL.md -o ~/.claude/skills/project-create/SKILL.md
+mkdir -p ~/.aiac
+git clone --depth 1 --branch v1.0.0 https://github.com/AI-Acceleration/cc-starter-pack.git ~/.aiac/cc-starter-pack
+(cd ~/.aiac/cc-starter-pack && bash ./install.sh)
 ```
 
-Verify:
-```bash
-head -5 ~/.claude/skills/project-create/SKILL.md
-```
+(The parentheses keep this session's working folder on the vault.)
 
-You should see the YAML frontmatter (`name: project-create`, `version: ...`, etc.).
+- If `~/.aiac/cc-starter-pack` already exists from an earlier attempt, tell me before touching it. Check its version with `git -C ~/.aiac/cc-starter-pack describe --tags` — it must print `v1.0.0`.
+- `install.sh` copies each skill folder into `~/.claude/skills/<skill>/`. It **skips** any skill I already have with the same name and prints `SKIP: …` for it. If you see a `SKIP`, show me the list and ask me what to do — never overwrite one of my skills without my OK (`bash ./install.sh force` overwrites).
+- It ends with "Restart Claude Code": **don't restart now.** The skills load in my next session.
 
 ### 2.7b — Install `/playground` (official Anthropic plugin)
 
-`/playground` is part of the official Anthropic plugin marketplace — install it as a plugin, not a standalone skill:
+`/playground` is a plugin from the official marketplace, not a standalone skill (on an organization account, check `claude plugin list` first, as in Step 2):
 
 ```bash
 claude plugin install playground@claude-plugins-official
 ```
 
-Verify by running `/playground` in this session — Claude should describe the playground builder workflow.
-
-### 2.7c — Install `/inbox-clear` (inline-paste)
-
-The `/inbox-clear` skill repo is currently private (will go public in a future cohort). For now, create the file from this paste-ready content. Create `~/.claude/skills/inbox-clear/SKILL.md` with:
-
-```markdown
----
-name: inbox-clear
-description: GTD-based inbox clearing — classify every note in 00 HUB/00 INBOX/, propose actions in a clearance manifest, execute after user approval.
-user-invocable: true
-argument-hint: "optional: single note path, or 'batch' to process all"
----
-
-Clear `00 HUB/00 INBOX/` using a GTD-style classify-then-execute flow. Never delete or move silently — always propose first.
-
-## Phase 1: Audit
-
-For each note in `00 HUB/00 INBOX/`:
-
-1. Read the note (full content if <500 chars, otherwise frontmatter + first/last sections).
-2. Classify into one of:
-   - **PROJECT** — actionable, multi-step → route to `01 PROJECTS/<Brief>/` or create a new project via `/project-create`
-   - **REFERENCE** — durable knowledge → route to `03 REFERENCE/<area>/`
-   - **READ_REVIEW** — needs deeper read before disposition → route to `03 REFERENCE/READ_REVIEW/`
-   - **TASK** — single action → append to the Next Actions section of the relevant project brief, then archive the note. (If you have a task manager wired up, offer to add it there too — don't assume one.)
-   - **DAILY_NOTE** — date-tagged daily content → route to `03 REFERENCE/DAILY NOTES/`
-   - **ARCHIVE** — historical / completed → route to `04 ARCHIVES/`
-   - **DELETE** — duplicate / accidental / no value → propose deletion
-   - **KEEP_IN_INBOX** — needs human triage that AI can't make
-3. For tasks: propose Eisenhower priority (Q1🔺 / Q2⏫ / Q3🔼 / Q4 none) based on urgency + leverage.
-
-## Phase 2: Clearance Manifest
-
-Write the manifest to `00 HUB/00 INBOX/_inbox-clear-manifest-YYYY-MM-DD.md`:
-
-| Note | Classification | Proposed Action | Target Path | Priority |
-|------|----------------|-----------------|-------------|----------|
-| ... | PROJECT | Route to existing brief | 01 PROJECTS/Foo/Foo.md | — |
-
-Present the manifest to the user. Wait for approval (or per-row overrides) before Phase 3.
-
-## Phase 3: Execute
-
-Only after user approves:
-1. Move each note to its target.
-2. Append TASK rows to the Next Actions section of the relevant project brief (and to a task manager only if the user has one set up).
-3. Run `/project-create` for any new PROJECT rows.
-4. Update the manifest with `✓` per executed row.
-5. Surface anything that failed for re-decision.
-
-## Rules
-
-- Never bulk-move without approval.
-- Tasks dedup against existing Apple Reminders before creating (search by title).
-- Preserve original filename when moving — don't rename silently.
-- If a note has wikilinks to others in INBOX, process the cluster together so cross-refs stay valid.
-- Surface anything truly ambiguous as KEEP_IN_INBOX — better to leave it than mis-route.
-```
-
-Verify:
-```bash
-head -5 ~/.claude/skills/inbox-clear/SKILL.md
-```
-
-Should show the `name: inbox-clear` frontmatter.
-
-### 2.7d — Install `/retro` (inline-paste)
-
-The `/retro` skill repo is currently private. Create `~/.claude/skills/retro/SKILL.md` with this simplified version:
-
-```markdown
----
-name: retro
-description: Run a retrospective on the current session or project — surface what worked, what didn't, and what to change so the next session is better.
-user-invocable: true
-argument-hint: "optional: scope — session, project, weekly, monthly"
----
-
-Run a retrospective and update CLAUDE.md / project briefs with lessons learned.
-
-## When to Run
-
-- After a milestone or significant session
-- When something broke or pivoted unexpectedly
-- At a regular cadence (weekly = recommended, monthly = strategic)
-- When the user says "retro", "let's reflect", "what did we learn"
-
-## Steps
-
-### 1 — Scope
-
-Determine the scope:
-- **session** (default) — just this session
-- **project** — entire project arc (read its brief, look at Log section)
-- **weekly** — last 7 days across all projects
-- **monthly** — last 30 days strategic view
-
-If no scope arg, ask: "Retro on this session, the current project, or a longer review?"
-
-### 2 — Surface the Material
-
-Pull the relevant material:
-- For session: current conversation
-- For project: the brief's Log + last 5 entries in Next Actions + Continuation Prompts history
-- For weekly/monthly: scan all project briefs touched in that window
-
-### 3 — The Three Questions
-
-Ask the user (or work through these yourself, then confirm):
-
-1. **What went well?** (2-3 items — celebrate wins, identify what to keep doing)
-2. **What went wrong / friction?** (2-3 items — be specific, name the moment)
-3. **What to change?** (1-2 concrete actions — these become CLAUDE.md updates or new rules)
-
-### 4 — Codify
-
-For each "change" item:
-- If it's a behavior rule → update `~/.claude/CLAUDE.md` or the relevant project CLAUDE.md
-- If it's a recurring workflow → propose codifying as a skill via `/skill-create` (don't auto-create — ask first)
-- If it's a one-off lesson → append a line to `05 AI/CLAUDE CODE/resources/lessons.md`
-
-### 5 — Log
-
-Append a Retro entry to the relevant Log section (project brief Log, or lessons.md for session-scope retros):
-
-| Date | Type | Description |
-|------|------|-------------|
-| YYYY-MM-DD | Retro | <one-line summary of the 3 questions> |
-
-## Rules
-
-- Never auto-edit CLAUDE.md without user approval — present the proposed diff first
-- Keep it short — 3 wins, 3 frictions, 1-2 changes is the target. Don't write essays
-- If the user says "no retro needed", respect that — don't push
-- Lessons learned in retro should be **specific** ("when X happens, do Y"), not vague ("be more careful")
-```
-
-Verify:
-```bash
-head -5 ~/.claude/skills/retro/SKILL.md
-```
-
-Should show the `name: retro` frontmatter.
-
-### 2.7e — Install `/skill-create` (curl one-liner)
-
-`/skill-create` builds new skills from a guided conversation — you'll use it for your Week-1 weekly-review skill, and `/retro` calls it when it proposes codifying a recurring workflow. Install it from the public AIAC starter-pack with a single curl:
+### 2.7c — Verify
 
 ```bash
-mkdir -p ~/.claude/skills/skill-create/ && curl -fsSL https://raw.githubusercontent.com/wildbuffaloman/cc-starter-pack/main/skill-create/SKILL.md -o ~/.claude/skills/skill-create/SKILL.md
-```
-
-Verify:
-```bash
-head -5 ~/.claude/skills/skill-create/SKILL.md
-```
-
-You should see `name: skill-create` in the frontmatter.
-
-### 2.7f — Final Verification
-
-Run all skills in a single check:
-
-```bash
-for skill in meeting-minutes project-create inbox-clear retro skill-create; do
-  if [ -f ~/.claude/skills/$skill/SKILL.md ]; then
-    echo "✓ $skill"
-  else
-    echo "✗ $skill MISSING"
-  fi
+for skill in session-close project-create inbox-clear retro skill-create meeting-minutes; do
+  if [ -f ~/.claude/skills/$skill/SKILL.md ]; then echo "OK      $skill"; else echo "MISSING $skill"; fi
 done
+claude plugin list
 ```
 
-For `/playground` (which is a plugin, not a standalone skill):
-```bash
-ls ~/.claude/plugins/marketplaces/claude-plugins-official/plugins/playground 2>/dev/null && echo "✓ playground plugin" || echo "✗ playground plugin MISSING"
-```
-
-If anything is missing, fix it before moving to Step 3.
+All six skills must print `OK`, and `claude plugin list` must list `playground`, `compound-engineering` and `superpowers`. If anything is missing, **STOP** and fix it (show me the error) before Step 3. Using them is tested in a fresh session at the end (Step 8).
 
 ---
 
@@ -466,139 +292,16 @@ Use today's date in the first row. Confirm. Move to Step 4.
 
 ---
 
-## STEP 4: SESSION-CLOSE SKILL
+## STEP 4: SESSION-CLOSE — THE ONE HABIT THAT MATTERS
 
-Create the file `~/.claude/skills/session-close/SKILL.md` with this content:
+`/session-close` was installed with the starter pack in Step 2.7 (`~/.claude/skills/session-close/`). Don't write your own version — read the installed `SKILL.md` and explain to me in plain words, in five lines or fewer:
 
-```markdown
----
-name: session-close
-description: Close the current session — update the project brief, log the work done, and leave a Continuation Prompt for the next session.
-user-invocable: true
-argument-hint: "optional: project name"
----
+1. **When** to run it: whenever I'm done for now, when context passes ~50%, or after finishing something important.
+2. **What it updates:** the project brief's Next Actions and Log, and a **Continuation Prompt** at the top of Next Actions — the block the next session reads to pick up exactly where I left off.
+3. **What it never does on its own:** push code, delete notes, or invent data. If it offers to commit, it asks first.
+4. **Retro:** when a session had a milestone, a failure or repeated friction, it suggests running `/retro`.
 
-Close the current session by updating all relevant artifacts.
-
-## When to Run
-
-Run when:
-- The user says "close session", "wrap up", "done for today", "save the state", or similar
-- Context is running low (~50% used)
-- An important task was completed
-- The session is ending for any reason
-
-## Step 1 — Identify the Project Brief
-
-Every work session corresponds to a project. Find the matching brief:
-
-1. Look in `01 PROJECTS/` (in the Obsidian vault) for a .md file that matches this session's work.
-2. If no brief exists, create a new one in `00 HUB/00 INBOX/` using the Project Brief Template.
-3. If the session was purely exploratory with no specific project, still create a minimal brief.
-
-## Step 2 — Update the Project Brief
-
-### Continuation Prompt (THE MOST IMPORTANT PART)
-
-At the top of the `## Next Actions` section, add or REPLACE a `### Continuation Prompt` block. Only the most recent one is kept — it's overwritten each session.
-
-Format:
-
-### Continuation Prompt
-> **Date:** YYYY-MM-DD
-> **Context:** <1-2 sentences — which project, what we were doing>
->
-> **Resume from:** <specific step, file, or location to continue from>
-> **Key decisions:** <decisions made that affect the next steps>
-> **Blockers/questions:** <anything unresolved>
-> **Files touched:** <important files modified this session>
-
-This block is designed to be copied and pasted into a new Claude Code session to resume the work without friction.
-
-### Next Actions
-
-Update the task list:
-- Mark completed tasks as done
-- Add new tasks discovered during the session
-
-### Log
-
-Add dated entries for the work performed:
-
-| Date | Type | Description |
-|------|------|-------------|
-| YYYY-MM-DD | Task | Summary of the work |
-
-Log rules:
-- One item per row
-- Label as "Task" or "Milestone"
-
-### Waiting For
-
-Only items that depend on OTHER people. Never put your own tasks here.
-
-## Step 3 — Code Verification (only if code was written)
-
-If the session involved writing or modifying code:
-
-### 3a. Run and Verify
-- Run the scripts that were created/modified
-- Verify the output is correct
-- If there are tests, run them
-
-### 3b. Quality Review
-Review the code for:
-- **Security:** SQL injection? Hardcoded credentials?
-- **Common errors:** Division by zero? Unclosed connections?
-- **Readability:** Clear variable names? Comments where needed?
-
-If you find problems, fix them (with the user's confirmation).
-
-### 3c. Commit (if applicable)
-If the work is in a git repo:
-- Ask: "Do you want to commit the changes?"
-- If yes, commit with a descriptive message
-- Never push without explicit confirmation
-
-## Step 4 — Lessons Learned
-
-If the session produced reusable learnings:
-- Add a line to `05 AI/CLAUDE CODE/resources/lessons.md` (in the vault)
-
-## Step 5 — Report to the User
-
-When finished, show:
-- What was updated (and where)
-- A summary of the Continuation Prompt
-- Recommended next steps
-
-## Step 6 — Retrospective Evaluation
-
-Evaluate whether a quick retro is worthwhile. Indicators (1 point each):
-
-1. **Milestone completed** — a milestone was reached
-2. **Failure or pivot** — something broke or the plan changed
-3. **New pattern** — a reusable workflow emerged
-4. **Rule gap** — a hole in CLAUDE.md
-5. **Repeated friction** — permission issues, repeated clarifications
-
-Decision:
-- **0-1 points:** No retro.
-- **2-3 points:** Suggest a retro.
-- **4+ points:** Strongly recommend one.
-
-If the user agrees: **invoke the `/retro` skill** — it runs the retrospective (what went well / what went wrong / what to change) and updates CLAUDE.md / the briefs with the learnings. **Don't run the retro inline here** — `/retro` (installed in Step 2.7d) owns that flow; running it inline would duplicate the logic in two places.
-
-## Rules
-
-- The Continuation Prompt is MANDATORY on every close. No exceptions.
-- Never invent data.
-- If multiple projects were touched, update all their briefs.
-- The Log is historical — only append, never modify previous entries.
-- Respond in English.
-```
-
-After creating, verify the file exists by reading it. Then move to Step 5.
+Then move to Step 5.
 
 ---
 
@@ -656,12 +359,13 @@ Create a file in my vault at `00 HUB/00 INBOX/Claude Code Cheat Sheet.md`:
 | `/session-close` | Close session properly (updates project brief, logs work, creates continuation prompt) |
 | `Ctrl+C` | Cancel current operation |
 | `Escape` | Cancel current input |
-| `Shift+Tab` (x2) | Enter/exit Plan Mode |
-| `/project-create` | Create a Project/Program brief via guided Q&A (Phase E skill) |
-| `/inbox-clear` | Classify and route 00 HUB/00 INBOX notes (Phase E skill) |
-| `/meeting-minutes` | Turn a Granola recording into a structured note (Phase E skill) |
-| `/retro` | Run a retrospective on a session, project, or week (Phase E skill) |
-| `/playground` | Build an interactive HTML playground (Phase E plugin) |
+| `Shift+Tab` | Switch mode (default → accept edits → Plan Mode); press until the bottom bar shows the one you want |
+| `/project-create` | Create a Project/Program brief via guided Q&A (starter pack) |
+| `/inbox-clear` | Classify and route 00 HUB/00 INBOX notes (starter pack) |
+| `/meeting-minutes` | Turn a meeting transcript into a structured note |
+| `/retro` | Run a retrospective on a session, project, or week (starter pack) |
+| `/skill-create` | Build a new skill from a guided conversation (starter pack) |
+| `/playground` | Build an interactive HTML playground (plugin) |
 
 ## Plugin Commands
 
@@ -742,11 +446,10 @@ Let's do a quick test to make sure everything works. Run this simple exercise:
 
 1. Check that the CLAUDE.md in this vault is readable — read it and tell me the first line.
 2. Check that `~/.claude/CLAUDE.md` exists and has the correct vault path.
-3. Check that `~/.claude/settings.json` has the permissions we set up earlier.
-4. Check that all 6 standalone skills exist at `~/.claude/skills/<skill>/SKILL.md`: `meeting-minutes`, `project-create`, `inbox-clear`, `retro`, `skill-create` (the loop from Step 2.7f), plus `session-close` (created later, in Step 4).
-5. Check that the `/playground` plugin is installed under `~/.claude/plugins/marketplaces/claude-plugins-official/plugins/playground/`.
-6. Verify the claude.ai Connectors respond — ask: "List my 3 most recent Gmail messages" and "List my upcoming calendar events for today." (Skip this check if you're on Microsoft 365 / other and deferred email integration to Phase 1.)
-7. **Find out which Python command exists on this machine before using one.** On Windows the
+3. Check that `~/.claude/settings.json` has the permissions we set up earlier — and that it contains **no** blanket rules: no `Bash(git *)`, no `Bash(cat *)` / `Bash(head *)`, no `Bash(git remote *)`, no rule for `python`, `py`, `python3` or `node`. If you find one, show it to me and ask before removing it.
+4. Check that the six skills exist at `~/.claude/skills/<skill>/SKILL.md` (the loop from Step 2.7c): `session-close`, `project-create`, `inbox-clear`, `retro`, `skill-create`, `meeting-minutes`.
+5. Check with `claude plugin list` that `playground`, `compound-engineering` and `superpowers` are installed.
+6. **Find out which Python command exists on this machine before using one.** On Windows the
    command is usually `python` or `py` — **bare `python3` normally does NOT exist, and typing it
    opens the Microsoft Store**, which looks like a crash. Run this first:
 
@@ -755,20 +458,21 @@ Let's do a quick test to make sure everything works. Run this simple exercise:
    ```
 
    - **If one is found:** create a simple script at `05 AI/CLAUDE CODE/workspace/hello.py` that
-     prints a personalized greeting with the vault and repo paths, run it with the command that
-     actually exists, and show me the output. Add that real command to my `permissions.allow`
-     array (e.g. `Bash(python *)`), not the macOS `python3` form.
+     prints a personalized greeting with the vault and repo paths, run it once with normal approval
+     using the command that actually exists, and show me the output. Do not add it to `permissions.allow`.
    - **If none is found: that is NOT a blocker, and we do NOT install Python now.** Nothing else in
      Phase 0 needs it. Note it as a Week-1 item and skip to the next check. Do not let this stop
      the session — it is the last verification step, not a prerequisite.
 
-8. Validate that the settings file wasn't corrupted by the merges in Doc 02:
+7. Validate that the settings file wasn't corrupted by the merges in Doc 02W:
 
    ```bash
    jq . ~/.claude/settings.json > /dev/null && echo "settings.json is valid JSON"
    ```
 
-9. Run `claude doctor` and show me the output.
+   (If `jq` isn't installed — it doesn't come with Git for Windows — read the file back instead and confirm it is valid JSON.)
+
+8. Run `claude doctor` and show me the output.
 
 If everything works, move to Step 8.
 
@@ -782,15 +486,23 @@ Give me a final summary of everything in this session:
 1. `~/.claude/CLAUDE.md` — Global pointer to my vault (Claude always knows where my notes are)
 2. Compound Engineering plugin — Plan -> Build workflow
 3. Superpowers plugin — Debugging, brainstorming, code review
-4. claude.ai Connectors — Gmail / Drive / Calendar / Granola (default integration path for Google Workspace; deferred to Phase 1 for Microsoft 365 / other; gws CLI deferred to Phase 0.5 if needed)
-5. Phase E core skills (6) — `/session-close`, `/meeting-minutes`, `/project-create`, `/inbox-clear`, `/retro`, `/playground`
+4. Connectors — Google (Gmail / Drive / Calendar) or Microsoft 365, plus Granola if that's my meeting tool (other stacks deferred; `gws` CLI not today)
+5. Starter skills from `AI-Acceleration/cc-starter-pack` `v1.0.0` (`/session-close`, `/project-create`, `/inbox-clear`, `/retro`, `/skill-create` and more), plus `/meeting-minutes` and the `/playground` plugin
 6. Lessons file — `05 AI/CLAUDE CODE/resources/lessons.md`
 7. Plan Mode — Learned how to plan before building
 8. Cheat Sheet — Quick reference at `00 HUB/00 INBOX/`
 
 **The three most important habits:**
 1. **Always `/session-close` before ending** — this is what makes you smarter over time
-2. **Plan before building** — Shift+Tab twice, or `/ce:plan` for big tasks
+2. **Plan before building** — Shift+Tab until Plan Mode, or `/ce:plan` for big tasks
 3. **Correct Claude and let it update CLAUDE.md** — the self-improvement loop
+
+**Last check — in a fresh session.** Everything installed today loads in a new session, so tell me to: type `/exit`, start `claude` again in my vault, and then:
+
+- type `/` and confirm I see `/session-close`, `/project-create`, `/inbox-clear`, `/retro`, `/meeting-minutes`;
+- ask *"Which plugins are active?"* (or run `/plugin`) and confirm Compound Engineering, Superpowers and Playground;
+- if I set up connectors: run the Gmail/Calendar (or Microsoft 365) verification questions from Step 2.5, and the `/meeting-minutes` test from Step 2.6.
+
+If something is missing there, restart Claude Code once more; if it's still missing, note it for my facilitator.
 
 End with: "Your Claude Code setup is complete. You have the same foundation as the most productive Claude Code users. The key now is to use it daily — even 10 minutes. Every session makes the next one better."
