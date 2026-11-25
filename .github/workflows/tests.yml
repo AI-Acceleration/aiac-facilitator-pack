@@ -1,0 +1,22 @@
+name: tests
+on:
+  # The pull request's own code, so plain pull_request: GitHub gives it a
+  # read-only token and, for forks, no secrets. A pull request can edit this
+  # file, which only changes its own test run; the required privacy check is
+  # gate.yml, which a pull request cannot edit.
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Unit tests
+        run: python3 -m unittest discover -s tests -v

@@ -1,6 +1,13 @@
 name: gate
 on:
-  pull_request:
+  # pull_request_target, not pull_request: GitHub runs THIS file as it is on
+  # main, never a pull request's copy of it, so a pull request cannot edit or
+  # delete the check that judges it. That trust is only safe because nothing
+  # from the pull request is executed here: its commits are fetched as git
+  # objects and read by main's scanner. Never check out the pull request's
+  # head into the workspace, run its scripts or tests, or add secrets here.
+  # The pull request's own tests run in tests.yml, unprivileged.
+  pull_request_target:
   push:
     branches: [main]
 
@@ -13,96 +20,65 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # Pinned by full commit SHA: a moved tag cannot change what runs here.
+      # ref is github.sha: on pull_request_target the tip of main (the base),
+      # on push the pushed commit on main. Both are trusted code.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.sha }}
           fetch-depth: 0              # --history needs the full object store
           persist-credentials: false  # no token left in .git/config
 
-      - name: Resolve the trusted base
-        id: base
+      # Objects only: fetched into a private ref, never checked out.
+      - name: Fetch the pull request as data
+        if: ${{ github.event_name == 'pull_request_target' }}
         shell: bash
         env:
-          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          # pull_request: the commit on main the PR targets.
-          # push to main: the pushed commit itself, which IS main.
-          base="${PR_BASE:-$GITHUB_SHA}"
-          if ! git rev-parse --verify --quiet "$base^{commit}" >/dev/null; then
-            git fetch --no-tags --quiet origin "$base" || true
+          case "$PR_NUMBER" in ''|*[!0-9]*) echo "GATE ERROR: bad pull request number."; exit 3 ;; esac
+          case "$PR_HEAD" in *[!0-9a-f]*) echo "GATE ERROR: bad head commit."; exit 3 ;; esac
+          if [ "${#PR_HEAD}" -ne 40 ]; then echo "GATE ERROR: bad head commit."; exit 3; fi
+          git fetch --no-tags --quiet origin "+refs/pull/${PR_NUMBER}/head:refs/gate/pr-tip"
+          if ! git rev-parse --verify --quiet "${PR_HEAD}^{commit}" >/dev/null; then
+            echo "GATE ERROR: the head commit this run was started for is gone"
+            echo "(force-pushed?). The run for the new head covers the pull request."
+            exit 3
           fi
-          if ! git rev-parse --verify --quiet "$base^{commit}" >/dev/null; then
-            echo "GATE ERROR: cannot resolve the base commit $base."
-            echo "Refusing to certify: a check that cannot run never reports clean."
-            exit 1
-          fi
-          echo "sha=$base" >> "$GITHUB_OUTPUT"
+          git update-ref refs/gate/pr-head "$PR_HEAD"
+          git update-ref -d refs/gate/pr-tip
 
-      # Runs BEFORE anything from the submitted branch is executed.
-      - name: Pin the gate surface against the base
+      # bin/gate_pr_check.sh and bin/gate_scan.py come from main's checkout.
+      - name: Private-data gate (pull request, judged by main's gate)
+        if: ${{ github.event_name == 'pull_request_target' }}
         shell: bash
         env:
-          BASE: ${{ steps.base.outputs.sha }}
-        run: |
-          set -euo pipefail
-          # On a pull_request run GitHub executes the PR's OWN copy of this
-          # workflow, so a PR that edits it can neuter its own checks. This
-          # step makes any such edit fail loudly: the gate surface may not
-          # change on a branch at all -- changing it is a main-side decision,
-          # reviewed on its own. A PR can delete this step too, which is why
-          # main requires code-owner review; this step turns an honest edit
-          # red and makes a dishonest one show up as a workflow diff the
-          # reviewer has to approve.
-          surface=(.githooks bin .github)
-          changed=$(git diff --name-only "$BASE" -- "${surface[@]}")
-          if [ -n "$changed" ]; then
-            echo "BLOCKED: the gate surface differs from the base ($BASE):"
-            printf '  %s\n' $changed
-            echo "Changes under .githooks/, bin/ and .github/ alter what the gate"
-            echo "can see. Land them on main on their own, as a security review."
-            exit 1
-          fi
-          echo "gate surface pin: ${surface[*]} byte-identical to $BASE."
+          BASE: ${{ github.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: bash bin/gate_pr_check.sh "$BASE" "$PR_HEAD"
 
-      # The scans below run the BASE's scanner and pattern files, never the
-      # submitted ones: a PR cannot loosen the gate that judges it. They run
-      # on a copy of the checkout whose bin/ and .githooks/ are replaced by
-      # the base's; the copy's git index and history are the PR's, so
-      # everything the PR adds is still scanned.
-      - name: Load the trusted gate from the base
-        if: ${{ !cancelled() && steps.base.outcome == 'success' }}
+      - name: Private-data gate (main, tracked files)
+        if: ${{ github.event_name == 'push' }}
         shell: bash
-        env:
-          BASE: ${{ steps.base.outputs.sha }}
-        run: |
-          set -euo pipefail
-          scan="$RUNNER_TEMP/trusted-scan"
-          rm -rf "$scan"
-          cp -a "$GITHUB_WORKSPACE/." "$scan"
-          rm -rf "$scan/bin" "$scan/.githooks"
-          git archive "$BASE" bin .githooks | tar -x -C "$scan"
-          test -f "$scan/bin/gate_scan.py"
-          echo "TRUSTED_SCAN=$scan" >> "$GITHUB_ENV"
+        run: python3 bin/gate_scan.py --tree
 
-      - name: Private-data gate (tracked files)
-        if: ${{ !cancelled() && env.TRUSTED_SCAN != '' }}
+      - name: Private-data gate (main, full history)
+        if: ${{ !cancelled() && github.event_name == 'push' }}
         shell: bash
-        run: cd "$TRUSTED_SCAN" && python3 bin/gate_scan.py --tree
+        run: python3 bin/gate_scan.py --history
 
-      - name: Private-data gate (full history)
-        if: ${{ !cancelled() && env.TRUSTED_SCAN != '' }}
-        shell: bash
-        run: cd "$TRUSTED_SCAN" && python3 bin/gate_scan.py --history
-
-      - name: Assert the withheld files are absent
-        if: ${{ !cancelled() && env.TRUSTED_SCAN != '' }}
+      - name: Assert the withheld files are absent (main)
+        if: ${{ !cancelled() && github.event_name == 'push' }}
         shell: bash
         run: |
           set -euo pipefail
-          # Pattern lists come from the base. Case-INSENSITIVE (-ipath /
-          # -iname) on purpose: the runner is case-sensitive ext4, but most
-          # contributors clone onto case-insensitive APFS/NTFS, where a
-          # case-variant of a withheld filename is the same file.
+          # Belt and braces for gate_scan.py's own path check. Prints only the
+          # pattern (from the pattern list), never a matched file name.
+          # Case-INSENSITIVE (-ipath / -iname) on purpose: the runner is
+          # case-sensitive ext4, but most contributors clone onto
+          # case-insensitive APFS/NTFS, where a case-variant of a withheld
+          # filename is the same file.
           fail=0
           while IFS= read -r p; do
             [ -z "$p" ] && continue
@@ -110,18 +86,12 @@ jobs:
             if find . -ipath "./$p" -print -quit | grep -q .; then
               echo "FORBIDDEN PATH PRESENT: $p"; fail=1
             fi
-          done < "$TRUSTED_SCAN/.githooks/forbidden-paths.txt"
+          done < .githooks/forbidden-paths.txt
           while IFS= read -r b; do
             [ -z "$b" ] && continue
             case "$b" in \#*) continue ;; esac
             if find . -iname "$b" -print -quit | grep -q .; then
               echo "FORBIDDEN BASENAME PRESENT: $b"; fail=1
             fi
-          done < "$TRUSTED_SCAN/.githooks/forbidden-basenames.txt"
+          done < .githooks/forbidden-basenames.txt
           exit $fail
-
-      # Tests exercise the submitted code by design; they hold no secrets and
-      # the token can only read.
-      - name: Unit tests
-        if: ${{ !cancelled() }}
-        run: python3 -m unittest discover -s tests -v
