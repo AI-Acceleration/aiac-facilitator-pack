@@ -41,7 +41,7 @@ terminal de Windows es la peor). Le entregas a Claude el archivo mismo:
    **Copiar como ruta de acceso**. (Sale con comillas y barras invertidas — para esta única línea está
    bien; Claude lo maneja.)
 3. **Abre la terminal y arranca Claude Code** en la carpeta correcta: haz `cd` a la carpeta de tu
-   vault si ya existe (puede que tu revisión previa la haya creado); si no, quédate en tu carpeta de
+   vault si ya existe (puede que tu pre-vuelo la haya creado); si no, quédate en tu carpeta de
    usuario. La forma fácil: en el Explorador de archivos abre la carpeta del vault, haz clic derecho en
    un espacio vacío → **Open Git Bash here** (en Windows 11 puede estar en **Mostrar más opciones**).
    Escribe `pwd -W` para confirmar la carpeta y luego ejecuta `claude`.
@@ -143,7 +143,7 @@ ls -a
 (`pwd -W` imprime la forma `C:/Users/...`, que es la que se usa en todas partes. `pwd` a secas imprime
 `/c/Users/...`, que ni las herramientas de Windows ni el router pueden usar.)
 
-**Caso A — ya estamos dentro de mi vault** (lo creó una revisión previa, o lo hice yo antes): el
+**Caso A — ya estamos dentro de mi vault** (lo creó el pre-vuelo, o lo hice yo antes): el
 listado muestra una carpeta `.obsidian`, o yo te confirmo que este es mi vault. Sigue con la regla dura de abajo.
 
 **Caso B — todavía no hay vault.** Créalo con estas reglas:

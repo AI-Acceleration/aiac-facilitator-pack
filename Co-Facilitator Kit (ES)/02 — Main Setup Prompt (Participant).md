@@ -31,7 +31,7 @@ terminal de Windows es la peor). Le entregas a Claude el archivo mismo:
    - **Windows:** en el Explorador de archivos, mantén presionada **Shift**, haz clic derecho sobre el archivo y elige **Copiar como ruta de acceso**.
    - **Linux:** la mayoría de los gestores de archivos tienen **Copiar ruta** en el menú del clic derecho; si no, arrastra el archivo a la terminal.
 3. **Abre la terminal y arranca Claude Code** en la carpeta correcta: haz `cd` a la carpeta de tu
-   vault si ya existe (puede que tu revisión previa la haya creado); si no, quédate en tu carpeta de
+   vault si ya existe (puede que tu pre-vuelo la haya creado); si no, quédate en tu carpeta de
    usuario. Ejecuta `claude`.
 4. Si Claude Code pregunta **"Do you trust the files in this folder?"**, elige **Yes** para tu vault
    o tu carpeta de usuario. (En Windows la opción resaltada por defecto es "No, exit" — muévete primero a **Yes**.)
@@ -124,7 +124,7 @@ pwd
 ls -a
 ```
 
-**Caso A — ya estamos dentro de mi vault** (lo creó una revisión previa, o lo hice yo antes): el
+**Caso A — ya estamos dentro de mi vault** (lo creó el pre-vuelo, o lo hice yo antes): el
 listado muestra una carpeta `.obsidian`, o yo te confirmo que este es mi vault. Sigue con la regla dura de abajo.
 
 **Caso B — todavía no hay vault.** Créalo con estas reglas:

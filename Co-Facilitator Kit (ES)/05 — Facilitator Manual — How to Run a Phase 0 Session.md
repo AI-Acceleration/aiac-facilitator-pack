@@ -322,7 +322,7 @@ Es el bloque más grande y el corazón de la configuración. El **Doc 02** (Wind
 
 **Qué haces tú:**
 - Que el participante abra una terminal (Windows: Git Bash), corra la línea `cd "<ruta del vault>"` del pre-vuelo y después `claude`. Si Claude pregunta si confía en la carpeta, la respuesta es **Sí**.
-- Que **cargue el Doc 02 por archivo**: en Obsidian, clic derecho sobre el Main Setup Prompt en `00 HUB/00 INBOX/` → **Copiar ruta** (la ruta completa del sistema), y en Claude Code: `Lee el archivo <ruta> y sigue sus instrucciones.` En Windows, las `\` de la ruta se vuelven `/`.
+- Que **cargue el Doc 02 por archivo**: en Obsidian, clic derecho sobre el Main Setup Prompt en `00 HUB/00 INBOX/` → **Copiar ruta** (la ruta completa del sistema), y en Claude Code: `Lee el archivo <ruta> y sigue sus instrucciones, empezando en "PARA CLAUDE — EMPIEZA AQUÍ".` En Windows, las `\` de la ruta se vuelven `/`.
 - Vigila los errores, explica qué hace cada paso mientras pasa, y **confirma que la ruta del *vault*** que usa Claude coincide con la que anotaste en el Bloque 0.
 - Durante la **entrevista en vivo**, ayuda al participante a articular su problema de trabajo y orienta hacia un primer caso que encaje bien (ver abajo).
 - **Antes del primer push**, asegúrate de que Claude se detenga y confirme con el participante el dueño, la visibilidad **Private** y la lista de archivos a subir.
@@ -383,7 +383,7 @@ Tu trabajo durante la entrevista es ser el copiloto humano: ayúdalo a escoger u
 El **Doc 03** (Windows: **03W**) es el prompt. El participante sigue en Claude Code, en el *vault*.
 
 **Qué haces tú:**
-- Que **cargue el Doc 03 por archivo**, igual que el Doc 02 (Copiar ruta → `Lee el archivo <ruta> y sigue sus instrucciones.`).
+- Que **cargue el Doc 03 por archivo**, igual que el Doc 02 (Copiar ruta → `Lee el archivo <ruta> y sigue sus instrucciones, empezando en "PARA CLAUDE — EMPIEZA AQUÍ".`).
 - Cuando el Doc 03 pregunte qué **plataforma de correo** usa (Google / Microsoft / otra), ayúdalo a responder; el prompt sigue el camino que corresponda en vivo.
 - En una **cuenta de equipo** (`ACCOUNT: team`), espera el camino de organización: primero los plugins que reparte la organización, la instalación manual sólo como respaldo.
 - Cuando termine, corre la **prueba obligatoria de enrutamiento desde fuera del *vault*** (abajo). No te la saltes.
@@ -412,7 +412,7 @@ Si Claude lee el INBOX del *vault* **sin que le den la ruta**, el enrutador func
 - **Confusión con el Modo Plan** → que presione **Shift+Tab** hasta que la barra de abajo diga *plan*, escriba un prompt real, revise el plan y salga. Es sólo práctica.
 - **Se escogió mal la rama de correo** → vuelve a correr ese paso con la plataforma correcta.
 
-**Esperado:** la prueba del enrutador pasa desde `cd ~`; `claude plugin list` muestra los plugins; `/session-close` aparece al escribir `/` en una sesión **nueva**.
+**Esperado:** la prueba del enrutador pasa desde `cd ~`; `claude plugin list` muestra compound-engineering, superpowers y playground; `/session-close` aparece al escribir `/` en una sesión **nueva**.
 
 **Tiempo:** 10 min nominales, incluyendo la prueba de enrutamiento.
 
@@ -538,6 +538,7 @@ QUALITY GATES — Phase 0
 - [ ] Project brief in the vault, linked to the repo
 - [ ] /session-close shows up in a NEW session
 - [ ] claude plugin list shows the plugins Doc 03 installed
+      (compound-engineering, superpowers, playground)
 - [ ] Ran at least one real prompt on their case (Path A or Path B)
 - [ ] Can articulate what they'll work on this week
 ```

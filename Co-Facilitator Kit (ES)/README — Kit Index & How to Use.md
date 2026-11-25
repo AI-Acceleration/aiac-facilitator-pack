@@ -11,9 +11,10 @@ grupo pequeño también funciona, pero toma más tiempo.
 
 ## Cómo funciona en un párrafo
 
-Tú (el facilitador) le envías al participante el **Doc 01** (y el **Doc 07**, el
-vocabulario) unos días antes. El participante instala todo por su cuenta y
-termina con un chequeo previo corto cuyo resultado, en una línea, te envía.
+Tú (el facilitador) le envías al participante los **Docs 01, 02, 03 y 07** (el
+Doc 07 es el vocabulario) más o menos una semana antes. El participante
+instala todo por su cuenta y termina con un pre-vuelo corto cuyo resultado, en
+una línea (`PREFLIGHT: READY · ACCOUNT: personal|team`), te envía.
 El día de la sesión corres el flujo de 8 bloques del **Doc 05 (el manual)**.
 El participante le da el **Doc 02** a Claude Code **por archivo**: lo guarda y
 le dice a Claude «Lee el archivo <ruta> y sigue sus instrucciones». Claude lo
@@ -31,8 +32,8 @@ minutos si todo sale bien. Calcula 2–3 horas para tus primeras sesiones.
 | **05** | [**Manual del facilitador — Cómo dictar una sesión de Fase 0**](05%20%E2%80%94%20Facilitator%20Manual%20%E2%80%94%20How%20to%20Run%20a%20Phase%200%20Session.md) | Tú (facilitador) | **Lee esto primero.** Guion de la sesión, puntos de enseñanza, compuertas. |
 | 01 | [Configuración pre-sesión](01%20%E2%80%94%20Pre-Session%20Setup%20Instructions%20(Participant).md) | Participante | Se envía unos días antes de la sesión. |
 | 07 | [Vocabulario](07%20%E2%80%94%20Vocabulario%20(Participante).md) | Participante | Se envía junto con el Doc 01. Cinco minutos de lectura, más o menos un día antes de la sesión. |
-| 02 | [Prompt de configuración principal](02%20%E2%80%94%20Main%20Setup%20Prompt%20(Participant).md) | Participante | Se carga en Claude Code por archivo durante el **Bloque 2** (contiene la entrevista en vivo). |
-| 03 | [Prompt de configuración de *skills* y config](03%20%E2%80%94%20Skills%20%26%20Config%20Setup%20Prompt%20(Participant).md) | Participante | Se carga en Claude Code por archivo durante el **Bloque 3**. |
+| 02 | [Prompt de configuración principal](02%20%E2%80%94%20Main%20Setup%20Prompt%20(Participant).md) | Participante | Se envía con el Doc 01 (el pre-vuelo lo mueve al *vault*). Se carga en Claude Code por archivo durante el **Bloque 2** (contiene la entrevista en vivo). |
+| 03 | [Prompt de configuración de *skills* y config](03%20%E2%80%94%20Skills%20%26%20Config%20Setup%20Prompt%20(Participant).md) | Participante | Se envía con el Doc 01. Se carga en Claude Code por archivo durante el **Bloque 3**. |
 | 04 | [Brief de próximos pasos](04%20%E2%80%94%20Next%20Steps%20Brief%20(Participant).md) | Participante | Se entrega en el **Bloque 5** como hoja de ruta de tareas. |
 | 06 | [Kit de supervivencia del plan Pro](06%20%E2%80%94%20Kit%20de%20Supervivencia%20del%20Plan%20Pro%20(Participante).md) | Participante | Se entrega con el Doc 04, para leerlo antes de empezar el trabajo real. Cómo funcionan los límites de uso y cómo hacer rendir el plan Pro. |
 | **02-S** | [**Configuración de sandbox**](02-S%20%E2%80%94%20Sandbox%20Setup%20(Participant,%20opt-in).md) *(opcional)* | Participante | **Solo para participantes que piden que Claude quede confinado a su *vault*.** Se corre después del Doc 01 y **antes** del Doc 02, y reemplaza el bloque de permisos del PASO 3 del Doc 02. No es parte del flujo por defecto. Solo Mac/Linux. |
@@ -46,9 +47,9 @@ minutos si todo sale bien. Calcula 2–3 horas para tus primeras sesiones.
 
 | Participante | Envía |
 |---|---|
-| **Mac** | 01 · 07 antes de la sesión; 02 · 03 durante; 04 · 06 al final |
-| **Windows** | 01 · 07 antes; **02W** · **03W** durante; 04 · 06 al final. Los Docs 01, 04, 06 y 07 son compartidos y no necesitan variante |
-| **Quiere que Claude quede confinado a su *vault*** (Mac/Linux) | 01 · 07 · **02-S** · 02 · 03 · 04 · 06, en ese orden |
+| **Mac** | 01 · 02 · 03 · 07 antes de la sesión (02 y 03 se cargan durante la sesión); 04 · 06 al final |
+| **Windows** | 01 · **02W** · **03W** · 07 antes (02W y 03W se cargan durante la sesión); 04 · 06 al final. Los Docs 01, 04, 06 y 07 son compartidos y no necesitan variante |
+| **Quiere que Claude quede confinado a su *vault*** (Mac/Linux) | 01 · 02 · 03 · 07 antes, más **02-S** después del pre-vuelo y antes del Doc 02; 04 · 06 al final |
 
 Windows es una **variante, no un *fork***: `02W`/`03W` son los documentos base
 más un conjunto listado de cambios, registrado en `00W — Windows Edition Diff
@@ -71,9 +72,9 @@ participante rioplatense, aplica la tabla `00V`.
 
 Todo lo demás del kit es genérico. Estos dos marcadores son tuyos:
 
-1. **`[SET: your support channel]`** en el **Doc 04**. Reemplázalo con el canal
-   por el que tus participantes te contactan (un grupo de WhatsApp, un canal
-   de Slack, tu correo).
+1. **`[SET: your support channel]`** en los **Docs 01 y 04**. Reemplázalo con
+   el canal por el que tus participantes te contactan (un grupo de WhatsApp,
+   un canal de Slack, tu correo).
 2. **`[TOOL]`** en los **Docs 03 y 03W**. Reemplázalo con la herramienta de
    transcripción de reuniones del participante: Granola, otra herramienta de
    transcripción, o `none / pasted transcript` (ninguna, transcripción

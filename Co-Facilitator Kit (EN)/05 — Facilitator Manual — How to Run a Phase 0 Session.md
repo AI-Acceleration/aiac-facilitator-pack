@@ -320,7 +320,7 @@ This is the biggest block and the heart of the setup. **Doc 02** (Windows: **02W
 
 **What you do:**
 - Have the participant open a terminal (Windows: Git Bash), run the `cd "<vault path>"` line from the pre-flight, then `claude`. If Claude asks whether they trust the folder, the answer is **Yes**.
-- Have them **load Doc 02 by file**: in Obsidian, right-click the Main Setup Prompt in `00 HUB/00 INBOX/` → **Copy path** (full system path), then in Claude Code: `Read the file <path> and follow its instructions.` On Windows, the path's `\` become `/`.
+- Have them **load Doc 02 by file**: in Obsidian, right-click the Main Setup Prompt in `00 HUB/00 INBOX/` → **Copy path** (full system path), then in Claude Code: `Read the file <path> and follow its instructions, starting at "FOR CLAUDE — START HERE".` On Windows, the path's `\` become `/`.
 - Watch for errors, explain what each step does as it happens, and **confirm the vault path** Claude uses matches the one you wrote down in Block 0.
 - During the **live interview**, help the participant articulate their work problem and steer toward a first case that's a good fit (see below).
 - **Before the first push**, make sure Claude stops and confirms the owner, **Private** visibility and the staged file list with the participant.
@@ -381,7 +381,7 @@ Your job during the interview is to be the human co-pilot: help them pick the ca
 **Doc 03** (Windows: **03W**) is the prompt. The participant should still be in Claude Code, in the vault.
 
 **What you do:**
-- Have them **load Doc 03 by file**, the same way as Doc 02 (Copy path → `Read the file <path> and follow its instructions.`).
+- Have them **load Doc 03 by file**, the same way as Doc 02 (Copy path → `Read the file <path> and follow its instructions, starting at "FOR CLAUDE — START HERE".`).
 - When Doc 03 asks which **email stack** they use (Google / Microsoft / other), help them answer; the prompt follows the matching path live.
 - On a **team account** (`ACCOUNT: team`), expect the org path: org-distributed plugins first, manual install only as a fallback.
 - After it runs, run the **mandatory outside-the-vault routing test** (below). Do not skip it.
@@ -410,7 +410,7 @@ If Claude reads the vault INBOX **without being given the path**, the router wor
 - **Plan Mode confusion** → have them press **Shift+Tab** until the bottom bar says *plan*, type a real prompt, review the plan, then exit. It's just practice.
 - **Email-stack branch picked wrong** → re-run that step with the correct stack.
 
-**Expected:** the router test passes from `cd ~`; `claude plugin list` shows the plugins; `/session-close` appears when they type `/` in a **new** session.
+**Expected:** the router test passes from `cd ~`; `claude plugin list` shows compound-engineering, superpowers and playground; `/session-close` appears when they type `/` in a **new** session.
 
 **Timing:** 10 min nominal, including the routing test.
 
@@ -536,6 +536,7 @@ QUALITY GATES — Phase 0
 - [ ] Project brief in the vault, linked to the repo
 - [ ] /session-close shows up in a NEW session
 - [ ] claude plugin list shows the plugins Doc 03 installed
+      (compound-engineering, superpowers, playground)
 - [ ] Ran at least one real prompt on their case (Path A or Path B)
 - [ ] Can articulate what they'll work on this week
 ```

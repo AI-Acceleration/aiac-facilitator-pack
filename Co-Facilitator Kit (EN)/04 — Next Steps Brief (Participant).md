@@ -236,7 +236,7 @@ Check the result with `claude plugin list` in the terminal. On a **Team or Enter
 
 ## PART 0.7: OPTIONAL — MORE PLUGINS
 
-Your Skills & Config step installed the core plugins. These are worth adding when you want them. **Paste into Claude Code:**
+Your Skills & Config step installed the core plugins (Compound Engineering, Superpowers and Playground). These are worth adding when you want them. **Paste into Claude Code:**
 
 ```
 Install these plugins from the official marketplace (claude-plugins-official), one by one, asking me
@@ -248,7 +248,6 @@ claude plugin list and show me the result. If one fails, tell me which one and t
 - claude-md-management      (keep your CLAUDE.md files healthy)
 - context7                  (up-to-date docs for any library)
 - code-review               (code quality review)
-- playground                (interactive HTML visualizations)
 ```
 
 Then **start a new session** so they load.
@@ -264,7 +263,6 @@ claude plugin install commit-commands@claude-plugins-official
 claude plugin install claude-md-management@claude-plugins-official
 claude plugin install context7@claude-plugins-official
 claude plugin install code-review@claude-plugins-official
-claude plugin install playground@claude-plugins-official
 claude plugin list
 ```
 
@@ -638,18 +636,18 @@ These are patterns that work well once your basics are solid. None of them is in
 
 ## PART 6: PLUGIN REFERENCE
 
-**What you have:** run `claude plugin list` in the terminal. Your Skills & Config step installed at least **Compound Engineering** and **Superpowers**; Part 0.7 adds more.
+**What you have:** run `claude plugin list` in the terminal. Your Skills & Config step installed **Compound Engineering**, **Superpowers** and **Playground**; Part 0.7 adds more.
 
 | Plugin | What it does |
 |--------|-------------|
 | **Compound Engineering** | Plan-first development workflow with research agents |
 | **Superpowers** | Structured workflows for debugging, brainstorming, TDD and verification |
+| **Playground** | Interactive HTML visualizations |
 | **Explanatory Output Style** | Claude explains its reasoning as it works |
 | **Commit Commands** | Git commits with good messages |
 | **Claude MD Management** | Audit and improve `CLAUDE.md` files |
 | **Context7** | Up-to-date docs for libraries when you reference them |
 | **Code Review** | Review code for bugs, security and quality |
-| **Playground** | Interactive HTML visualizations |
 
 ### Optional Plugins (Install Later)
 

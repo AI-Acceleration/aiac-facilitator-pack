@@ -10,9 +10,10 @@ sessions; small groups work, but they need more time.
 
 ## How it works in one paragraph
 
-You (the facilitator) send the participant **Doc 01** (and **Doc 07**, the
-vocabulary) a few days before. They install everything on their own and finish
-with a short pre-flight check whose one-line result they send you. On session
+You (the facilitator) send the participant **Docs 01, 02, 03 and 07** (Doc 07
+is the vocabulary) about a week before. They install everything on their own
+and finish with a short pre-flight check whose one-line result
+(`PREFLIGHT: READY · ACCOUNT: personal|team`) they send you. On session
 day you run the 8-block flow in **Doc 05 (the manual)**. The participant gives
 **Doc 02** to Claude Code **by file**: they save it, then tell Claude "Read
 the file <path> and follow its instructions". Claude interviews them, picks
@@ -30,8 +31,8 @@ hours for your first sessions.
 | **05** | [**Facilitator Manual — How to Run a Phase 0 Session**](05%20%E2%80%94%20Facilitator%20Manual%20%E2%80%94%20How%20to%20Run%20a%20Phase%200%20Session.md) | You (facilitator) | **Read this first.** Run-of-show, talking points, gates. |
 | 01 | [Pre-Session Setup Instructions](01%20%E2%80%94%20Pre-Session%20Setup%20Instructions%20(Participant).md) | Participant | Sent a few days before the session. |
 | 07 | [Vocabulary](07%20%E2%80%94%20Vocabulary%20(Participant).md) | Participant | Sent with Doc 01. Five minutes of reading, about a day before the session. |
-| 02 | [Main Setup Prompt](02%20%E2%80%94%20Main%20Setup%20Prompt%20(Participant).md) | Participant | Loaded into Claude Code by file during **Block 2** (contains the live interview). |
-| 03 | [Skills & Config Setup Prompt](03%20%E2%80%94%20Skills%20%26%20Config%20Setup%20Prompt%20(Participant).md) | Participant | Loaded into Claude Code by file during **Block 3**. |
+| 02 | [Main Setup Prompt](02%20%E2%80%94%20Main%20Setup%20Prompt%20(Participant).md) | Participant | Sent with Doc 01 (the pre-flight moves it into the vault). Loaded into Claude Code by file during **Block 2** (contains the live interview). |
+| 03 | [Skills & Config Setup Prompt](03%20%E2%80%94%20Skills%20%26%20Config%20Setup%20Prompt%20(Participant).md) | Participant | Sent with Doc 01. Loaded into Claude Code by file during **Block 3**. |
 | 04 | [Next Steps Brief](04%20%E2%80%94%20Next%20Steps%20Brief%20(Participant).md) | Participant | Handed over at **Block 5** as the homework roadmap. |
 | 06 | [Pro Plan Survival Kit](06%20%E2%80%94%20Pro%20Plan%20Survival%20Kit%20(Participant).md) | Participant | Handed over with Doc 04, to read before starting real work. How usage limits work and how to make Pro last. |
 | **02-S** | [**Sandbox Setup**](02-S%20%E2%80%94%20Sandbox%20Setup%20(Participant,%20opt-in).md) *(opt-in)* | Participant | **Only for participants who ask that Claude be confined to their vault.** Runs after Doc 01 and **before** Doc 02, and replaces Doc 02's STEP 3 permissions block. Not part of the default flow. Mac/Linux only. |
@@ -43,9 +44,9 @@ hours for your first sessions.
 
 | Participant | Send |
 |---|---|
-| **Mac** | 01 · 07 before the session; 02 · 03 during it; 04 · 06 at the end |
-| **Windows** | 01 · 07 before; **02W** · **03W** during; 04 · 06 at the end. Docs 01, 04, 06 and 07 are shared and need no variant |
-| **Wants Claude confined to their vault** (Mac/Linux) | 01 · 07 · **02-S** · 02 · 03 · 04 · 06, in that order |
+| **Mac** | 01 · 02 · 03 · 07 before the session (02 and 03 are loaded during it); 04 · 06 at the end |
+| **Windows** | 01 · **02W** · **03W** · 07 before (02W and 03W are loaded during it); 04 · 06 at the end. Docs 01, 04, 06 and 07 are shared and need no variant |
+| **Wants Claude confined to their vault** (Mac/Linux) | 01 · 02 · 03 · 07 before, plus **02-S** after the pre-flight and before Doc 02; 04 · 06 at the end |
 
 Windows is a **variant, not a fork**: `02W`/`03W` are the EN docs plus a listed
 set of changes, recorded in `00W — Windows Edition Diff Tables`. When you change
@@ -63,9 +64,9 @@ only when the limits keep getting in the way. Doc 06 explains how to tell.
 
 Everything else in the kit is generic. These two placeholders are yours:
 
-1. **`[SET: your support channel]`** in **Doc 04**. Replace it with the channel
-   your participants use to reach you (a WhatsApp group, a Slack channel, your
-   email).
+1. **`[SET: your support channel]`** in **Docs 01 and 04**. Replace it with
+   the channel your participants use to reach you (a WhatsApp group, a Slack
+   channel, your email).
 2. **`[TOOL]`** in **Docs 03 and 03W**. Replace it with the participant's
    meeting-transcription tool: Granola, another transcription tool, or
    `none / pasted transcript`. Recording is optional: always ask everyone in

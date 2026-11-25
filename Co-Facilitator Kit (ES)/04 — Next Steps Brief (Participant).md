@@ -238,7 +238,7 @@ Revisa el resultado con `claude plugin list` en la terminal. En una cuenta **Tea
 
 ## PARTE 0.7: OPCIONAL — MÁS PLUGINS
 
-Tu paso de Skills & Config instaló los plugins centrales. Éstos valen la pena cuando los quieras. **Pega esto en Claude Code:**
+Tu paso de Skills & Config instaló los plugins centrales (Compound Engineering, Superpowers y Playground). Éstos valen la pena cuando los quieras. **Pega esto en Claude Code:**
 
 ```
 Instala estos plugins del marketplace oficial (claude-plugins-official), uno por uno, preguntándome
@@ -250,7 +250,6 @@ claude plugin list y muéstrame el resultado. Si uno falla, dime cuál y el erro
 - claude-md-management      (mantén sanos tus CLAUDE.md)
 - context7                  (documentación al día de cualquier librería)
 - code-review               (revisión de calidad del código)
-- playground                (visualizaciones HTML interactivas)
 ```
 
 Después **abre una sesión nueva** para que carguen.
@@ -266,7 +265,6 @@ claude plugin install commit-commands@claude-plugins-official
 claude plugin install claude-md-management@claude-plugins-official
 claude plugin install context7@claude-plugins-official
 claude plugin install code-review@claude-plugins-official
-claude plugin install playground@claude-plugins-official
 claude plugin list
 ```
 
@@ -640,18 +638,18 @@ Son patrones que funcionan bien cuando tienes la base firme. Ninguno viene insta
 
 ## PARTE 6: REFERENCIA DE PLUGINS
 
-**Lo que tienes:** corre `claude plugin list` en la terminal. Tu paso de Skills & Config instaló por lo menos **Compound Engineering** y **Superpowers**; la Parte 0.7 agrega más.
+**Lo que tienes:** corre `claude plugin list` en la terminal. Tu paso de Skills & Config instaló **Compound Engineering**, **Superpowers** y **Playground**; la Parte 0.7 agrega más.
 
 | Plugin | Qué hace |
 |--------|-------------|
 | **Compound Engineering** | Flujo de desarrollo que planifica primero, con agentes de investigación |
 | **Superpowers** | Flujos con orden para depurar, hacer lluvia de ideas, TDD y verificar |
+| **Playground** | Visualizaciones HTML interactivas |
 | **Explanatory Output Style** | Claude explica su razonamiento mientras trabaja |
 | **Commit Commands** | Commits de git con buenos mensajes |
 | **Claude MD Management** | Auditar y mejorar los `CLAUDE.md` |
 | **Context7** | Documentación al día de las librerías cuando las mencionas |
 | **Code Review** | Revisar el código buscando errores, seguridad y calidad |
-| **Playground** | Visualizaciones HTML interactivas |
 
 ### Plugins Opcionales (para Después)
 
