@@ -22,11 +22,11 @@ cambió a propósito.
 
 | Comprobación | Resultado (2026-11-25) |
 |---|---|
-| Bloques de código byte por byte idénticos al EN | **161 de 169** — las 8 excepciones están abajo |
+| Bloques de código de los Documentos 02 / 02W / 02-S / 03 / 03W byte por byte idénticos al EN (sin contar la sangría) | **116 de 124** — las 8 excepciones están abajo |
 | Paridad de conteo de bloques y de encabezados, archivo por archivo | ✅ exacta en los documentos con gemelo EN |
 | Comillas tipográficas en documentos del participante | ✅ 0 |
 | Voseo en documentos del participante | ✅ 0 (el registro por defecto es español latinoamericano neutro con tuteo) |
-| Lista de permisos de 10 entradas (`allow` estrecho, git sólo con reglas exactas de lectura) en los Documentos 02 / 02W / 02-S | ✅ idéntica al EN, byte por byte (la verifica `tests/test_setup_permissions.py`) |
+| Bloque de permisos (`allow` de 7 reglas de solo lectura, `ask` de 8 reglas, y en el 02-S la lista `deny` canónica de 8 rutas) en los Documentos 02 / 02W / 02-S, y el script de fusión `aiac-merge-settings.py` | ✅ idénticos al EN, byte por byte (los verifica `tests/test_setup_permissions.py`) |
 | `tools/aiac-status-check.sh` | ✅ idéntico al EN — **compartido a propósito, no bifurcado** |
 
 ## Las desviaciones — 8 en total

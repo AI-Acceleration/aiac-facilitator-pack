@@ -27,10 +27,10 @@ nunca se desvía en silencio del kit.
 | Documento | Estado |
 |---|---|
 | `01 — Pre-Session Setup Instructions` | **Compartido** — sin variante de Windows. Ya estaba ramificado por sistema operativo; la sección de Windows se reforzó en el mismo sitio (5 añadidos abajo). |
-| `02W — Main Setup Prompt (Windows)` | Variante — **17 cambios** |
+| `02W — Main Setup Prompt (Windows)` | Variante — **18 cambios** |
 | `03W — Skills & Config Setup Prompt (Windows)` | Variante — **10 cambios** |
 | `04 — Next Steps Brief` | **Compartido, sin cambios.** Material de lectura; no se ejecuta nada específico del sistema operativo. |
-| `02-S — Sandbox Setup` | **No disponible en Windows.** Windows nativo no tiene sandbox; se requiere WSL2. |
+| `02-S — Sandbox Setup` | **Compartido; en Windows, solo con WSL2.** Windows nativo no tiene sandbox; funciona con Claude Code corriendo dentro de una distribución WSL2 (Parte 2 del 02-S), donde aplican las instrucciones de Linux. |
 
 ## Las cuatro minas que esta edición existe para desactivar
 
@@ -49,9 +49,9 @@ Verificadas contra la documentación viva de Anthropic, y luego contra una máqu
    **la barra es solo la pantalla — el override de 75% y los dos *hooks* son la protección de verdad**,
    y ninguno depende de ella.
 4. **`python3` normalmente no es un comando en Windows** (es `python` o `py`; `python3` a secas abre la
-   Microsoft Store) — **y el STEP 7 del Documento 03, la verificación final del kit, escribe y ejecuta un
-   script de Python.** Tal como se despacha, la última comprobación del kit falla en Windows por una razón
-   que no tiene nada que ver con la configuración.
+   Microsoft Store) — **y la fusión de ajustes del STEP 3 del Documento 02 y el STEP 7 del Documento 03,
+   la verificación final del kit, ejecutan Python.** Escritos con `python3`, los dos fallan en Windows por
+   una razón que no tiene nada que ver con la configuración.
 
 ## Documento 01 — reforzado en el mismo sitio (5 añadidos)
 
@@ -63,7 +63,7 @@ Verificadas contra la documentación viva de Anthropic, y luego contra una máqu
 | 4 | **Verificación del PATH después del instalador** | El instalador oficial terminó y reportó en su propia salida que NO había añadido `.local/bin` al PATH → `'claude' is not recognized`, dos veces, a lo largo de una semana |
 | 5 | **Banner "esto es prosa, no comandos"** | Prosa pegada en PowerShell produjo un `ParserError` y un prompt `>>` trancado — una comilla sin cerrar por el apóstrofo de *"you're"* |
 
-## Documento 02W — 17 cambios frente a `02 — Main Setup Prompt (Participant)`
+## Documento 02W — 18 cambios frente a `02 — Main Setup Prompt (Participant)`
 
 | # | Dónde | El kit dice | 02W dice | Por qué |
 |---|---|---|---|---|
@@ -84,6 +84,7 @@ Verificadas contra la documentación viva de Anthropic, y luego contra una máqu
 | 15 | STEP 5 | revisión de `gh` | añade **`winget install --id GitHub.cli -e`** si falta | La misma vía de instalación que en los prerrequisitos |
 | 16 | `~/dev` + revisión de ubicación del STEP 6 | redacción solo para Mac; comparación simple de rutas | añade la traducción `C:/Users/YOUR-USER/dev`; compara normalizando con **`cd … && pwd -P`** | Git imprime `C:/…` y Git Bash `/c/…` — un repo bien ubicado mostraría un falso `WRONG LOCATION` |
 | 17 | `.gitignore` del STEP 7 | `.DS_Store` | añade `Thumbs.db`, `desktop.ini` | Equivalentes de Windows |
+| 18 | Fusión de ajustes del STEP 3 + 3.5 | `python3 ~/.claude/aiac-merge-settings.py` | **`py`** (alternativa `python`, nunca `python3`); el plan alterno 3 de la statusline fija la ruta absoluta con `--replace statusLine.command` | Mina #4 — el script de fusión en sí es idéntico byte por byte |
 
 ## Documento 03W — 10 cambios frente a `03 — Skills & Config Setup Prompt (Participant)`
 
@@ -93,8 +94,8 @@ Verificadas contra la documentación viva de Anthropic, y luego contra una máqu
 | 3 | Revisión del router del STEP 1 | releer 20 líneas, 2 comprobaciones | 25 líneas + **3ra comprobación: cero barras invertidas** | La comprobación que atrapa la mina #2 |
 | 4 | Prueba de ruteo del STEP 1 | segunda ventana, confiar en `~/dev` | segunda ventana **como Git Bash**; la opción por defecto de confianza es "No, exit" | Las mismas dos trampas de Windows que en el Documento 02W |
 | 5 | `lessons.md` del STEP 3 | vacío | sembrado con la regla de la barra inclinada | Pone la regla de Windows donde Claude la vuelve a leer cada sesión |
-| 6 | ⭐ **STEP 7** | "Crea un script de Python … córrelo una vez" | **Detectar primero `python`/`py`/`python3`**; que falte Python explícitamente NO es un bloqueo; ejecutar una vez con la aprobación normal, nunca agregarlo a `allow` | ⭐ Mina #4 — de lo contrario la comprobación final del kit falla en Windows por una razón ajena |
-| 7 | STEP 7 | (ninguno) | comprobación de validez JSON `jq .` sobre `settings.json`, con alternativa de releer el archivo si falta `jq` | Barato; atrapa una fusión corrompida del Documento 02W |
+| 6 | ⭐ **STEP 7** | "Crea un script de Python … córrelo una vez" | **Detectar primero `py`/`python`/`python3`**; que falte Python es un hueco de prerrequisitos (línea de instalación del Doc 01, anotarlo para el facilitador), no un motivo para cortar la lista; ejecutar una vez con la aprobación normal, nunca agregarlo a `allow` | ⭐ Mina #4 — de lo contrario la comprobación final del kit falla en Windows por una razón ajena |
+| 7 | STEP 7 | (ninguno) | comprobación silenciosa de validez JSON `jq .` sobre `settings.json`; sin `jq`, vale la revisión del punto 3, que ya lo parseó — nunca releer el archivo | Barato; atrapa una fusión corrompida del Documento 02W sin mostrar llaves |
 | 8 | STEP 7 | (ninguno) | añade `claude doctor` | Lo primero que hay que correr cuando algo se rompa después |
 | 9–10 | Chuleta del STEP 6 | neutral respecto al sistema | Bloque de notas de Windows (ventana · rutas · pegado · `claude doctor`) | Las cuatro cosas que van a olvidar para la semana que viene |
 
@@ -104,19 +105,21 @@ Retirado del kit en v0.2 (por eso ya no son filas de Windows): el ayudante de Gr
 
 | Comprobación | 02W | 03W |
 |---|---|---|
-| Balance de bloques de código | ✅ 82, balanceados | ✅ 26, balanceados |
+| Balance de bloques de código | ✅ 94 líneas de *fence*, balanceadas | ✅ 34 líneas de *fence*, balanceadas |
 | Comandos de macOS dentro de bloques de código | ✅ 0 | ✅ 0 |
 | Rutas `~/Library` dentro de bloques de código | ✅ 0 | ✅ 0 |
-| `bash -n` sobre cada bloque bash | ✅ 18 limpios / 3 solo con marcadores (`<repo-name>`) — los mismos 3 que la línea base EN | ✅ 9 limpios, 0 fallando |
+| `bash -n` sobre cada bloque bash | ✅ 23 limpios / 5 solo con marcadores (`<repo-name>`, `<file>`) — los mismos 5 que la línea base EN | ✅ 11 limpios, 0 fallando |
 | El bloque `settings.json` parsea, el *hook* Stop desescapa correctamente | ✅ `powershell.exe -c "[console]::beep(1000,400)"` | n/a |
 | Comillas tipográficas dentro de bloques de código | ✅ 0 | ✅ 0 |
 
 **Nota sobre los permisos:** como el resto del kit, estas variantes usan el bloque de permisos
-**acotado**: solo comandos de git exactos y de solo lectura (`git status`, `git status --short`,
-`git diff`, `git log --oneline`, `git remote -v`), más `ls`, `mkdir`, `wc`, `Glob`, `Grep`. Sin comodines
-de git (opciones como `--output`, `--ext-diff`, `--template` escriben archivos, ejecutan programas o
-plantan *hooks*), así que `git add`/`commit`/`init`/`push` preguntan cada vez. Nada de permiso amplio para todo git, nada de `cat`/`head`,
-ningún intérprete (`python`, `py`, `python3`, `node`), nada de `pip install`, nada de `Read`/`Write`/`Edit`
-a secas — y el bloque se fusiona con la configuración existente, nunca la sobrescribe. El cambio del STEP 7
+**acotado**. `allow` tiene solo comandos de solo lectura: comandos de git exactos (`git status`,
+`git status --short`, `git diff`, `git log --oneline`, `git remote -v`) más `ls` y `wc` — ningún permiso
+de escritura permanente, nada de `mkdir`. `ask` hace que `cat`, `head`, `tail`, `grep`, `git add`,
+`git commit`, `git push` y `gh repo create` pregunten cada vez (Claude Code ejecuta comandos integrados de
+solo lectura como `cat` sin pedir permiso salvo que una regla `ask` o `deny` los cubra). Ningún comodín de
+git en `allow`, ningún intérprete (`python`, `py`, `python3`, `node`), nada de `pip install`, nada de
+`Read`/`Write`/`Edit`/`Glob`/`Grep` a secas — y el bloque se fusiona en local con
+`aiac-merge-settings.py`, que nunca imprime los valores existentes. El cambio del STEP 7
 de Windows descrito arriba mantiene ese endurecimiento: ejecuta el saludo una sola vez con la aprobación
 normal usando el comando de Python que existe de verdad, sin agregarlo a `allow`.
