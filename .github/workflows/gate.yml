@@ -4,28 +4,105 @@ on:
   push:
     branches: [main]
 
+# The gate only reads the repository. No step needs to write anything.
+permissions:
+  contents: read
+
 jobs:
   gate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # Pinned by full commit SHA: a moved tag cannot change what runs here.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0   # --history needs the full object store
+          fetch-depth: 0              # --history needs the full object store
+          persist-credentials: false  # no token left in .git/config
 
-      - name: Private-data gate (working tree)
-        run: python3 bin/gate_scan.py --tree
+      - name: Resolve the trusted base
+        id: base
+        shell: bash
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          # pull_request: the commit on main the PR targets.
+          # push to main: the pushed commit itself, which IS main.
+          base="${PR_BASE:-$GITHUB_SHA}"
+          if ! git rev-parse --verify --quiet "$base^{commit}" >/dev/null; then
+            git fetch --no-tags --quiet origin "$base" || true
+          fi
+          if ! git rev-parse --verify --quiet "$base^{commit}" >/dev/null; then
+            echo "GATE ERROR: cannot resolve the base commit $base."
+            echo "Refusing to certify: a check that cannot run never reports clean."
+            exit 1
+          fi
+          echo "sha=$base" >> "$GITHUB_OUTPUT"
+
+      # Runs BEFORE anything from the submitted branch is executed.
+      - name: Pin the gate surface against the base
+        shell: bash
+        env:
+          BASE: ${{ steps.base.outputs.sha }}
+        run: |
+          set -euo pipefail
+          # On a pull_request run GitHub executes the PR's OWN copy of this
+          # workflow, so a PR that edits it can neuter its own checks. This
+          # step makes any such edit fail loudly: the gate surface may not
+          # change on a branch at all -- changing it is a main-side decision,
+          # reviewed on its own. A PR can delete this step too, which is why
+          # main requires code-owner review; this step turns an honest edit
+          # red and makes a dishonest one show up as a workflow diff the
+          # reviewer has to approve.
+          surface=(.githooks bin .github)
+          changed=$(git diff --name-only "$BASE" -- "${surface[@]}")
+          if [ -n "$changed" ]; then
+            echo "BLOCKED: the gate surface differs from the base ($BASE):"
+            printf '  %s\n' $changed
+            echo "Changes under .githooks/, bin/ and .github/ alter what the gate"
+            echo "can see. Land them on main on their own, as a security review."
+            exit 1
+          fi
+          echo "gate surface pin: ${surface[*]} byte-identical to $BASE."
+
+      # The scans below run the BASE's scanner and pattern files, never the
+      # submitted ones: a PR cannot loosen the gate that judges it. They run
+      # on a copy of the checkout whose bin/ and .githooks/ are replaced by
+      # the base's; the copy's git index and history are the PR's, so
+      # everything the PR adds is still scanned.
+      - name: Load the trusted gate from the base
+        if: ${{ !cancelled() && steps.base.outcome == 'success' }}
+        shell: bash
+        env:
+          BASE: ${{ steps.base.outputs.sha }}
+        run: |
+          set -euo pipefail
+          scan="$RUNNER_TEMP/trusted-scan"
+          rm -rf "$scan"
+          cp -a "$GITHUB_WORKSPACE/." "$scan"
+          rm -rf "$scan/bin" "$scan/.githooks"
+          git archive "$BASE" bin .githooks | tar -x -C "$scan"
+          test -f "$scan/bin/gate_scan.py"
+          echo "TRUSTED_SCAN=$scan" >> "$GITHUB_ENV"
+
+      - name: Private-data gate (tracked files)
+        if: ${{ !cancelled() && env.TRUSTED_SCAN != '' }}
+        shell: bash
+        run: cd "$TRUSTED_SCAN" && python3 bin/gate_scan.py --tree
 
       - name: Private-data gate (full history)
-        run: python3 bin/gate_scan.py --history
+        if: ${{ !cancelled() && env.TRUSTED_SCAN != '' }}
+        shell: bash
+        run: cd "$TRUSTED_SCAN" && python3 bin/gate_scan.py --history
 
       - name: Assert the withheld files are absent
+        if: ${{ !cancelled() && env.TRUSTED_SCAN != '' }}
         shell: bash
         run: |
           set -euo pipefail
-          # Case-INSENSITIVE (-ipath / -iname) on purpose. The runner is
-          # case-sensitive ext4, but most contributors clone onto
-          # case-insensitive APFS/NTFS, where a case-variant of a withheld
-          # filename is the same file.
+          # Pattern lists come from the base. Case-INSENSITIVE (-ipath /
+          # -iname) on purpose: the runner is case-sensitive ext4, but most
+          # contributors clone onto case-insensitive APFS/NTFS, where a
+          # case-variant of a withheld filename is the same file.
           fail=0
           while IFS= read -r p; do
             [ -z "$p" ] && continue
@@ -33,69 +110,18 @@ jobs:
             if find . -ipath "./$p" -print -quit | grep -q .; then
               echo "FORBIDDEN PATH PRESENT: $p"; fail=1
             fi
-          done < .githooks/forbidden-paths.txt
+          done < "$TRUSTED_SCAN/.githooks/forbidden-paths.txt"
           while IFS= read -r b; do
             [ -z "$b" ] && continue
             case "$b" in \#*) continue ;; esac
             if find . -iname "$b" -print -quit | grep -q .; then
               echo "FORBIDDEN BASENAME PRESENT: $b"; fail=1
             fi
-          done < .githooks/forbidden-basenames.txt
+          done < "$TRUSTED_SCAN/.githooks/forbidden-basenames.txt"
           exit $fail
 
+      # Tests exercise the submitted code by design; they hold no secrets and
+      # the token can only read.
       - name: Unit tests
+        if: ${{ !cancelled() }}
         run: python3 -m unittest discover -s tests -v
-
-      - name: Pin the gate surface against main
-        shell: bash
-        run: |
-          set -euo pipefail
-          # On a pull_request run GitHub executes the PR's OWN copy of this
-          # workflow and of bin/gate_scan.py, so a PR that edits them can
-          # neuter its own checks. This step makes any such edit fail loudly:
-          # the gate surface may not change on a branch at all -- changing it
-          # is a main-side decision, reviewed on its own. A PR can delete this
-          # step too, which is why main is protected by required code-owner
-          # review; this step turns an honest edit red and makes a dishonest
-          # one show up as a workflow diff the reviewer has to approve.
-          surface=(.githooks bin .github)
-          f='.githooks/allow-patterns.txt'
-          if [ ! -f "$f" ]; then
-            echo "GATE ERROR: $f is missing from the checkout."
-            echo "Refusing to certify: the pin cannot be measured."
-            exit 1
-          fi
-          base=''
-          for r in origin/main refs/remotes/origin/main main; do
-            if git rev-parse --verify --quiet "$r^{commit}" >/dev/null; then
-              base="$r"; break
-            fi
-          done
-          if [ -z "$base" ]; then
-            git fetch --no-tags --quiet origin main || true
-            if git rev-parse --verify --quiet 'FETCH_HEAD^{commit}' >/dev/null; then
-              base=FETCH_HEAD
-            fi
-          fi
-          if [ -z "$base" ]; then
-            echo "GATE ERROR: cannot resolve main -- tried origin/main, main, and an explicit fetch."
-            echo "Refusing to certify: a check that cannot run never reports clean."
-            exit 1
-          fi
-          if ! git cat-file -e "$base:$f" 2>/dev/null; then
-            # Not an error: main genuinely predates the gate. Said out loud so
-            # nobody reads a silent pass as "the pin compared and matched".
-            echo "gate surface pin: $f does not exist at $base."
-            echo "Treating this as the gate's FIRST INTRODUCTION, which is legitimate."
-            echo "Nothing was compared -- review every line of it by hand before merging."
-            exit 0
-          fi
-          changed=$(git diff --name-only "$base" -- "${surface[@]}")
-          if [ -n "$changed" ]; then
-            echo "BLOCKED: the gate surface differs from $base:"
-            printf '  %s\n' $changed
-            echo "Changes under .githooks/, bin/ and .github/ alter what the gate"
-            echo "can see. Land them on main on their own, as a security review."
-            exit 1
-          fi
-          echo "gate surface pin: ${surface[*]} byte-identical to $base."
