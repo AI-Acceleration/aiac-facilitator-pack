@@ -151,7 +151,7 @@ Dos cosas que obtienes gratis y vale la pena saber: el sandbox **auto-deniega la
 
 ### 3b — Ajustes globales: `~/.claude/settings.json`
 
-Esto cubre las herramientas de archivos integradas, que el sandbox no cubre. La lista `allow` es **la misma del PASO 3 del Doc 02**; lo que agrega este bloque es la **lista `deny` dirigida** (las rutas joya de la corona). Úsalo en lugar del bloque del Doc 02 — y, igual que en el Doc 02, **fusiónalo con tu `~/.claude/settings.json` existente**: respalda el archivo primero, agrega estas entradas y conserva cada clave, regla allow y regla deny que ya tenías.
+Esto cubre las herramientas de archivos integradas, que el sandbox no cubre. Las listas `allow` y `ask` son **las mismas del PASO 3 del Doc 02**; lo que agrega este bloque es la **lista `deny` dirigida** (las rutas joya de la corona, abajo). Úsalo en lugar del bloque del Doc 02 — y, igual que en el Doc 02, **fusiónalo con tu `~/.claude/settings.json` existente sin mostrarlo** (ese archivo puede guardar llaves de API): respalda el archivo, guarda el bloque y ejecuta el script de fusión de esta sección en una **terminal normal**.
 
 ```json
 {
@@ -163,10 +163,17 @@ Esto cubre las herramientas de archivos integradas, que el sandbox no cubre. La 
       "Bash(git log --oneline)",
       "Bash(git remote -v)",
       "Bash(ls *)",
-      "Bash(mkdir *)",
-      "Bash(wc *)",
-      "Glob",
-      "Grep"
+      "Bash(wc *)"
+    ],
+    "ask": [
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(grep *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(gh repo create *)"
     ],
     "deny": [
       "Read(~/.ssh/**)",
@@ -174,9 +181,9 @@ Esto cubre las herramientas de archivos integradas, que el sandbox no cubre. La 
       "Read(~/.gnupg/**)",
       "Read(~/.config/gh/**)",
       "Read(~/Library/Keychains/**)",
-      "Read(**/.env)",
-      "Read(**/*.pem)",
-      "Read(**/*.key)"
+      "Read(~/**/.env)",
+      "Read(~/**/*.pem)",
+      "Read(~/**/*.key)"
     ]
   },
   "hooks": {
@@ -191,13 +198,157 @@ Esto cubre las herramientas de archivos integradas, que el sandbox no cubre. La 
 }
 ```
 
+#### Canonical deny list
+
+Esta es la lista completa. Cada entrada es obligatoria — la comprobación de estado (`--sandbox`) marca
+esta parte como `NOT DONE` si falta cualquiera de ellas en `permissions.deny`:
+
+```text
+Read(~/.ssh/**)
+Read(~/.aws/**)
+Read(~/.gnupg/**)
+Read(~/.config/gh/**)
+Read(~/Library/Keychains/**)
+Read(~/**/.env)
+Read(~/**/*.pem)
+Read(~/**/*.key)
+```
+
+Cada ruta está anclada en tu carpeta de usuario (`~/`). Es deliberado: en la sintaxis de rutas de Claude
+Code, un patrón sin prefijo, como `**/*.key`, es relativo a la carpeta desde donde arrancó Claude, así que
+no vería un archivo de llave fuera del vault ([patrones de ruta](https://code.claude.com/docs/en/permissions)).
+`~/**/*.key` cubre toda tu carpeta de usuario, vault incluido. Las reglas de denegación bloquean las
+herramientas de archivos de Claude y los comandos de archivos que Claude Code reconoce en Bash (`cat`,
+`head`, `tail`, `sed`), no scripts arbitrarios — esa parte es tarea del sandbox.
+
+**Fusiónalo sin leer tu archivo existente.** En una terminal normal:
+
+```bash
+mkdir -p ~/.claude
+cp -a ~/.claude/settings.json ~/.claude/settings.json.bak 2>/dev/null
+```
+
+Luego guarda el bloque JSON de arriba como `~/.claude/aiac-02s-block.json` (antes edita la línea de
+`Stop` — mira abajo), guarda el script de abajo como `~/.claude/aiac-merge-settings.py` (es el mismo
+script que usa el Paso 3 del Doc 02) y ejecuta
+`python3 ~/.claude/aiac-merge-settings.py ~/.claude/aiac-02s-block.json`. Agrega cada entrada que falte,
+conserva cada clave y regla que ya tenías, imprime solo las entradas del kit y los *nombres* de las
+claves que no tocó, y su última línea tiene que empezar con `Verified:`.
+
+```python
+# aiac-merge-settings.py - merges the AIAC kit's entries into ~/.claude/settings.json.
+# It never prints existing values: only the kit entries it added and the names
+# of keys you already had. Usage: python3 aiac-merge-settings.py [--replace KEY] - < block
+import json
+import os
+import shutil
+import sys
+
+TARGET = os.path.expanduser("~/.claude/settings.json")
+DEEP = ("permissions", "hooks", "env")  # top-level objects merged key by key
+
+
+def merge(dst, new, path, added, kept):
+    for key, val in new.items():
+        name = ".".join(path + [key])
+        if key not in dst:
+            dst[key] = val
+            added.append(name)
+        elif isinstance(val, list) and isinstance(dst[key], list):
+            for item in val:
+                if item not in dst[key]:
+                    dst[key].append(item)
+                    added.append(name + ": " + (item if isinstance(item, str) else "1 entry"))
+        elif isinstance(val, dict) and isinstance(dst[key], dict) and (path or key in DEEP):
+            merge(dst[key], val, path + [key], added, kept)
+        elif dst[key] != val:
+            kept.append(name)
+
+
+def missing(dst, new, path, kept):
+    gaps = []
+    for key, val in new.items():
+        name = ".".join(path + [key])
+        if name in kept:
+            continue
+        if key not in dst:
+            gaps.append(name)
+        elif isinstance(val, list) and isinstance(dst[key], list):
+            gaps += [name for item in val if item not in dst[key]]
+        elif isinstance(val, dict) and isinstance(dst[key], dict) and (path or key in DEEP):
+            gaps += missing(dst[key], val, path + [key], kept)
+    return gaps
+
+
+def replace(dst, new, dotted):
+    keys = dotted.split(".")
+    for key in keys[:-1]:
+        new = new[key]
+        if not isinstance(dst.get(key), dict):
+            dst[key] = {}
+        dst = dst[key]
+    dst[keys[-1]] = new[keys[-1]]
+
+
+def main():
+    args, to_replace = sys.argv[1:], []
+    while len(args) >= 2 and args[0] == "--replace":
+        to_replace.append(args[1])
+        args = args[2:]
+    if args and args[0] != "-":
+        with open(args[0], encoding="utf-8") as f:
+            block = json.load(f)
+    else:
+        block = json.load(sys.stdin)
+    if not isinstance(block, dict):
+        sys.exit("STOP: the kit block is not a JSON object. Nothing was changed.")
+    current = {}
+    if os.path.exists(TARGET):
+        try:
+            with open(TARGET, encoding="utf-8") as f:
+                current = json.load(f)
+        except ValueError:
+            sys.exit("STOP: ~/.claude/settings.json is not valid JSON. Nothing was changed.")
+        if not isinstance(current, dict):
+            sys.exit("STOP: ~/.claude/settings.json is not a JSON object. Nothing was changed.")
+    added, kept = [], []
+    for dotted in to_replace:
+        try:
+            replace(current, block, dotted)
+        except (KeyError, TypeError):
+            sys.exit("STOP: " + dotted + " is not in the kit block. Nothing was changed.")
+        added.append(dotted + " (replaced, as you asked)")
+    merge(current, block, [], added, kept)
+    kept = [k for k in kept if not any(r.startswith(k + ".") for r in to_replace)]
+    if added:
+        tmp = TARGET + ".aiac-tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(current, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+        if os.path.exists(TARGET):
+            shutil.copymode(TARGET, tmp)
+        os.replace(tmp, TARGET)
+    for name in added:
+        print("added: " + name)
+    for name in kept:
+        print("kept your existing value (not shown): " + name)
+    with open(TARGET, encoding="utf-8") as f:
+        gaps = missing(json.load(f), block, [], kept)
+    if gaps:
+        sys.exit("STOP: still missing after the merge: " + ", ".join(gaps))
+    print("Verified: settings.json parses and has every kit entry (%d added)." % len(added))
+
+
+main()
+```
+
 Por qué la lista se ve así, y por qué cada decisión es deliberada:
 
 - **Ningún intérprete (`python`, `node`…) ni `pip install` en `allow`.** Preaprobar un intérprete significa preaprobar "leer o escribir cualquier archivo, sin restricción de ninguna regla de permisos". Con el sandbox activo, los scripts quedan confinados por el kernel de todos modos — pero no hay razón para *además* entregarles una preaprobación en blanco, y si el sandbox alguna vez falla al cargar, tú quieres la solicitud de permiso. (`failIfUnavailable: true` debería hacer eso imposible. Cinturón y tirantes.)
-- **Nada de git sin restricciones, ni `cat`/`head`.** Por las mismas razones que en el Doc 02: solo se preaprueban comandos de git exactos y de solo lectura (sin comodines, porque opciones como `--output`, `--ext-diff` o `--template` escriben archivos, ejecutan programas o plantan *hooks*); `git add`, `git commit` y todo lo que publica pregunta. `cat`/`head` imprimirían cualquier archivo; la herramienta Read integrada, que se rige por la lista `deny`, hace ese trabajo.
-- **Nada de `Read`, `Write`, `Edit` a secas en `allow`.** Un nombre de herramienta a secas en `allow` pre-aprueba esa herramienta para **cualquier** entrada — incluyendo rutas fuera de tu vault. Quitarlos restaura el comportamiento real por defecto: *"By default, Claude has access to files in the directory where you launched it."* Lanza desde el vault, y el vault es el alcance. Este es un caso donde borrar tres líneas compra más que agregar diez.
+- **Nada de git sin restricciones, ningún permiso de escritura permanente, y reglas `ask` para lo que imprime o publica.** Por las mismas razones que en el Doc 02: solo se preaprueban comandos de git exactos y de solo lectura más `ls` y `wc` (sin comodines, porque opciones como `--output`, `--ext-diff` o `--template` escriben archivos, ejecutan programas o plantan *hooks*). `cat`, `head`, `tail` y `grep` son comandos integrados de solo lectura que Claude Code ejecuta sin pedir permiso en cualquier lugar del disco salvo que una regla diga otra cosa, así que van en `ask`, junto con `git add`, `git commit`, `git push` y `gh repo create`.
+- **Nada de `Read`, `Write`, `Edit`, `Glob`, `Grep` a secas en `allow`.** Un nombre de herramienta a secas en `allow` pre-aprueba esa herramienta para **cualquier** entrada — incluyendo rutas fuera de tu vault. Dejarlos fuera mantiene el comportamiento real por defecto: *"By default, Claude has access to files in the directory where you launched it."* Lanza desde el vault, y el vault es el alcance.
 - **Entradas `deny` dirigidas, no una amplia.** Fíjate en lo que está **ausente** a propósito: no hay `Read(~/Documents/**)` ni `Read(//**)`. Tu vault vive en tu carpeta de usuario (`~/AIAC-Vault` por defecto), y las reglas de denegación de permisos tienen precedencia sobre las de permiso **sin ninguna excepción posible** — una denegación amplia como esa dejaría a Claude fuera, en silencio, del mismísimo vault que estás tratando de darle. Estas entradas son estrechas a propósito. El límite amplio es tarea del sandbox; esta lista es para las joyas de la corona de las herramientas integradas.
-- **El *hook* de sonido es solo para macOS.** En Windows Git Bash/WSL usa `powershell.exe -c "[console]::beep(1000,400)"`; en Linux `paplay /usr/share/sounds/freedesktop/stereo/bell.oga`. Si no estás seguro, borra el bloque `"Stop"` completo — es una comodidad, y un comando equivocado aquí falla en cada turno.
+- **El *hook* de sonido es solo para macOS.** En Windows (WSL2) usa `powershell.exe -c "[console]::beep(1000,400)"`; en Linux `paplay /usr/share/sounds/freedesktop/stereo/bell.oga`. Si no estás seguro, borra el bloque `"Stop"` completo — es una comodidad, y un comando equivocado aquí falla en cada turno.
 
 **Revisa también `additionalDirectories`.** Si esa clave existe en cualquier archivo de ajustes, lo que liste se suma al alcance de las herramientas integradas de Claude. Debería estar ausente o vacía. Lo mismo para el flag `--add-dir` y el comando `/add-dir` — no los uses.
 
@@ -227,6 +378,7 @@ Bajo este sandbox, Bash puede leer `~/.claude` pero **no puede escribir ahí**. 
 | Paso | Por qué falla confinado |
 |---|---|
 | Doc 02 Paso 3.5 — `chmod +x` sobre los scripts de la statusline y de los *hooks* | modifica archivos en `~/.claude` |
+| Doc 02 Paso 3.5 — las tres fusiones de ajustes (`aiac-merge-settings.py`) | escribe `~/.claude/settings.json`, que los comandos confinados nunca pueden escribir |
 | Doc 03 Paso 2 y 2.7b — `claude plugin install …` | escribe en `~/.claude/plugins/` |
 | Doc 03 Paso 2.7a — la instalación del paquete de *skills* | escribe en `~/.claude/skills/` y `~/.aiac/` |
 
@@ -267,7 +419,7 @@ No debería leerlo en silencio — está fuera del vault, así que recibes una s
 
 > Lee el archivo <CANARY_DIR>/test.key
 
-La regla de denegación `Read(**/*.key)` tiene que bloquear eso de plano, sin preguntar. (Esto usa la llave sintética del paso 2 — nunca apuntes esta prueba a una llave real.)
+La regla de denegación `Read(~/**/*.key)` tiene que bloquear eso de plano, sin preguntar — la carpeta canario está dentro de tu carpeta de usuario, así que la regla anclada en `~/` la cubre. (Esto usa la llave sintética del paso 2 — nunca apuntes esta prueba a una llave real.)
 
 **5. Prueba el límite de red.** Pídele a Claude:
 
@@ -332,9 +484,9 @@ Ejecuta el Doc 02 normalmente, con estas modificaciones:
 | Paso del Doc 02 | Cambio |
 |---|---|
 | **Antes de empezar el Doc 02** | Haz `cd` a tu vault. Confírmalo con `pwd`. El directorio de trabajo *es* el límite — si lanzas Claude desde cualquier otro lado, el alcance de las herramientas integradas te sigue hasta allá y `.` resuelve a un lugar completamente distinto. |
-| **PASO 3 — bloque de permisos** | **Usa la Parte 3b en su lugar** — la misma lista `allow` más la lista `deny`, ya fusionada en tus ajustes. Dile a Claude que no la sobrescriba. |
+| **PASO 3 — bloque de permisos** | **Ya está hecho en la Parte 3b** — las mismas listas `allow` y `ask` más la lista `deny`, fusionadas con el script. Dile a Claude que se salte la fusión del Paso 3: bajo el sandbox el script no puede escribir `~/.claude/settings.json` de todos modos (Claude Code siempre deniega las escrituras confinadas a ese archivo). |
 | **PASO 3 — router global** | Ejecútalo normalmente. Si escogiste la opción (A) en la Parte 3c, dile a Claude que cambie la regla 3 del router para que apunte a `<vault>/dev/` en vez de `~/dev/`. |
-| **PASO 3.5 — hooks** | Lee los dos comandos de *hook* y el script de la statusline antes de que se escriban — corren sin confinar. Las líneas `chmod +x` fallan confinadas: ejecútalas desde una sesión fuera del vault (Parte 3d). `jq` tiene que estar instalado (prerrequisitos del Doc 01). |
+| **PASO 3.5 — hooks** | Lee los dos comandos de *hook* y el script de la statusline antes de que se escriban — corren sin confinar. Las líneas `chmod +x` y las tres fusiones de ajustes fallan confinadas (escriben en `~/.claude`): ejecútalas desde una sesión fuera del vault (Parte 3d). `jq` tiene que estar instalado (prerrequisitos del Doc 01). |
 | **PASO 6 — crear el repositorio** | Usa la ubicación que hayas escogido en la Parte 3c. |
 | **PASO 12 — primer push** | Bajo el sandbox Claude no puede ejecutar git (Parte 4.5). Claude te muestra la lista de archivos preparados y los comandos; tú revisas dueño, visibilidad **Private** y archivos, y ejecutas tú mismo `gh repo create … --private` y `git push` en una terminal normal. |
 | **Si `gh` falla** | Probablemente sea el problema de Seatbelt/TLS con los CLI hechos en Go. Es esperable en modo estricto. Ejecuta `gh` tú mismo en una terminal normal; no crees un *personal access token* clásico. |

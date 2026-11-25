@@ -77,6 +77,7 @@ You are helping me set up my complete working environment from scratch during a 
 - We start with a short interview (Step 0) so you understand my work and we choose the case together — then you build everything else around it.
 - When a step says **STOP**, really stop: show me the message and wait until I tell you to continue.
 - Never add a blanket or lasting permission for me. Anything that publishes (a `git push`, creating a GitHub repo) or changes settings outside this vault, you explain first and wait for my OK.
+- Never open or print `~/.claude/settings.json` or any other file that may hold keys or tokens. Step 3 shows how to merge settings without reading them.
 - If a file you are about to write already exists, **merge** into it: keep everything I already had, show me what you will add, and never delete existing content.
 - Some actions need me in a **second terminal window** (logins that ask questions on screen, installers). When that happens, give me the exact line to type there and wait until I say it worked.
 
@@ -341,11 +342,32 @@ cp -a ~/.claude/settings.json ~/.claude/settings.json.bak 2>/dev/null
 cp -a ~/.claude/CLAUDE.md ~/.claude/CLAUDE.md.bak 2>/dev/null
 ```
 
-**Then merge — never overwrite.** If `~/.claude/settings.json` already exists, read it first and
-**add** the entries below to it: append each `allow` rule that isn't already there, add the `Stop`
-hook next to any hooks I already have, and **keep every existing key, allow rule and deny rule**
-exactly as it was. Show me what you will add before you write. Only if the file doesn't exist do you
-create it with exactly this content:
+**Then merge — never overwrite, and never display what is already there.** `~/.claude/settings.json`
+can hold API keys and tokens (for example in its `env` block), so **do not open, read or print the
+existing file** — not even to show me what will change. The merge happens locally, with a small script
+that prints only the kit's own entries and the *names* of the keys I already had:
+
+1. Show me the block below (it holds only the kit's entries) and tell me which `Stop` line you'll use
+   (see the note after the block).
+2. Save the merge script further down as `~/.claude/aiac-merge-settings.py`, exactly as written.
+3. Run it with the block on standard input (Python asks for approval each time — that's intended; never answer "don't ask again"), and show
+   me its output. Its last line must start with `Verified:`. If it starts with `STOP:`, nothing was
+   changed: show me the message and we fix it together (my backup is `~/.claude/settings.json.bak`).
+
+   ```bash
+   py ~/.claude/aiac-merge-settings.py - <<'JSON'
+   <the JSON block below, with the Stop line for my OS>
+   JSON
+   ```
+
+**If Python isn't available** (it's a Doc 01 prerequisite, so this shouldn't happen): if
+`~/.claude/settings.json` does **not** exist yet, create it with exactly the block below; if it
+**does** exist, **STOP** and help me install Python first. Never fall back to reading the file.
+
+On Windows the Python command is `py` (the launcher from Doc 01); if `py` isn't found, use
+`python`. Never `python3` — on Windows it opens the Microsoft Store.
+
+The kit's block:
 
 ```json
 {
@@ -357,10 +379,17 @@ create it with exactly this content:
       "Bash(git log --oneline)",
       "Bash(git remote -v)",
       "Bash(ls *)",
-      "Bash(mkdir *)",
-      "Bash(wc *)",
-      "Glob",
-      "Grep"
+      "Bash(wc *)"
+    ],
+    "ask": [
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(grep *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(gh repo create *)"
     ],
     "deny": []
   },
@@ -387,30 +416,155 @@ create it with exactly this content:
 > **No beep?** Delete the whole `"Stop"` block and move on — it is a convenience, nothing else in
 > the setup depends on it. Do not spend session time debugging a sound.
 
-> **Why this list is shorter than you might expect.** Several things were deliberately left out:
+**The merge script** — save it as `~/.claude/aiac-merge-settings.py`. It adds each kit entry that is
+missing, keeps every key, `allow`, `ask` and `deny` rule I already have, refuses to touch a file that
+isn't valid JSON, keeps the file's access permissions, re-reads the result to verify it, and prints
+nothing from my existing settings except key names:
+
+```python
+# aiac-merge-settings.py - merges the AIAC kit's entries into ~/.claude/settings.json.
+# It never prints existing values: only the kit entries it added and the names
+# of keys you already had. Usage: python3 aiac-merge-settings.py [--replace KEY] - < block
+import json
+import os
+import shutil
+import sys
+
+TARGET = os.path.expanduser("~/.claude/settings.json")
+DEEP = ("permissions", "hooks", "env")  # top-level objects merged key by key
+
+
+def merge(dst, new, path, added, kept):
+    for key, val in new.items():
+        name = ".".join(path + [key])
+        if key not in dst:
+            dst[key] = val
+            added.append(name)
+        elif isinstance(val, list) and isinstance(dst[key], list):
+            for item in val:
+                if item not in dst[key]:
+                    dst[key].append(item)
+                    added.append(name + ": " + (item if isinstance(item, str) else "1 entry"))
+        elif isinstance(val, dict) and isinstance(dst[key], dict) and (path or key in DEEP):
+            merge(dst[key], val, path + [key], added, kept)
+        elif dst[key] != val:
+            kept.append(name)
+
+
+def missing(dst, new, path, kept):
+    gaps = []
+    for key, val in new.items():
+        name = ".".join(path + [key])
+        if name in kept:
+            continue
+        if key not in dst:
+            gaps.append(name)
+        elif isinstance(val, list) and isinstance(dst[key], list):
+            gaps += [name for item in val if item not in dst[key]]
+        elif isinstance(val, dict) and isinstance(dst[key], dict) and (path or key in DEEP):
+            gaps += missing(dst[key], val, path + [key], kept)
+    return gaps
+
+
+def replace(dst, new, dotted):
+    keys = dotted.split(".")
+    for key in keys[:-1]:
+        new = new[key]
+        if not isinstance(dst.get(key), dict):
+            dst[key] = {}
+        dst = dst[key]
+    dst[keys[-1]] = new[keys[-1]]
+
+
+def main():
+    args, to_replace = sys.argv[1:], []
+    while len(args) >= 2 and args[0] == "--replace":
+        to_replace.append(args[1])
+        args = args[2:]
+    if args and args[0] != "-":
+        with open(args[0], encoding="utf-8") as f:
+            block = json.load(f)
+    else:
+        block = json.load(sys.stdin)
+    if not isinstance(block, dict):
+        sys.exit("STOP: the kit block is not a JSON object. Nothing was changed.")
+    current = {}
+    if os.path.exists(TARGET):
+        try:
+            with open(TARGET, encoding="utf-8") as f:
+                current = json.load(f)
+        except ValueError:
+            sys.exit("STOP: ~/.claude/settings.json is not valid JSON. Nothing was changed.")
+        if not isinstance(current, dict):
+            sys.exit("STOP: ~/.claude/settings.json is not a JSON object. Nothing was changed.")
+    added, kept = [], []
+    for dotted in to_replace:
+        try:
+            replace(current, block, dotted)
+        except (KeyError, TypeError):
+            sys.exit("STOP: " + dotted + " is not in the kit block. Nothing was changed.")
+        added.append(dotted + " (replaced, as you asked)")
+    merge(current, block, [], added, kept)
+    kept = [k for k in kept if not any(r.startswith(k + ".") for r in to_replace)]
+    if added:
+        tmp = TARGET + ".aiac-tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(current, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+        if os.path.exists(TARGET):
+            shutil.copymode(TARGET, tmp)
+        os.replace(tmp, TARGET)
+    for name in added:
+        print("added: " + name)
+    for name in kept:
+        print("kept your existing value (not shown): " + name)
+    with open(TARGET, encoding="utf-8") as f:
+        gaps = missing(json.load(f), block, [], kept)
+    if gaps:
+        sys.exit("STOP: still missing after the merge: " + ", ".join(gaps))
+    print("Verified: settings.json parses and has every kit entry (%d added)." % len(added))
+
+
+main()
+```
+
+> **What Claude Code already does without asking, and what these rules change.** Two defaults matter
+> ([Claude Code permissions](https://code.claude.com/docs/en/permissions)): Claude's file tools (Read,
+> Glob, Grep) work inside the folder you launched it from — your vault — without a prompt and ask before
+> reading anywhere else; and a built-in set of read-only shell commands — `ls`, `cat`, `head`, `tail`,
+> `grep`, `find`, `wc` and read-only `git` among them — runs **without a prompt, anywhere on your disk**.
+> That set can't be switched off; the documented way to get a prompt for one of them is an `ask` (or
+> `deny`) rule. So:
 >
-> - **Any git wildcard.** Only a handful of exact, read-only git commands are pre-approved:
->   `git status`, `git status --short`, `git diff`, `git log --oneline`, `git remote -v`. Everything
->   else asks you each time — including `git add`, `git commit` and `git init`, and anything that
->   publishes or rewires a repo (`git push`, `git remote add`, branch changes, `git clone`). Wildcards
->   are left out on purpose: options such as `--output`, `--ext-diff` or `--template` can write files,
->   run programs or plant git hooks, and a `git diff *` rule would approve them silently.
-> - **Python, Node and other interpreters, and `pip install`.** A script can read and write any file
->   as a subprocess, which permission rules cannot see. Pre-approving an interpreter would make any
->   `deny` rule you add later decorative. You'll get a prompt the first time Claude runs one — that is
->   the correct outcome on day one, and you approve it once.
-> - **`cat` and `head`.** They print any file on your disk. Claude's built-in Read tool does the same
->   job and is subject to the permission rules, so nothing is lost.
-> - **Bare `Read` / `Write` / `Edit`.** Listed without a path, these pre-approve those tools for
->   **anywhere on your disk**, which overrides Claude Code's default of working in the folder you
->   launched it from.
+> - **`allow` holds only read-only commands:** five exact git commands (`git status`,
+>   `git status --short`, `git diff`, `git log --oneline`, `git remote -v`) plus `ls` and `wc`. Nothing
+>   in it writes, publishes or runs a program — not even `mkdir`: creating a folder asks each time.
+> - **`ask` turns the promised confirmations into rules.** `cat`, `head`, `tail` and `grep` print file
+>   contents, so they ask every time (inside the vault Claude reads with its Read tool, which needs no
+>   prompt there). `git add`, `git commit`, `git push` and `gh repo create` ask every time too. An `ask`
+>   rule wins over any `allow` rule — including one saved by answering "Yes, and don't ask again" — and
+>   it still asks in auto mode.
+> - **Left out on purpose:**
+>   - **Any git wildcard in `allow`.** Options such as `--output`, `--ext-diff` or `--template` can
+>     write files, run programs or plant git hooks, and a `git diff *` allow rule would approve them
+>     silently. (In `ask`, a wildcard can only add prompts.)
+>   - **Python, Node and other interpreters, and `pip install`.** A script can read and write any file
+>     as a subprocess, which permission rules cannot see. Pre-approving an interpreter would make any
+>     `deny` rule you add later decorative. You'll get a prompt each time Claude runs one — approve it
+>     once, never with "don't ask again".
+>   - **Bare tool names — `Read`, `Write`, `Edit`, `Glob`, `Grep`.** Listed without a path, a tool name
+>     pre-approves that tool **anywhere on your disk**, which overrides Claude Code's default of working
+>     in the folder you launched it from. Glob and Grep already search the vault without a prompt.
 >
-> **What this does and doesn't give you:** your vault is Claude's working folder. Claude still asks
-> before it touches anything outside that folder, unless you pre-approve it — that is a prompt, not a
-> wall. If you want a hard, verifiable boundary, that is Doc 02-S (the opt-in sandbox).
+> **What this does and doesn't give you:** your vault is Claude's working folder. Claude's file tools
+> ask before reading or writing outside it, and the `ask` rules cover the commands that print files or
+> publish. But other read-only commands such as `ls`, `find` and `wc` can still list file names and
+> count lines outside the vault without asking, and a script you approve can open any file. These rules
+> match the command as Claude writes it: they are prompts, not a wall. If you want a hard, verifiable
+> boundary, that is Doc 02-S (the opt-in sandbox).
 
 **What this does:**
-- **Permissions:** Pre-approves a few safe, everyday commands so Claude doesn't ask every time. Everything else still asks. You can add more later, one rule at a time.
+- **Permissions:** Pre-approves a few read-only, everyday commands so Claude doesn't ask every time, and makes the commands that print files, commit or publish ask every time. Everything else follows Claude Code's defaults. You can add more later, one rule at a time.
 - **Sound hook:** Plays a sound when Claude finishes a task. Essential when you walk away and come back.
 
 ### Global Router — `~/.claude/CLAUDE.md`
@@ -495,26 +649,36 @@ Confirm. Move to Step 3.5.
   `winget install jqlang.jq`. Give me the line to run in a **second terminal window**, then have me close and reopen the
   terminal and resume from Step 3.5.
 - **If `jq` can't be installed today** (no admin rights, no package manager): do Layers 1 and 4 only,
-  skip Layers 2 and 3, and note it as a Week-1 item. Wherever a check below uses `jq`, read the file
-  back instead and confirm it is valid JSON with the expected key.
+  skip Layers 2 and 3, and note it as a Week-1 item. The settings checks below don't need `jq`:
+  the merge script from Step 3 verifies the file itself.
 
 ### Layer 1 — Raise the auto-compact threshold to 75% (all OS, do this even if you skip the rest)
 
-Merge into the top-level `env` object of `~/.claude/settings.json` (the file from Step 3 — **merge, do not replace the whole object**):
+Merge it into `~/.claude/settings.json` with the script from Step 3 (same rule: never open the file):
 
-```json
-"env": { "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "75" }
+```bash
+py ~/.claude/aiac-merge-settings.py - <<'JSON'
+{ "env": { "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "75" } }
+JSON
 ```
 
-Validate: `jq -e '.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE' ~/.claude/settings.json` prints `"75"`. This layer is OS-independent and is the single most important safety setting.
+Validate: the script's last line starts with `Verified:`. If it reports
+`env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` on a `kept your existing value` line, I already had a different value: tell me, and only
+if I say so, run it again with `--replace env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` before the `-`.
+This layer is OS-independent and is the single most important safety setting.
 
 ### Layer 2 — Visible statusline bar with a 50% warning
 
-The statusline is the ONLY place that can see context %. Merge into `~/.claude/settings.json`:
+The statusline is the ONLY place that can see context %. Merge it with the script from Step 3:
 
-```json
-"statusLine": { "type": "command", "command": "~/.claude/statusline.sh", "padding": 2 }
+```bash
+py ~/.claude/aiac-merge-settings.py - <<'JSON'
+{ "statusLine": { "type": "command", "command": "~/.claude/statusline.sh", "padding": 2 } }
+JSON
 ```
+
+If it reports `statusLine` on a `kept your existing value` line, I already have a status line: tell me and let me decide —
+replace it (`--replace statusLine` before the `-`) or keep mine and skip the rest of this layer.
 
 Write `~/.claude/statusline.sh` with EXACTLY this content:
 
@@ -571,7 +735,9 @@ echo "[$MODEL]$BRANCH | $BAR ${COLOR}${ICON}${PCT}%${RESET}"
 > 1. Fully quit and reopen Claude Code (the status line loads at startup).
 > 2. Confirm the script runs on its own: pipe the test JSON below into it. If that prints a bar, the
 >    script is fine and the bug is in the rendering, not your file.
-> 3. Try an absolute path in `statusLine.command` (`/c/Users/YOUR-USER/.claude/statusline.sh`).
+> 3. Try an absolute path in `statusLine.command`: run the merge script with
+>    `--replace statusLine.command` before the `-`, and the block
+>    `{ "statusLine": { "command": "/c/Users/YOUR-USER/.claude/statusline.sh" } }`.
 >
 > **Then move on regardless.** This is the single most important reframe on Windows: **the bar is
 > only a display. The real guardrail is the 75% auto-compact override plus the two hooks** — and
@@ -623,18 +789,26 @@ EOF
 
 ### Wire both hooks into settings.json + verify
 
-**Merge** (do not replace) into the top-level `hooks` object of `~/.claude/settings.json`:
+**Merge** them with the script from Step 3 — it adds both entries next to any hooks I already have:
 
-```json
-"UserPromptSubmit": [
-  { "hooks": [ { "type": "command", "command": "bash ~/.claude/hooks/context-warn-prompt.sh", "timeout": 3 } ] }
-],
-"PreCompact": [
-  { "matcher": "auto", "hooks": [ { "type": "command", "command": "bash ~/.claude/hooks/context-warn-precompact.sh", "timeout": 3 } ] }
-]
+```bash
+py ~/.claude/aiac-merge-settings.py - <<'JSON'
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "command", "command": "bash ~/.claude/hooks/context-warn-prompt.sh", "timeout": 3 } ] }
+    ],
+    "PreCompact": [
+      { "matcher": "auto", "hooks": [ { "type": "command", "command": "bash ~/.claude/hooks/context-warn-precompact.sh", "timeout": 3 } ] }
+    ]
+  }
+}
+JSON
 ```
 
-Validate (all three exit 0): `jq -e '.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE' ~/.claude/settings.json`, `jq -e '.hooks.UserPromptSubmit[0].hooks[0].command' ~/.claude/settings.json`, `jq -e '.hooks.PreCompact[] | select(.matcher=="auto")' ~/.claude/settings.json`. Confirm `jq . ~/.claude/settings.json` exits 0 (no JSON corruption).
+Validate: the script's last line starts with `Verified:` — it re-reads the file, confirms it parses
+and that every entry from Layers 1, 2 and these hooks is present, without printing anything else
+from it. (Re-run it with the Layer 1 and Layer 2 blocks if you want them re-checked.)
 
 Tell me: which files were created/modified, whether existing hooks/env had to be merged, any OS sound swap made, and that the new statusline and hooks take effect in my **next** Claude Code session (or after opening `/hooks` once). End with: "Context monitoring is on. Next session, when context crosses 50% you'll see a yellow ⚠ in the status bar, hear one alert, and get a reminder each turn until you compact."
 
@@ -716,13 +890,23 @@ Two workspaces, one rule to tell them apart: **if it has its own `.git/`, it bel
 
 > **⚠️ Windows:** `~/dev` works as written in **Git Bash**. In File Explorer the same folder is `C:/Users/YOUR-USER/dev`.
 
-Because we're starting a brand-new project, there's nothing to clone yet — we create a fresh local repo. First make sure `~/dev` exists, then create and initialize the repo:
+Because we're starting a brand-new project, there's nothing to clone yet — we create a fresh local repo, in a folder that **must not exist yet**:
 
 ```bash
 mkdir -p ~/dev
-mkdir -p ~/dev/<repo-name>
-cd ~/dev/<repo-name> && git init -b main
+if [ -e ~/dev/<repo-name> ]; then
+  echo "STOP: ~/dev/<repo-name> already exists - not touched"
+else
+  mkdir ~/dev/<repo-name> && cd ~/dev/<repo-name> && git init -b main
+fi
 ```
+
+**If it prints `STOP`, stop.** An existing folder may already have its own history or an `origin` that
+points somewhere else, and Step 12 would push from it. Don't reuse it on your own: show me what is
+there (`ls -la ~/dev/<repo-name>`, and if it's a git repo, `git -C ~/dev/<repo-name> remote -v` and
+`git -C ~/dev/<repo-name> log --oneline -5`) and let me choose. The default is a new repo name. Only if
+I explicitly say this folder is mine and should be reused do we treat it as a recovery: we go through
+its remotes and its history together, and I decide about each one before Step 7.
 
 **Verify the repo landed in `~/dev` — DO NOT SKIP:**
 
@@ -1078,8 +1262,16 @@ git status --short
 
 **Show me the list of staged files and wait for my OK.** Point out anything that looks like it
 shouldn't go to GitHub — a `.env` file, passwords or keys, real customer or business data, large
-exports. If I'm unsure about a file, unstage it (`git restore --staged <file>`) and add it to
-`.gitignore`. Only after I confirm, commit:
+exports. If I'm unsure about a file, take it out of the commit and add it to `.gitignore`. Before the
+first commit there is no `HEAD` yet, so `git restore --staged` doesn't work here — use this instead
+(it only unstages; the file stays on disk), then show me the revised list:
+
+```bash
+git rm --cached -- <file>
+git status --short
+```
+
+Only after I confirm the list, commit:
 
 ```bash
 git commit -m "Initial project setup: CLAUDE.md, folder structure, README, .gitignore"
@@ -1096,24 +1288,48 @@ confirm three things with me and wait for my "yes":
 
 ```bash
 gh repo create <owner>/<repo-name> --private --source . --remote origin
-gh repo view <owner>/<repo-name> --json nameWithOwner,visibility
 ```
 
-The second command must print my `nameWithOwner` **and `"visibility": "PRIVATE"`**. If it says
-anything else, **STOP** — don't push; help me fix the visibility first (repo **Settings → General →
-Danger Zone → Change visibility**). Only then push (this asks for my approval — that's intended):
-
-```bash
-git push -u origin main
-```
+**If it prints any error, STOP.** The name may be taken, an `origin` may already exist, or the login
+may have failed. In every case: don't push, don't retry with other options, and don't run
+`git remote add` or `git remote set-url` on your own. Show me the error and let me decide.
 
 **Without `gh`** (browser path): walk me through https://github.com/new — **Owner** = my account,
 **Repository name** = `<repo-name>`, select **Private**, and leave README, .gitignore and license
 unticked. When I've created it, have me confirm the repo page shows the **Private** label. Then connect
-and push:
+it:
 
 ```bash
 git remote add origin https://github.com/<owner>/<repo-name>.git
+```
+
+If it prints any error (for example `remote origin already exists`), **STOP** the same way: don't push,
+don't change the remote, show me the error.
+
+**Before pushing, check where the push would really go — both paths, DO NOT SKIP:**
+
+```bash
+git remote get-url --push --all origin
+git log --oneline
+```
+
+1. **Destination.** The first command prints the address git will actually push to, after any rewrite
+   rules in my git configuration. It must print **exactly one line**, and that line must be
+   `https://github.com/<owner>/<repo-name>.git` (or, if I use SSH, GitHub's SSH form of that
+   address) with the owner and name I confirmed. A different owner, a different name, another host or more than one line
+   means **STOP** — don't push.
+2. **Visibility.** With `gh`, run `gh repo view <owner>/<repo-name> --json nameWithOwner,visibility`:
+   it must print my `nameWithOwner` **and `"visibility": "PRIVATE"`**. Without `gh`, I confirm the
+   **Private** label on the repo page. If it isn't private, **STOP** and help me fix it first (repo
+   **Settings → General → Danger Zone → Change visibility**).
+3. **What will be sent.** A first push sends the **whole history**, not just today's files.
+   `git log --oneline` lists every commit that will go up, and it must show only the commit we made
+   today. Anything I don't recognize means **STOP**.
+
+Show me all three results and wait for my "yes". Only then push (it asks for my approval every time —
+the `ask` rule from Step 3 makes sure of that):
+
+```bash
 git push -u origin main
 ```
 
@@ -1122,14 +1338,16 @@ Without `gh`, Git Credential Manager (included with Git for Windows) opens a bro
 and authorize there. **Do not create a classic personal access token.** If it still fails, **STOP** and
 show me the error so I can share it with my facilitator.
 
-**Then verify the push really arrived** — don't assume it:
+**Then verify the push really arrived** — ask GitHub, don't assume:
 
 ```bash
-git log origin/main --oneline -1
+git rev-parse HEAD
+git ls-remote origin refs/heads/main
 ```
 
-It must show the commit. With `gh`, `gh repo view <owner>/<repo-name> --json nameWithOwner,visibility`
-again confirms the repo exists on GitHub and is still `PRIVATE`.
+Both must show the same commit ID: the second one comes from GitHub itself. With `gh`,
+`gh repo view <owner>/<repo-name> --json nameWithOwner,visibility` again confirms the repo is still
+`PRIVATE`.
 
 If we can't connect to GitHub right now, a local-only commit is fine for today — say so clearly in the
 summary, and we connect later.
@@ -1225,7 +1443,7 @@ Give me a final summary:
 **What was set up:**
 1. Obsidian vault with PARA structure + AI workspace — plus core Files-and-links settings (new notes → `00 HUB/00 INBOX`, wikilinks ON, all file types shown, auto-update internal links ON)
 2. Vault CLAUDE.md (Claude's behavioral rules)
-3. Claude Code global settings, merged into what was already there (a short list of everyday permissions — nothing that publishes or runs scripts is pre-approved — plus sound notification + **context monitoring** — visible statusline bar, yellow ⚠ at 50% with a sound, 75% auto-compact threshold, and a hard-stop before auto-compaction so you can `/session-close` first)
+3. Claude Code global settings, merged into what was already there without displaying it (a short list of read-only permissions, and `ask` rules so printing files, committing and publishing always ask — nothing that writes, publishes or runs scripts is pre-approved — plus sound notification + **context monitoring** — visible statusline bar, yellow ⚠ at 50% with a sound, 75% auto-compact threshold, and a hard-stop before auto-compaction so you can `/session-close` first)
 4. Git configured with my identity
 5. My case code repository at `~/dev/<repo-name>` — outside the vault — with CLAUDE.md (full project context + a pointer back to the vault brief), pushed to GitHub as a **Private** repo (or local-only for now, if we couldn't connect)
 6. Project Brief template for future projects

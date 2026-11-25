@@ -1,3 +1,4 @@
+import json
 import re
 import subprocess
 import unittest
@@ -12,9 +13,40 @@ DANGEROUS_OPTIONS = re.compile(
 # Remote rules may only list remotes; anything else (add, set-url) asks.
 REMOTE_RULE = re.compile(r"^git\s+remote\b")
 REMOTE_ALLOWED = ("git remote -v",)
+# The setup docs' "ask" rules. A wildcard in an ask rule only adds prompts, so
+# these exact literals are exempt from the text scan; the JSON check below makes
+# sure none of them ever lands in an allow list.
+ASK_RULES = ("Bash(git add *)", "Bash(git commit *)", "Bash(git push *)")
+JSON_BLOCK = re.compile(r"^```json\n(.*?)\n```$", re.DOTALL | re.MULTILINE)
 
 
-def unsafe_git_rules(text):
+def tracked(*patterns):
+    out = subprocess.run(["git", "ls-files", "-z", "--"] + list(patterns),
+                         cwd=str(ROOT), check=True, capture_output=True).stdout.split(b"\0")
+    return [raw.decode("utf-8", "surrogateescape") for raw in out if raw]
+
+
+def allow_rules(text):
+    """Every allow entry of every parseable JSON block in a document."""
+    rules = []
+    for raw in JSON_BLOCK.findall(text):
+        try:
+            data = json.loads(raw)
+        except ValueError:
+            continue
+        stack = [data]
+        while stack:
+            node = stack.pop()
+            if isinstance(node, dict):
+                if isinstance(node.get("allow"), list):
+                    rules.extend(r for r in node["allow"] if isinstance(r, str))
+                stack.extend(node.values())
+            elif isinstance(node, list):
+                stack.extend(node)
+    return rules
+
+
+def unsafe_git_rules(text, exempt=()):
     """Literal git permission rules that pre-approve more than one exact command.
 
     Any wildcard is unsafe: almost every git subcommand accepts options that
@@ -24,6 +56,8 @@ def unsafe_git_rules(text):
     """
     unsafe = []
     for match in GIT_RULE.finditer(text):
+        if match.group(0) in exempt:
+            continue
         command = match.group(1).strip()
         if ("*" in command
                 or command == "git"
@@ -35,19 +69,35 @@ def unsafe_git_rules(text):
 
 class TestGitAllowlist(unittest.TestCase):
     def test_tracked_files_have_only_exact_option_safe_git_rules(self):
-        paths = subprocess.run(
-            ["git", "ls-files", "-z", "--", "*.md", "*.sh", "*.txt"],
-            cwd=str(ROOT), check=True, capture_output=True).stdout.split(b"\0")
-        paths = [raw.decode("utf-8", "surrogateescape") for raw in paths if raw]
+        paths = tracked("*.md", "*.sh", "*.txt")
         self.assertTrue(paths, "no tracked Markdown, shell or text files were checked")
         rules_checked = 0
         for path in paths:
             text = (ROOT / path).read_text(encoding="utf-8")
             rules_checked += len(GIT_RULE.findall(text))
             with self.subTest(path=path):
-                self.assertEqual(unsafe_git_rules(text), [],
+                self.assertEqual(unsafe_git_rules(text, exempt=ASK_RULES), [],
                                  "unsafe git permission in %s" % path)
         self.assertGreater(rules_checked, 0, "no git permission rules were checked")
+
+    def test_allow_lists_never_hold_a_git_wildcard_or_ask_rule(self):
+        checked = 0
+        for path in tracked("*.md"):
+            text = (ROOT / path).read_text(encoding="utf-8")
+            for rule in allow_rules(text):
+                checked += 1
+                with self.subTest(path=path, rule=rule):
+                    self.assertNotIn(rule, ASK_RULES)
+                    self.assertEqual(unsafe_git_rules('"%s"' % rule), [])
+        self.assertGreater(checked, 0, "no allow lists were checked")
+
+    def test_ask_exemption_is_exact(self):
+        for rule in ASK_RULES:
+            with self.subTest(rule=rule):
+                self.assertEqual(unsafe_git_rules('"%s"' % rule, exempt=ASK_RULES), [])
+                self.assertEqual(unsafe_git_rules('"%s"' % rule), [rule])
+        self.assertEqual(unsafe_git_rules('"Bash(git push --force *)"', exempt=ASK_RULES),
+                         ["Bash(git push --force *)"])
 
     def test_rejects_wildcards_dangerous_options_and_broad_remote(self):
         commands = ["git %s *" % sub for sub in (
