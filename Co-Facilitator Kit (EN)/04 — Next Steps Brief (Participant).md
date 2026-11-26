@@ -31,15 +31,16 @@ Open a session in your vault (`cd "<your vault path>"`, then `claude`) and paste
 ```
 Check what my Phase 0 setup left in place. Don't change anything: only look, and give me READY or MISSING for each point.
 1. ~/.claude/CLAUDE.md (the global router) and the CLAUDE.md at the root of my vault.
-2. ~/.claude/settings.json is valid JSON and has CLAUDE_AUTOCOMPACT_PCT_OVERRIDE at 75:
-   jq -e '.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE' ~/.claude/settings.json
+2. ~/.claude/settings.json is valid JSON and has CLAUDE_AUTOCOMPACT_PCT_OVERRIDE at 75. Run exactly this;
+   it prints only OK or NOT OK, never a value from the file (it can hold keys):
+   jq -e '(.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE | tostring) == "75"' ~/.claude/settings.json >/dev/null 2>&1 && echo OK || echo "NOT OK"
 3. The cheat sheet: 00 HUB/00 INBOX/AIAC Cheat Sheet.md
 4. The template: Templates/Project Brief Template.md
 5. My area map: a <Area>.md file inside 02 AREAS/<Area>/
 6. My journey brief: 01 PROJECTS/AI Acceleration/<My Name>/AI Acceleration Club - <My Name> Journey.md
 7. My case project brief: 01 PROJECTS/<Project Name>/<Project Name>.md
 8. My repo, outside the vault and on GitHub, private:
-   ls ~/dev/<repo-name> and gh repo view <owner>/<repo-name> --json nameWithOwner,visibility
+   ls ~/dev/<repo-name> and gh repo view github.com/<owner>/<repo-name> --json nameWithOwner,visibility
    (visibility must be PRIVATE)
 9. The folder 05 AI/CLAUDE CODE/resources/ (lessons.md appears there with my first lesson;
    if it doesn't exist yet, that's not MISSING).
@@ -179,7 +180,7 @@ Full inventory, in case you need to audit, replicate or troubleshoot later.
 | `~/.claude/statusline.sh` and `~/.claude/hooks/` | The context bar and the 50% / pre-compact warnings | Rarely |
 | `~/.claude/skills/` | Your starter skills (`/session-close`, `/project-create`, …) | You add or update skills |
 
-> **Permissions are deliberately narrow.** Setup never pre-approves blanket commands (all of `git`, Python, …) or anything that writes. Claude asks before committing, pushing, deleting or running scripts, and the `ask` rules make `cat`, `head`, `tail`, `grep`, `git add`, `git commit`, `git push` and `gh repo create` ask every time — that's your safety net. When you add a permission, add one specific command, never a wildcard, and never move a rule out of `ask`. The settings file can hold keys: change it in a text editor yourself rather than asking Claude to print it.
+> **Permissions are deliberately narrow.** Setup never pre-approves blanket commands (all of `git`, Python, …) or anything that writes, deletes or runs a script, so Claude normally asks before doing those — unless you already saved an approval for that command ("Yes, and don't ask again"), use a permission mode that skips prompts, or run the 02-S sandbox in auto-allow mode, where sandboxed commands run without a prompt. The fourteen `ask` rules are what always asks, every time, even over a saved approval: printing files with `cat`, `head`, `tail`, `grep`, `diff`, `sed`, `sort` or `git show`; `git add`, `git commit`, `git push` and any `git -C …` / `git -c …` form; and `gh repo create` — that's your safety net. Other read-only commands (for example `ls`, `find` or `git log -p`) still run without asking. When you add a permission, add one specific command, never a wildcard, and never move a rule out of `ask`. The settings file can hold keys: change it in a text editor yourself rather than asking Claude to print it.
 
 **Vault files created:**
 

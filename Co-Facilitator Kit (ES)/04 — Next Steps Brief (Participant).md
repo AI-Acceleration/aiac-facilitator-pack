@@ -33,15 +33,16 @@ Abre una sesión en tu *vault* (`cd "<ruta de tu vault>"` y después `claude`) y
 ```
 Revisa lo que dejó armado mi configuración de la Fase 0. No cambies nada: sólo mira, y dame LISTO o FALTA en cada punto.
 1. ~/.claude/CLAUDE.md (el enrutador global) y el CLAUDE.md de la raíz de mi vault.
-2. ~/.claude/settings.json es JSON válido y tiene CLAUDE_AUTOCOMPACT_PCT_OVERRIDE en 75:
-   jq -e '.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE' ~/.claude/settings.json
+2. ~/.claude/settings.json es JSON válido y tiene CLAUDE_AUTOCOMPACT_PCT_OVERRIDE en 75. Corre exactamente
+   esto; imprime solo OK o NOT OK, nunca un valor del archivo (puede guardar llaves):
+   jq -e '(.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE | tostring) == "75"' ~/.claude/settings.json >/dev/null 2>&1 && echo OK || echo "NOT OK"
 3. El cheat sheet: 00 HUB/00 INBOX/AIAC Cheat Sheet.md
 4. La plantilla: Templates/Project Brief Template.md
 5. El mapa de mi área: un archivo <Área>.md dentro de 02 AREAS/<Área>/
 6. El brief de mi recorrido: 01 PROJECTS/AI Acceleration/<Mi Nombre>/AI Acceleration Club - <Mi Nombre> Journey.md
 7. El brief del proyecto de mi caso: 01 PROJECTS/<Nombre del Proyecto>/<Nombre del Proyecto>.md
 8. Mi repo, fuera del vault y en GitHub, privado:
-   ls ~/dev/<nombre-del-repo> y gh repo view <dueño>/<nombre-del-repo> --json nameWithOwner,visibility
+   ls ~/dev/<nombre-del-repo> y gh repo view github.com/<dueño>/<nombre-del-repo> --json nameWithOwner,visibility
    (visibility tiene que ser PRIVATE)
 9. La carpeta 05 AI/CLAUDE CODE/resources/ (ahí aparece lessons.md con mi primera lección;
    que todavía no exista no es una FALTA).
@@ -181,7 +182,7 @@ El inventario completo, por si necesitas auditar, replicar o resolver problemas 
 | `~/.claude/statusline.sh` y `~/.claude/hooks/` | La barra de contexto y los avisos del 50% y de antes de compactar | Casi nunca |
 | `~/.claude/skills/` | Tus *skills* iniciales (`/session-close`, `/project-create`, …) | Agregas o actualizas *skills* |
 
-> **Los permisos son acotados a propósito.** La configuración nunca pre-aprueba comandos generales (todo `git`, Python, …) ni nada que escriba. Claude pregunta antes de hacer commit, subir, borrar o correr scripts, y las reglas `ask` hacen que `cat`, `head`, `tail`, `grep`, `git add`, `git commit`, `git push` y `gh repo create` pregunten cada vez — ésa es tu red de seguridad. Cuando agregues un permiso, agrega un comando concreto, nunca un comodín, y nunca saques una regla de `ask`. El archivo de ajustes puede guardar llaves: cámbialo tú en un editor de texto en vez de pedirle a Claude que lo imprima.
+> **Los permisos son acotados a propósito.** La configuración nunca pre-aprueba comandos generales (todo `git`, Python, …) ni nada que escriba, borre o corra un script, así que Claude normalmente pregunta antes de hacerlo — salvo que ya hayas guardado una aprobación para ese comando ("Yes, and don't ask again"), uses un modo de permisos que se salta las preguntas, o corras el sandbox del 02-S en modo auto-allow, donde los comandos encerrados corren sin preguntar. Las catorce reglas `ask` son lo que siempre pregunta, cada vez, incluso por encima de una aprobación guardada: imprimir archivos con `cat`, `head`, `tail`, `grep`, `diff`, `sed`, `sort` o `git show`; `git add`, `git commit`, `git push` y cualquier forma `git -C …` / `git -c …`; y `gh repo create` — ésa es tu red de seguridad. Otros comandos de sólo lectura (por ejemplo `ls`, `find` o `git log -p`) siguen corriendo sin preguntar. Cuando agregues un permiso, agrega un comando concreto, nunca un comodín, y nunca saques una regla de `ask`. El archivo de ajustes puede guardar llaves: cámbialo tú en un editor de texto en vez de pedirle a Claude que lo imprima.
 
 **Archivos creados en el *vault*:**
 

@@ -350,7 +350,7 @@ that prints only the kit's own entries and the *names* of the keys I already had
 1. Show me the block below (it holds only the kit's entries) and tell me which `Stop` line you'll use
    (see the note after the block).
 2. Save the merge script further down as `~/.claude/aiac-merge-settings.py`, exactly as written.
-3. Run it with the block on standard input (Python asks for approval each time — that's intended; never answer "don't ask again"), and show
+3. Run it with the block on standard input (running Python isn't pre-approved, so Claude Code should ask first — approve it, but never with "don't ask again"), and show
    me its output. Its last line must start with `Verified:`. If it starts with `STOP:`, nothing was
    changed: show me the message and we fix it together (my backup is `~/.claude/settings.json.bak`).
 
@@ -563,14 +563,15 @@ main()
 >
 > - **`allow` holds only read-only commands:** five exact git commands (`git status`,
 >   `git status --short`, `git diff`, `git log --oneline`, `git remote -v`) plus `ls` and `wc`. Nothing
->   in it writes, publishes or runs a program — not even `mkdir`: creating a folder asks each time.
+>   in it writes, publishes or runs a program — not even `mkdir`: creating a folder isn't pre-approved either.
 > - **`ask` turns the promised confirmations into rules.** `cat`, `head`, `tail`, `grep`, `diff`, `sed`,
 >   `sort` and `git show` can print a file's contents, so they ask every time (inside the vault Claude
 >   reads with its Read tool, which needs no prompt there). `git add`, `git commit`, `git push` and
 >   `gh repo create` ask every time too, and so does any git command written as `git -C <folder> …` or
 >   `git -c <setting> …` — forms that would otherwise slip past the `git push` rule. An `ask` rule wins
 >   over any `allow` rule — including one saved by answering "Yes, and don't ask again" — and it still
->   asks in auto mode. That is also why there is no `ask` rule for all of `git log` or `git diff`: it
+>   asks in auto mode and in the sandbox's auto-allow mode (Doc 02-S). These fourteen rules are the
+>   **only** commands guaranteed to ask every time. That is also why there is no `ask` rule for all of `git log` or `git diff`: it
 >   would make the allowed `git log --oneline` and `git diff` ask too.
 > - **Left out on purpose:**
 >   - **Any git wildcard in `allow`.** Options such as `--output`, `--ext-diff` or `--template` can
@@ -578,8 +579,11 @@ main()
 >     silently. (In `ask`, a wildcard can only add prompts.)
 >   - **Python, Node and other interpreters, and `pip install`.** A script can read and write any file
 >     as a subprocess, which permission rules cannot see. Pre-approving an interpreter would make any
->     `deny` rule you add later decorative. You'll get a prompt each time Claude runs one — approve it
->     once, never with "don't ask again".
+>     `deny` rule you add later decorative. Without an allow rule, Claude Code normally asks before
+>     running one — but not always: an approval you saved earlier ("Yes, and don't ask again"), a
+>     permission mode that skips prompts, or the sandbox's auto-allow mode (Doc 02-S) can let a script run
+>     without asking, because interpreters are not in the `ask` list. Approve each one when asked, never
+>     with "don't ask again".
 >   - **Bare tool names — `Read`, `Write`, `Edit`, `Glob`, `Grep`.** Listed without a path, a tool name
 >     pre-approves that tool **anywhere on your disk**, which overrides Claude Code's default of working
 >     in the folder you launched it from. Glob and Grep already search the vault without a prompt.

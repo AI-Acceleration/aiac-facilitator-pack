@@ -345,7 +345,7 @@ yo ya tenía:
    (mira la nota después del bloque).
 2. Guarda el script de fusión que está más abajo como `~/.claude/aiac-merge-settings.py`, exactamente
    como está escrito.
-3. Ejecútalo con el bloque por la entrada estándar (Python pide aprobación cada vez — es intencional; nunca respondas "don't ask again") y
+3. Ejecútalo con el bloque por la entrada estándar (correr Python no está preaprobado, así que Claude Code debería preguntar antes — apruébalo, pero nunca con "don't ask again") y
    muéstrame su salida. Su última línea tiene que empezar con `Verified:`. Si empieza con `STOP:`, no se
    cambió nada: muéstrame el mensaje y lo arreglamos juntos (mi respaldo es `~/.claude/settings.json.bak`).
 
@@ -555,14 +555,15 @@ main()
 >
 > - **`allow` tiene solo comandos de solo lectura:** cinco comandos de git exactos (`git status`,
 >   `git status --short`, `git diff`, `git log --oneline`, `git remote -v`) más `ls` y `wc`. Nada de eso
->   escribe, publica ni ejecuta un programa — ni siquiera `mkdir`: crear una carpeta pregunta cada vez.
+>   escribe, publica ni ejecuta un programa — ni siquiera `mkdir`: crear una carpeta tampoco está preaprobado.
 > - **`ask` convierte en reglas las confirmaciones prometidas.** `cat`, `head`, `tail`, `grep`, `diff`,
 >   `sed`, `sort` y `git show` pueden imprimir el contenido de un archivo, así que preguntan cada vez
 >   (dentro del vault Claude lee con su herramienta Read, que ahí no pide permiso). `git add`,
 >   `git commit`, `git push` y `gh repo create` también preguntan cada vez, y lo mismo cualquier comando
 >   de git escrito como `git -C <carpeta> …` o `git -c <ajuste> …` — formas que de otro modo esquivarían
 >   la regla de `git push`. Una regla `ask` le gana a cualquier regla `allow` — incluida una guardada al
->   responder "Yes, and don't ask again" — y sigue preguntando en auto mode. Por eso tampoco hay una
+>   responder "Yes, and don't ask again" — y sigue preguntando en auto mode y en el modo auto-allow del
+>   sandbox (Doc 02-S). Estas catorce reglas son los **únicos** comandos que seguro preguntan cada vez. Por eso tampoco hay una
 >   regla `ask` para todo `git log` o `git diff`: haría preguntar también a los `git log --oneline` y
 >   `git diff` permitidos.
 > - **Fuera a propósito:**
@@ -571,8 +572,11 @@ main()
 >     las aprobaría en silencio. (En `ask`, un comodín solo puede agregar preguntas.)
 >   - **Python, Node y otros intérpretes, y `pip install`.** Un script puede leer y escribir cualquier
 >     archivo como subproceso, y las reglas de permisos no ven eso. Preaprobar un intérprete dejaría
->     decorativa cualquier regla `deny` que agregues después. Vas a recibir una solicitud de permiso cada
->     vez que Claude ejecute uno — apruébala una vez, nunca con "don't ask again".
+>     decorativa cualquier regla `deny` que agregues después. Sin una regla allow, Claude Code normalmente
+>     pregunta antes de ejecutar uno — pero no siempre: una aprobación que guardaste antes ("Yes, and
+>     don't ask again"), un modo de permisos que se salta las preguntas o el modo auto-allow del sandbox
+>     (Doc 02-S) pueden dejar correr un script sin preguntar, porque los intérpretes no están en la lista
+>     `ask`. Apruébalo cada vez que te pregunte, nunca con "don't ask again".
 >   - **Nombres de herramienta a secas — `Read`, `Write`, `Edit`, `Glob`, `Grep`.** Listado sin una
 >     ruta, un nombre de herramienta la preaprueba para **cualquier lugar de tu disco**, lo que anula el
 >     comportamiento por defecto de Claude Code de trabajar en la carpeta desde donde lo lanzaste. Glob y
