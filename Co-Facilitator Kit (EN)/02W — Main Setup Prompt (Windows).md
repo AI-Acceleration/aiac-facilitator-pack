@@ -334,12 +334,11 @@ Confirm the file was created. Then move to Step 3.
 
 Now set up the global Claude Code settings. These live in `~/.claude/settings.json` (outside the vault — this is the one exception because Claude Code requires it there).
 
-**First, back up what already exists** (on a brand-new machine these commands do nothing, which is fine; if a backup is already there from an earlier run, it is kept, never overwritten):
+**First, back up what already exists.** The merge script below backs up `settings.json` itself, before its first change: a private copy (only you can read it) of the file's current contents — of the real file, if `settings.json` is a link to one — saved as `~/.claude/settings.json.bak`, and an earlier backup is never overwritten. For the router file, run this (on a brand-new machine it does nothing, which is fine; an existing backup is kept):
 
 ```bash
 mkdir -p ~/.claude
-[ -e ~/.claude/settings.json.bak ] || cp -a ~/.claude/settings.json ~/.claude/settings.json.bak 2>/dev/null
-[ -e ~/.claude/CLAUDE.md.bak ] || cp -a ~/.claude/CLAUDE.md ~/.claude/CLAUDE.md.bak 2>/dev/null
+[ -e ~/.claude/CLAUDE.md.bak ] || [ -L ~/.claude/CLAUDE.md.bak ] || cp -pL ~/.claude/CLAUDE.md ~/.claude/CLAUDE.md.bak 2>/dev/null
 ```
 
 **Then merge — never overwrite, and never display what is already there.** `~/.claude/settings.json`
@@ -424,8 +423,10 @@ The kit's block:
 
 **The merge script** — save it as `~/.claude/aiac-merge-settings.py`. It adds each kit entry that is
 missing, keeps every key, `allow`, `ask` and `deny` rule I already have, refuses to touch a file that
-isn't valid JSON, keeps the file's access permissions, re-reads the result to verify it, and prints
-nothing from my existing settings except key names:
+isn't valid JSON, first checks that the kit block has exactly the kit's shape (it stops on anything
+else, even for a key my settings don't have yet), saves the private backup described above, writes
+through a symlinked `settings.json` to the file it points at, keeps the file's access permissions,
+re-reads the result to verify it, and prints nothing from my existing settings except key names:
 
 ```python
 # aiac-merge-settings.py - merges the AIAC kit's entries into ~/.claude/settings.json.
@@ -433,15 +434,58 @@ nothing from my existing settings except key names:
 # of keys you already had. Usage: python3 aiac-merge-settings.py [--replace KEY] - < block
 import json
 import os
+import re
 import shutil
 import sys
 
 TARGET = os.path.expanduser("~/.claude/settings.json")
+BACKUP = TARGET + ".bak"
 DEEP = ("permissions", "hooks", "env")  # top-level objects merged key by key
+HOOK_EVENTS = ("Stop", "UserPromptSubmit", "PreCompact")
 
 
 def stop(message):
     sys.exit("STOP: " + message + " Nothing was changed.")
+
+
+def number(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0
+
+
+def hook_groups(v):
+    return isinstance(v, list) and all(
+        isinstance(g, dict) and set(g) <= {"matcher", "hooks"}
+        and isinstance(g.get("matcher", ""), str)
+        and isinstance(g.get("hooks"), list) and len(g["hooks"]) > 0
+        and all(isinstance(h, dict) and set(h) <= {"type", "command", "timeout"}
+                and h.get("type") == "command"
+                and isinstance(h.get("command"), str) and h["command"] != ""
+                and ("timeout" not in h or number(h["timeout"]))
+                for h in g["hooks"])
+        for g in v)
+
+
+# The only shapes a kit block may have. Checked before anything is merged,
+# whether or not your settings already have the key.
+SCHEMA = {
+    "permissions": lambda v: isinstance(v, dict) and set(v) <= {"allow", "ask", "deny"}
+    and all(isinstance(x, list) and all(isinstance(r, str) for r in x) for x in v.values()),
+    "hooks": lambda v: isinstance(v, dict) and set(v) <= set(HOOK_EVENTS)
+    and all(hook_groups(x) for x in v.values()),
+    "env": lambda v: isinstance(v, dict) and all(isinstance(x, str) for x in v.values()),
+    "statusLine": lambda v: isinstance(v, dict) and set(v) <= {"type", "command", "padding"}
+    and v.get("type") == "command" and isinstance(v.get("command"), str) and v["command"] != ""
+    and ("padding" not in v or (isinstance(v["padding"], int) and not isinstance(v["padding"], bool))),
+}
+
+
+def check_block(block):
+    for key, val in block.items():
+        name = key if re.match(r"^[A-Za-z][A-Za-z0-9_]{0,40}$", key) else "a key"
+        if key not in SCHEMA:
+            stop("the kit block has an entry the kit never uses (" + name + "); check it was copied whole.")
+        if not SCHEMA[key](val):
+            stop("the kit block's " + name + " entry has the wrong shape; check it was copied whole.")
 
 
 def merge(dst, new, path, added, kept):
@@ -490,6 +534,24 @@ def replace(dst, new, dotted):
     dst[keys[-1]] = new[keys[-1]]
 
 
+def backup(real):
+    """A private copy (0600) of the file's current bytes - the file a symlink
+    points at, never the link - made before the first change. An earlier
+    backup is never overwritten: if one exists, it is kept as it is."""
+    if os.path.isfile(BACKUP) and not os.path.islink(BACKUP):
+        return None
+    name, n = BACKUP, 0
+    while os.path.lexists(name):
+        n += 1
+        name = BACKUP + "." + str(n)
+    with open(real, "rb") as f:
+        data = f.read()
+    fd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "wb") as f:
+        f.write(data)
+    return name
+
+
 def main():
     args, to_replace = sys.argv[1:], []
     while len(args) >= 2 and args[0] == "--replace":
@@ -505,6 +567,7 @@ def main():
         stop("the kit block could not be read as JSON (check it was copied whole).")
     if not isinstance(block, dict):
         stop("the kit block is not a JSON object.")
+    check_block(block)
     # Write through a symlinked settings.json to the file it points at.
     real = os.path.realpath(TARGET)
     current = {}
@@ -525,8 +588,14 @@ def main():
         added.append(dotted + " (replaced, as you asked)")
     merge(current, block, [], added, kept)
     kept = [k for k in kept if not any(r.startswith(k + ".") for r in to_replace)]
+    saved = None
     if added or not os.path.exists(real):
         os.makedirs(os.path.dirname(real), exist_ok=True)
+        if os.path.exists(real):
+            try:
+                saved = backup(real)
+            except OSError:
+                stop("could not save a backup of ~/.claude/settings.json first.")
         tmp = real + ".aiac-tmp"
         if os.path.lexists(tmp):
             os.unlink(tmp)
@@ -538,6 +607,8 @@ def main():
         if os.path.exists(real):
             shutil.copymode(real, tmp)
         os.replace(tmp, real)
+    if saved:
+        print("backup of your previous settings (private): ~/.claude/" + os.path.basename(saved))
     for name in added:
         print("added: " + name)
     for name in kept:

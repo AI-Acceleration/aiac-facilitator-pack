@@ -44,9 +44,13 @@ English and the Spanish kit.
   `~/.claude/settings.json`, keeps every key and rule already there, and
   prints only what it added and the names of keys it left alone, never
   their values (the file can hold API keys). It stops without changing
-  anything if the kit block is damaged or a section has an unexpected type,
-  creates the file private from the start, and writes through a symlinked
-  `settings.json`. Re-running the step never overwrites the first backup.
+  anything if the kit block is damaged or has any shape other than the
+  kit's own (checked before merging, even for keys the file doesn't have
+  yet) or if a section of the file has an unexpected type. It creates the
+  file private from the start and writes through a symlinked
+  `settings.json`. Before its first change it saves a private copy of the
+  file's current contents (of the real file, when `settings.json` is a
+  link), and it never overwrites an earlier backup.
 - **Safer first upload to GitHub.** Sign-in happens in the browser (or
   through the Git Credential Manager on Windows), with no token to create or
   paste (`gh` and the credential manager store their own). The repository

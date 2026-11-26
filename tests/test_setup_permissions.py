@@ -554,14 +554,20 @@ class TestSetupPermissions(unittest.TestCase):
                              "\n".join(blocks))
 
     def test_backups_are_never_overwritten_on_a_rerun(self):
+        # settings.json is backed up by the merge script (privately, through a
+        # symlink); a cp -a of a symlink would only copy the link.
         for edition in EDITIONS:
             for name in SETTINGS_DOCS:
                 text = kit_doc(edition, name).read_text(encoding="utf-8")
                 with self.subTest(doc="%s/%s" % (edition, name)):
-                    self.has("[ -e ~/.claude/settings.json.bak ] || cp -a ~/.claude/settings.json "
-                             "~/.claude/settings.json.bak", text)
+                    self.lacks("cp -a ~/.claude/settings.json", text)
                     self.assertIsNone(re.search(r"^cp -a ~/\.claude/\S+ ~/\.claude/\S+\.bak",
                                                 text, re.MULTILINE))
+            for name in MAIN_DOCS:
+                text = kit_doc(edition, name).read_text(encoding="utf-8")
+                with self.subTest(doc="%s/%s" % (edition, name)):
+                    self.has("[ -e ~/.claude/CLAUDE.md.bak ] || [ -L ~/.claude/CLAUDE.md.bak ] || "
+                             "cp -pL ~/.claude/CLAUDE.md ~/.claude/CLAUDE.md.bak", text)
 
     def test_sandbox_denies_the_login_file_inside_the_allowed_claude_folder(self):
         for edition in EDITIONS:
@@ -723,6 +729,103 @@ class TestSetupPermissions(unittest.TestCase):
                     self.assertNotIn("continue", data)
                     self.lacks('"continue": false', text)
                     self.has('"matcher": "auto"', text)
+
+    def test_merge_script_validates_the_kit_block_before_merging(self):
+        # A wrong shape stops the merge even for a key the settings don't have
+        # yet, and nothing from the block's values is printed.
+        bad_blocks = [
+            {"permissions": {"allow": "Bash(git status)"}},
+            {"permissions": {"ask": [["Bash(cat *)"]]}},
+            {"permissions": {"allowed": ["Bash(git status)"]}},
+            {"hooks": {"Stop": [{"hooks": "afplay x"}]}},
+            {"hooks": {"Stop": [{"hooks": [{"type": "command", "command": 7}]}]}},
+            {"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "x", "timeout": "3"}]}]}},
+            {"hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "x"}]}]}},
+            {"env": {"CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": 75}},
+            {"statusLine": {"type": "command", "command": ["sk-test-SYNTHETIC-3333"]}},
+            {"statusLine": {"type": "static", "command": "x"}},
+            {"model": "sk-test-SYNTHETIC-3333"},
+        ]
+        with tempfile.TemporaryDirectory() as home:
+            target = Path(home) / ".claude" / "settings.json"
+            target.parent.mkdir()
+            for existing in ({}, {"model": "keep-me"}):
+                for block in bad_blocks:
+                    with self.subTest(existing=existing, block=block):
+                        raw = json.dumps(existing)
+                        target.write_text(raw, encoding="utf-8")
+                        run = self.run_merge(home, block)
+                        self.assertNotEqual(run.returncode, 0)
+                        self.assertIn("STOP:", run.stderr)
+                        self.assertNotIn("Verified", run.stdout)
+                        self.assertNotIn("SYNTHETIC-3333", run.stdout + run.stderr)
+                        self.assertNotIn("Traceback", run.stderr)
+                        self.assertEqual(target.read_text(encoding="utf-8"), raw)
+                        self.assertFalse((Path(home) / ".claude" / "settings.json.bak").exists())
+            # No file yet: a bad block creates nothing.
+            target.unlink()
+            run = self.run_merge(home, bad_blocks[0])
+            self.assertNotEqual(run.returncode, 0)
+            self.assertFalse(target.exists())
+        # Every block the docs ask the reader to merge passes the check.
+        for edition in EDITIONS:
+            for name in SETTINGS_DOCS:
+                text = kit_doc(edition, name).read_text(encoding="utf-8")
+                blocks = re.findall(r"<<'JSON'\n(.*?)\nJSON$", text, re.DOTALL | re.MULTILINE)
+                blocks = [json.loads(b) for b in blocks if b.lstrip().startswith("{")]
+                blocks += settings_blocks(text)
+                for block in blocks:
+                    with self.subTest(doc="%s/%s" % (edition, name), keys=sorted(block)):
+                        with tempfile.TemporaryDirectory() as home:
+                            run = self.run_merge(home, block)
+                            self.assertEqual(run.returncode, 0, run.stderr[-300:])
+
+    @unittest.skipUnless(os.name == "posix", "symlinks and modes")
+    def test_merge_script_backs_up_the_real_file_privately_and_never_twice(self):
+        block = settings_blocks(kit_doc("EN", SETTINGS_DOCS[0]).read_text(encoding="utf-8"))[0]
+        original = '{"env": {"API_KEY": "sk-test-SYNTHETIC-4444"}}'
+        with tempfile.TemporaryDirectory() as home:
+            real = Path(home) / "dotfiles" / "settings.json"
+            real.parent.mkdir()
+            real.write_text(original, encoding="utf-8")
+            real.chmod(0o644)
+            link = Path(home) / ".claude" / "settings.json"
+            link.parent.mkdir()
+            link.symlink_to(real)
+            run = self.run_merge(home, block)
+            self.assertEqual(run.returncode, 0, run.stderr[-300:])
+            self.assertNotIn("SYNTHETIC-4444", run.stdout + run.stderr)
+            bak = Path(home) / ".claude" / "settings.json.bak"
+            # A regular, private file holding the original bytes - not a link
+            # that would follow the updated target.
+            self.assertFalse(bak.is_symlink())
+            self.assertEqual(bak.read_text(encoding="utf-8"), original)
+            self.assertEqual(bak.stat().st_mode & 0o777, 0o600)
+            self.assertIn("backup of your previous settings (private): ~/.claude/settings.json.bak",
+                          run.stdout)
+            # Still written through the link; the target keeps its mode.
+            self.assertTrue(link.is_symlink())
+            self.assertEqual(real.stat().st_mode & 0o777, 0o644)
+            self.assertIn("ask", json.loads(real.read_text(encoding="utf-8"))["permissions"])
+            # A later change never overwrites the earlier backup.
+            run = self.run_merge(home, {"env": {"CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "75"}})
+            self.assertEqual(run.returncode, 0, run.stderr[-300:])
+            self.assertEqual(bak.read_text(encoding="utf-8"), original)
+            self.assertEqual(sorted(p.name for p in bak.parent.iterdir() if ".bak" in p.name),
+                             ["settings.json.bak"])
+        with tempfile.TemporaryDirectory() as home:
+            # An old "backup" that is only a link (cp -a of a symlink) is kept,
+            # and the real bytes go to the next free name.
+            claude = Path(home) / ".claude"
+            claude.mkdir()
+            target = claude / "settings.json"
+            target.write_text(original, encoding="utf-8")
+            (claude / "settings.json.bak").symlink_to(target)
+            run = self.run_merge(home, block)
+            self.assertEqual(run.returncode, 0, run.stderr[-300:])
+            self.assertTrue((claude / "settings.json.bak").is_symlink())
+            self.assertEqual((claude / "settings.json.bak.1").read_text(encoding="utf-8"), original)
+            self.assertEqual((claude / "settings.json.bak.1").stat().st_mode & 0o777, 0o600)
 
 if __name__ == "__main__":
     unittest.main()
