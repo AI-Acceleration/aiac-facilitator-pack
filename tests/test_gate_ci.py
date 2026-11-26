@@ -41,6 +41,44 @@ def fake_git(directory, subcommand, stderr_text):
     return str(directory)
 
 
+# A git command in workflow shell code: `git` as a word, not part of a path
+# or name such as `.githooks` or `github.sha`.
+GIT_CALL = re.compile(r"(?<![\w./-])git\s+[a-z]")
+STDERR_SUPPRESSED = re.compile(r"2>\s*/dev/null|>\s*/dev/null\s+2>&1")
+
+
+def shell_statements(text):
+    """Non-comment lines of `text`, with backslash continuations joined."""
+    out, cur = [], ""
+    for line in text.splitlines():
+        if line.lstrip().startswith("#"):
+            continue
+        if line.rstrip().endswith("\\"):
+            cur += line.rstrip()[:-1] + " "
+            continue
+        out.append(cur + line)
+        cur = ""
+    if cur:
+        out.append(cur)
+    return out
+
+
+def unguarded_git_calls(text):
+    """Git calls whose stderr can reach the log, or whose failure is not
+    turned into a fixed GATE ERROR message."""
+    bad = []
+    for stmt in shell_statements(text):
+        if not GIT_CALL.search(stmt):
+            continue
+        quiet = STDERR_SUPPRESSED.search(stmt)
+        fixed = (re.search(r"\|\|\s*\{\s*echo \"GATE ERROR: ", stmt)
+                 or re.match(r"\s*if ! git ", stmt))
+        if not (quiet and fixed):
+            bad.append(stmt.strip())
+    return bad
+
+
+
 # What a failing git might print: a private name and forged log commands.
 GIT_STDERR = ("fatal: bad path '%s'\n::error::forged ##[error]x" % PRIVATE_WORD)
 
@@ -388,6 +426,26 @@ class TestWorkflows(unittest.TestCase):
         self.assertEqual(len(scans), 2)
         for run in scans:
             self.assertIn("--ci", run)
+
+    def test_every_git_call_in_the_gate_hides_its_stderr(self):
+        # git's own error text can quote a ref or path from the pull request
+        # and the log is public: every git call sends stderr to /dev/null and
+        # a failure prints a fixed GATE ERROR line instead.
+        calls = [s for s in shell_statements(self.gate) if GIT_CALL.search(s)]
+        self.assertGreaterEqual(len(calls), 4, calls)
+        self.assertEqual(unguarded_git_calls(self.gate), [])
+
+    def test_git_call_check_catches_a_bare_call(self):
+        # The check above must be able to fail.
+        for snippet in (
+                'git fetch origin "+refs/pull/1/head:refs/gate/x"\n',
+                'git update-ref -d refs/gate/x 2>/dev/null\n',
+                'git update-ref refs/gate/x "$H" || { echo "GATE ERROR: x"; exit 3; }\n',
+                'git fetch origin x \\\n  || { echo "GATE ERROR: x"; exit 3; }\n'):
+            with self.subTest(snippet=snippet):
+                self.assertEqual(len(unguarded_git_calls(snippet)), 1)
+        self.assertEqual(unguarded_git_calls(
+            "# git fetch in a comment\nuses: .githooks/x ${{ github.sha }}\n"), [])
 
     def test_tests_workflow_runs_the_suite(self):
         self.assertIn("python3 -m unittest discover -s tests", self.tests)

@@ -44,14 +44,20 @@ jobs:
           case "$PR_NUMBER" in ''|*[!0-9]*) echo "GATE ERROR: bad pull request number."; exit 3 ;; esac
           case "$PR_HEAD" in *[!0-9a-f]*) echo "GATE ERROR: bad head commit."; exit 3 ;; esac
           if [ "${#PR_HEAD}" -ne 40 ]; then echo "GATE ERROR: bad head commit."; exit 3; fi
-          git fetch --no-tags --quiet origin "+refs/pull/${PR_NUMBER}/head:refs/gate/pr-tip"
-          if ! git rev-parse --verify --quiet "${PR_HEAD}^{commit}" >/dev/null; then
+          # Every git call here sends its stderr to /dev/null and prints a
+          # fixed message on failure: git's own error text can quote a ref or
+          # path, and this log is public (tests/test_gate_ci.py checks it).
+          git fetch --no-tags --quiet origin "+refs/pull/${PR_NUMBER}/head:refs/gate/pr-tip" 2>/dev/null \
+            || { echo "GATE ERROR: cannot fetch the pull request."; exit 3; }
+          if ! git rev-parse --verify --quiet "${PR_HEAD}^{commit}" >/dev/null 2>&1; then
             echo "GATE ERROR: the head commit this run was started for is gone"
             echo "(force-pushed?). The run for the new head covers the pull request."
             exit 3
           fi
-          git update-ref refs/gate/pr-head "$PR_HEAD"
-          git update-ref -d refs/gate/pr-tip
+          git update-ref refs/gate/pr-head "$PR_HEAD" 2>/dev/null \
+            || { echo "GATE ERROR: cannot record the head commit."; exit 3; }
+          git update-ref -d refs/gate/pr-tip 2>/dev/null \
+            || { echo "GATE ERROR: cannot remove the temporary ref."; exit 3; }
 
       # bin/gate_pr_check.sh and bin/gate_scan.py come from main's checkout.
       - name: Private-data gate (pull request, judged by main's gate)
