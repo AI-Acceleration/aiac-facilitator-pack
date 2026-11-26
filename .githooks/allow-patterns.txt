@@ -1,5 +1,18 @@
-# Addresses permitted to ship. Anything else trips the generic detector.
-# Git trailer address on the assistant-attribution Co-Authored-By line.
-# Not a person's routing address; appears in commit messages, which the
-# commit-msg hook and `--history` scan.
+# Addresses that may appear in ONE place only: as an attribution, never as
+# text. bin/gate_scan.py accepts an entry here only
+#   - as the identity in a commit or tag author/committer/tagger header, or
+#   - as the address of a `Co-authored-by: Name <address>` line inside the
+#     commit message's FINAL trailer block (its last paragraph, not the
+#     subject, where every line is `Key: value`).
+# In file contents, file names, tag messages or the body of a commit message
+# an entry fails as UNALLOWLISTED like any other address. A deny-list match
+# always fails, listed here or not.
+
+# Service address of the assistant-attribution trailer
+# (`Co-Authored-By: <assistant name> <address>`). Not a person's address.
 noreply@anthropic.com
+
+# GitHub no-reply identities (<id>+<login>@users.noreply.github.com, the
+# legacy <login>@users.noreply.github.com and the web-UI merge committer) are
+# NOT listed here: bin/gate_scan.py recognises them by form, in the same two
+# places (GitHub's web-merge committer address in headers only).

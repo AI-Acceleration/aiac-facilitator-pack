@@ -1,28 +1,91 @@
 name: gate
 on:
-  pull_request:
+  # pull_request_target, not pull_request: GitHub runs THIS file as it is on
+  # main, never a pull request's copy of it, so a pull request cannot edit or
+  # delete the check that judges it. That trust is only safe because nothing
+  # from the pull request is executed here: its commits are fetched as git
+  # objects and read by main's scanner. Never check out the pull request's
+  # head into the workspace, run its scripts or tests, or add secrets here.
+  # The pull request's own tests run in tests.yml, unprivileged.
+  # Only pull requests into main: on pull_request_target the "trusted" code
+  # is the tip of the BASE branch, and only main is protected. A pull request
+  # into any other branch would be judged by that branch's copy of the gate.
+  pull_request_target:
+    branches: [main]
   push:
     branches: [main]
+
+# The gate only reads the repository. No step needs to write anything.
+permissions:
+  contents: read
 
 jobs:
   gate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # Pinned by full commit SHA: a moved tag cannot change what runs here.
+      # ref is github.sha: on pull_request_target the tip of main (the base),
+      # on push the pushed commit on main. Both are trusted code.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0   # --history needs the full object store
+          ref: ${{ github.sha }}
+          fetch-depth: 0              # --history needs the full object store
+          persist-credentials: false  # no token left in .git/config
 
-      - name: Private-data gate (working tree)
-        run: python3 bin/gate_scan.py --tree
+      # Objects only: fetched into a private ref, never checked out.
+      - name: Fetch the pull request as data
+        if: ${{ github.event_name == 'pull_request_target' }}
+        shell: bash
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          case "$PR_NUMBER" in ''|*[!0-9]*) echo "GATE ERROR: bad pull request number."; exit 3 ;; esac
+          case "$PR_HEAD" in *[!0-9a-f]*) echo "GATE ERROR: bad head commit."; exit 3 ;; esac
+          if [ "${#PR_HEAD}" -ne 40 ]; then echo "GATE ERROR: bad head commit."; exit 3; fi
+          # Every git call here sends its stderr to /dev/null and prints a
+          # fixed message on failure: git's own error text can quote a ref or
+          # path, and this log is public (tests/test_gate_ci.py checks it).
+          git fetch --no-tags --quiet origin "+refs/pull/${PR_NUMBER}/head:refs/gate/pr-tip" 2>/dev/null \
+            || { echo "GATE ERROR: cannot fetch the pull request."; exit 3; }
+          if ! git rev-parse --verify --quiet "${PR_HEAD}^{commit}" >/dev/null 2>&1; then
+            echo "GATE ERROR: the head commit this run was started for is gone"
+            echo "(force-pushed?). The run for the new head covers the pull request."
+            exit 3
+          fi
+          git update-ref refs/gate/pr-head "$PR_HEAD" 2>/dev/null \
+            || { echo "GATE ERROR: cannot record the head commit."; exit 3; }
+          git update-ref -d refs/gate/pr-tip 2>/dev/null \
+            || { echo "GATE ERROR: cannot remove the temporary ref."; exit 3; }
 
-      - name: Private-data gate (full history)
-        run: python3 bin/gate_scan.py --history
+      # bin/gate_pr_check.sh and bin/gate_scan.py come from main's checkout.
+      - name: Private-data gate (pull request, judged by main's gate)
+        if: ${{ github.event_name == 'pull_request_target' }}
+        shell: bash
+        env:
+          BASE: ${{ github.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: bash bin/gate_pr_check.sh "$BASE" "$PR_HEAD"
 
-      - name: Assert the withheld files are absent
+      - name: Private-data gate (main, tracked files)
+        if: ${{ github.event_name == 'push' }}
+        shell: bash
+        run: python3 bin/gate_scan.py --tree --ci
+
+      - name: Private-data gate (main, full history)
+        if: ${{ !cancelled() && github.event_name == 'push' }}
+        shell: bash
+        run: python3 bin/gate_scan.py --history --ci
+
+      - name: Assert the withheld files are absent (main)
+        if: ${{ !cancelled() && github.event_name == 'push' }}
         shell: bash
         run: |
           set -euo pipefail
-          # Case-INSENSITIVE (-ipath / -iname) on purpose. The runner is
+          # Belt and braces for gate_scan.py's own path check. Prints only the
+          # pattern (from the pattern list), never a matched file name.
+          # Case-INSENSITIVE (-ipath / -iname) on purpose: the runner is
           # case-sensitive ext4, but most contributors clone onto
           # case-insensitive APFS/NTFS, where a case-variant of a withheld
           # filename is the same file.
@@ -42,60 +105,3 @@ jobs:
             fi
           done < .githooks/forbidden-basenames.txt
           exit $fail
-
-      - name: Unit tests
-        run: python3 -m unittest discover -s tests -v
-
-      - name: Pin the gate surface against main
-        shell: bash
-        run: |
-          set -euo pipefail
-          # On a pull_request run GitHub executes the PR's OWN copy of this
-          # workflow and of bin/gate_scan.py, so a PR that edits them can
-          # neuter its own checks. This step makes any such edit fail loudly:
-          # the gate surface may not change on a branch at all -- changing it
-          # is a main-side decision, reviewed on its own. A PR can delete this
-          # step too, which is why main is protected by required code-owner
-          # review; this step turns an honest edit red and makes a dishonest
-          # one show up as a workflow diff the reviewer has to approve.
-          surface=(.githooks bin .github)
-          f='.githooks/allow-patterns.txt'
-          if [ ! -f "$f" ]; then
-            echo "GATE ERROR: $f is missing from the checkout."
-            echo "Refusing to certify: the pin cannot be measured."
-            exit 1
-          fi
-          base=''
-          for r in origin/main refs/remotes/origin/main main; do
-            if git rev-parse --verify --quiet "$r^{commit}" >/dev/null; then
-              base="$r"; break
-            fi
-          done
-          if [ -z "$base" ]; then
-            git fetch --no-tags --quiet origin main || true
-            if git rev-parse --verify --quiet 'FETCH_HEAD^{commit}' >/dev/null; then
-              base=FETCH_HEAD
-            fi
-          fi
-          if [ -z "$base" ]; then
-            echo "GATE ERROR: cannot resolve main -- tried origin/main, main, and an explicit fetch."
-            echo "Refusing to certify: a check that cannot run never reports clean."
-            exit 1
-          fi
-          if ! git cat-file -e "$base:$f" 2>/dev/null; then
-            # Not an error: main genuinely predates the gate. Said out loud so
-            # nobody reads a silent pass as "the pin compared and matched".
-            echo "gate surface pin: $f does not exist at $base."
-            echo "Treating this as the gate's FIRST INTRODUCTION, which is legitimate."
-            echo "Nothing was compared -- review every line of it by hand before merging."
-            exit 0
-          fi
-          changed=$(git diff --name-only "$base" -- "${surface[@]}")
-          if [ -n "$changed" ]; then
-            echo "BLOCKED: the gate surface differs from $base:"
-            printf '  %s\n' $changed
-            echo "Changes under .githooks/, bin/ and .github/ alter what the gate"
-            echo "can see. Land them on main on their own, as a security review."
-            exit 1
-          fi
-          echo "gate surface pin: ${surface[*]} byte-identical to $base."

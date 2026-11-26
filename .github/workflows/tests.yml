@@ -1,0 +1,44 @@
+name: tests
+on:
+  # The pull request's own code, so plain pull_request: GitHub gives it a
+  # read-only token and, for forks, no secrets. A pull request can edit this
+  # file, which only changes its own test run; the required privacy check is
+  # gate.yml, which a pull request cannot edit.
+  # No branch filter on purpose: this job is unprivileged, so it may test a
+  # pull request into any branch (a stacked change, for example).
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Many status-check tests skip themselves when jq is missing. Locally
+      # that is a convenience; here it would turn the check green with those
+      # tests never run, so jq is required and any skip fails the job.
+      - name: Require jq
+        shell: bash
+        run: |
+          command -v jq >/dev/null || { echo "jq is required for the tests"; exit 1; }
+      # Same discovery as `python3 -m unittest discover -s tests -v`, plus a
+      # non-zero exit when any test was skipped (the skips print above it).
+      - name: Unit tests (no skips allowed)
+        shell: bash
+        run: |
+          python3 - <<'EOF'
+          import sys
+          import unittest
+          suite = unittest.defaultTestLoader.discover("tests")
+          result = unittest.TextTestRunner(verbosity=2).run(suite)
+          if result.skipped:
+              print("%d test(s) skipped; CI runs every test." % len(result.skipped))
+              sys.exit(1)
+          sys.exit(0 if result.wasSuccessful() else 1)
+          EOF
