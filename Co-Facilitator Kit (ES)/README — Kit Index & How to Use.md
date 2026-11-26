@@ -117,7 +117,9 @@ Envía el gemelo `.sh.txt` del chequeo de estado, byte-idéntico (corre igual).
 El participante corre el **nombre exacto que recibió**, por ejemplo
 `bash ~/Downloads/aiac-status-check.sh.txt`, y te envía **solo** el bloque
 entre `----- AIAC STATUS (safe to share) -----` y `----- END -----`. Todo lo
-que está arriba de ese bloque es solo para sus ojos. Mantén cualquier script
+que está arriba de ese bloque es solo para sus ojos. Cuando Claude le corre el
+chequeo, lo corre con `--share`, que imprime solo el bloque, así el detalle
+nunca llega al contexto de Claude. Mantén cualquier script
 que envíes **100% ASCII** para que sobreviva el copiar y pegar por
 aplicaciones de chat.
 
@@ -144,7 +146,8 @@ lugar desde el que compartes.
   imprime detalles para el participante y luego un **bloque corto que se
   puede compartir**, solo con nombres de chequeos y su estado, el sistema
   operativo y un veredicto general. El primer `NOT DONE` es el punto donde
-  retomar. `--details` muestra más detalle local y advierte que no se
+  retomar. `--share` imprime solo ese bloque (úsalo siempre que Claude corra
+  el chequeo); `--details` muestra más detalle local y advierte que no se
   comparta. Aportado por Mangan.
 - **Leyenda: el script imprime en inglés.** Es byte-idéntico al de la edición
   EN, para no bifurcarlo, así que su salida sale en inglés a propósito.

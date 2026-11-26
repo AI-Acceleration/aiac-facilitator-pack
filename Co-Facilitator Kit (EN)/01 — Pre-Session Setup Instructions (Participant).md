@@ -466,10 +466,12 @@ Hi Claude. I'm getting ready for my Claude Code onboarding session. Let's run a 
 Your facilitator may also send you `aiac-status-check.sh` (often as `aiac-status-check.sh.txt`, because chat apps and email block `.sh` files). It's a small **read-only** script: it installs nothing, changes nothing and sends nothing. It only looks and prints a report. Save it in Downloads and tell Claude, using the **exact file name you received**:
 
 ```
-Run `bash ~/Downloads/aiac-status-check.sh.txt` and show me the block between `----- AIAC STATUS (safe to share) -----` and `----- END -----` exactly as printed.
+Run `bash ~/Downloads/aiac-status-check.sh.txt --share` and show me its output exactly as printed.
 ```
 
-(If your file is called `aiac-status-check.sh`, use that name instead; both work.) **Share only the block that starts with `----- AIAC STATUS (safe to share) -----` and ends with `----- END -----`. Everything above it is for your eyes only.** The block contains check names and `DONE` / `NOT DONE` / `SKIPPED (optional)` plus a verdict line, nothing personal. Never share output from `--details`. The first `NOT DONE` is where you pick up. If Claude Code isn't working yet, run the same command yourself in your terminal (Git Bash on Windows): `bash ~/Downloads/aiac-status-check.sh.txt`.
+(If your file is called `aiac-status-check.sh`, use that name instead; both work.) **`--share` matters:** with it the script prints only the block that starts with `----- AIAC STATUS (safe to share) -----` and ends with `----- END -----`, so nothing else about your machine enters the conversation with Claude. That block contains check names and `DONE` / `NOT DONE` / `SKIPPED (optional)` plus a verdict line, nothing personal, and it is the only thing you share. The first `NOT DONE` is where you pick up.
+
+Want the full report, with the details behind each line? Run it **yourself in a terminal window** (Git Bash on Windows), not through Claude: `bash ~/Downloads/aiac-status-check.sh.txt`. Those details are for your eyes only; never paste them to Claude or anyone else, and never share output from `--details`. If Claude Code isn't working yet, run that same command in your terminal and copy only the block between the two `-----` lines.
 
 ---
 

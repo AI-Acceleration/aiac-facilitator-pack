@@ -145,10 +145,10 @@ The participant must arrive with **one concrete project**: an input they can bri
 
 `tools/aiac-status-check.sh` is a read-only script (it installs, changes and sends nothing) that reports how far a setup got. Use it when a pre-flight line is unclear or a participant is stuck between sessions.
 
-- Tell them to run **the exact filename they received**, for example `bash ~/Downloads/aiac-status-check.sh.txt` (Claude can run it for them; Doc 01 has the prompt).
+- Tell them to run **the exact filename they received**, for example `bash ~/Downloads/aiac-status-check.sh.txt`. If Claude runs it for them, it runs `bash ~/Downloads/aiac-status-check.sh.txt --share` (Doc 01 has the prompt): `--share` prints only the safe-to-share block, so the details never enter Claude's context. The full report is for the participant to run in their own terminal.
 - Ask them to share **only** the block between `----- AIAC STATUS (safe to share) -----` and `----- END -----`. It holds check names, `DONE` / `NOT DONE` / `SKIPPED (optional)`, the OS and an overall verdict. **Never ask for the details above it**, and never ask for `--details` output: that part is for the participant's own eyes.
 - The first `NOT DONE` is the resume point. `SKIPPED (optional)` is not homework. Before the session, a complete setup reads `VERDICT: PRE-SESSION - homework complete, ready for the session`; after it, `VERDICT: PHASE 0 SETUP COMPLETE - …`. The script reports only what it can see on the machine — for example "GitHub CLI credentials present", "Obsidian config found in this folder", "repo origin points at GitHub" — and its "NOT CHECKED HERE" list names what it cannot prove: that the `gh` credentials still work (`gh auth status`), that Obsidian has this exact folder open, and that the repo exists on GitHub, is Private and holds the commit. You verify those yourself: the folder on their shared screen, and the repo server-side (Gate 6).
-- If the participant has already set up the 02-S sandbox, they run it in a plain terminal rather than inside Claude Code, where sandboxed commands can't see `~/.claude`.
+- If the participant has already set up the 02-S sandbox, they run it in a plain terminal rather than inside Claude Code: sandboxed commands can read only the vault, `~/.claude` (minus its login file) and the one repo named in 02-S, so the script in `~/Downloads` and several of the files it checks (the `gh` sign-in, installed apps) are out of their reach.
 
 ### 8. Recording: optional, with consent
 

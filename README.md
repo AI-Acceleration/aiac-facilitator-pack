@@ -73,6 +73,8 @@ has the full send list.
   The participant runs the exact filename they received, for example
   `bash ~/Downloads/aiac-status-check.sh.txt`, and shares only the block
   between `----- AIAC STATUS (safe to share) -----` and `----- END -----`.
+  When Claude runs it for them, it adds `--share`, which prints only that
+  block, so the details never reach Claude's context.
 
 ## Contributing
 
