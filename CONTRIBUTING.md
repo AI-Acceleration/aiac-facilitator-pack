@@ -184,6 +184,8 @@ git's own error text: logs are public. Findings name files as
 (the local output shows the same `path#<8 hex>` next to each name).
 
 The `tests` check runs your PR's own unit tests with a read-only token.
+It requires `jq` and fails if any test is skipped, so a test that skips
+itself locally (for example without `jq`) cannot pass CI unrun.
 
 ## Changing the gate itself
 

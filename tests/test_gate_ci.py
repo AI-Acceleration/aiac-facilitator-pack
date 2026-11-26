@@ -11,7 +11,9 @@ import re
 import shlex
 import shutil
 import subprocess
+import sys
 import tempfile
+import textwrap
 import unittest
 from pathlib import Path
 
@@ -77,6 +79,11 @@ def unguarded_git_calls(text):
             bad.append(stmt.strip())
     return bad
 
+
+def tests_runner(workflow_text):
+    """The inline Python that tests.yml runs the suite with."""
+    m = re.search(r"python3 - <<'EOF'\n(.*?)\n[ \t]*EOF(?:\n|$)", workflow_text, re.S)
+    return textwrap.dedent(m.group(1)) + "\n" if m else None
 
 
 # What a failing git might print: a private name and forged log commands.
@@ -447,8 +454,41 @@ class TestWorkflows(unittest.TestCase):
         self.assertEqual(unguarded_git_calls(
             "# git fetch in a comment\nuses: .githooks/x ${{ github.sha }}\n"), [])
 
-    def test_tests_workflow_runs_the_suite(self):
-        self.assertIn("python3 -m unittest discover -s tests", self.tests)
+    def test_tests_workflow_requires_jq_before_the_suite(self):
+        # Many status-check tests skip themselves without jq; CI must not go
+        # green with them skipped.
+        code = self.code(self.tests)
+        guard = code.find('command -v jq >/dev/null || '
+                          '{ echo "jq is required for the tests"; exit 1; }')
+        suite = code.find("unittest")
+        self.assertNotEqual(guard, -1, "tests.yml has no jq guard")
+        self.assertNotEqual(suite, -1, "tests.yml does not run the suite")
+        self.assertLess(guard, suite, "the jq guard must run before the tests")
+
+    def test_tests_workflow_runs_the_suite_and_fails_on_skips(self):
+        # Run the workflow's own runner against tiny suites.
+        runner = tests_runner(self.code(self.tests))
+        self.assertIsNotNone(runner, "tests.yml has no inline unittest runner")
+        cases = {
+            "passes": ("def test_x(self): pass", 0),
+            "fails": ("def test_x(self): self.fail('no')", 1),
+            "skips": ("@unittest.skip('jq required')\n    def test_x(self): pass", 1),
+        }
+        for name, (body, want) in cases.items():
+            with self.subTest(case=name):
+                tmp = Path(tempfile.mkdtemp(prefix="gaterunner-"))
+                self.addCleanup(shutil.rmtree, tmp, True)
+                (tmp / "tests").mkdir()
+                (tmp / "tests" / "__init__.py").write_text("", encoding="utf-8")
+                (tmp / "tests" / "test_one.py").write_text(
+                    "import unittest\n\nclass T(unittest.TestCase):\n"
+                    "    %s\n" % body, encoding="utf-8")
+                r = subprocess.run([sys.executable, "-"], input=runner,
+                                   cwd=str(tmp), capture_output=True, text=True)
+                self.assertEqual(r.returncode, want, r.stdout + r.stderr)
+                self.assertIn("test_x", r.stderr)  # verbose: each test named
+                if name == "skips":
+                    self.assertIn("skipped", r.stdout + r.stderr)
 
 
 if __name__ == "__main__":
