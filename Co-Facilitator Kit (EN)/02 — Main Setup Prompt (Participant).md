@@ -319,12 +319,12 @@ Confirm the file was created. Then move to Step 3.
 
 Now set up the global Claude Code settings. These live in `~/.claude/settings.json` (outside the vault — this is the one exception because Claude Code requires it there).
 
-**First, back up what already exists** (on a brand-new machine these commands do nothing, which is fine):
+**First, back up what already exists** (on a brand-new machine these commands do nothing, which is fine; if a backup is already there from an earlier run, it is kept, never overwritten):
 
 ```bash
 mkdir -p ~/.claude
-cp -a ~/.claude/settings.json ~/.claude/settings.json.bak 2>/dev/null
-cp -a ~/.claude/CLAUDE.md ~/.claude/CLAUDE.md.bak 2>/dev/null
+[ -e ~/.claude/settings.json.bak ] || cp -a ~/.claude/settings.json ~/.claude/settings.json.bak 2>/dev/null
+[ -e ~/.claude/CLAUDE.md.bak ] || cp -a ~/.claude/CLAUDE.md ~/.claude/CLAUDE.md.bak 2>/dev/null
 ```
 
 **Then merge — never overwrite, and never display what is already there.** `~/.claude/settings.json`
@@ -368,6 +368,12 @@ The kit's block:
       "Bash(head *)",
       "Bash(tail *)",
       "Bash(grep *)",
+      "Bash(diff *)",
+      "Bash(sed *)",
+      "Bash(sort *)",
+      "Bash(git show *)",
+      "Bash(git -C *)",
+      "Bash(git -c *)",
       "Bash(git add *)",
       "Bash(git commit *)",
       "Bash(git push *)",
@@ -417,18 +423,26 @@ TARGET = os.path.expanduser("~/.claude/settings.json")
 DEEP = ("permissions", "hooks", "env")  # top-level objects merged key by key
 
 
+def stop(message):
+    sys.exit("STOP: " + message + " Nothing was changed.")
+
+
 def merge(dst, new, path, added, kept):
     for key, val in new.items():
         name = ".".join(path + [key])
+        deep = isinstance(val, dict) and (path or key in DEEP)
         if key not in dst:
             dst[key] = val
             added.append(name)
-        elif isinstance(val, list) and isinstance(dst[key], list):
+        elif (isinstance(val, list) or deep) and type(dst[key]) is not type(val):
+            stop(name + " in your settings is not a JSON " +
+                 ("list" if isinstance(val, list) else "object") + ", so the kit entries can't be added.")
+        elif isinstance(val, list):
             for item in val:
                 if item not in dst[key]:
                     dst[key].append(item)
                     added.append(name + ": " + (item if isinstance(item, str) else "1 entry"))
-        elif isinstance(val, dict) and isinstance(dst[key], dict) and (path or key in DEEP):
+        elif deep:
             merge(dst[key], val, path + [key], added, kept)
         elif dst[key] != val:
             kept.append(name)
@@ -464,44 +478,54 @@ def main():
     while len(args) >= 2 and args[0] == "--replace":
         to_replace.append(args[1])
         args = args[2:]
-    if args and args[0] != "-":
-        with open(args[0], encoding="utf-8") as f:
-            block = json.load(f)
-    else:
-        block = json.load(sys.stdin)
+    try:
+        if args and args[0] != "-":
+            with open(args[0], encoding="utf-8") as f:
+                block = json.load(f)
+        else:
+            block = json.load(sys.stdin)
+    except (OSError, ValueError):
+        stop("the kit block could not be read as JSON (check it was copied whole).")
     if not isinstance(block, dict):
-        sys.exit("STOP: the kit block is not a JSON object. Nothing was changed.")
+        stop("the kit block is not a JSON object.")
+    # Write through a symlinked settings.json to the file it points at.
+    real = os.path.realpath(TARGET)
     current = {}
-    if os.path.exists(TARGET):
+    if os.path.exists(real):
         try:
-            with open(TARGET, encoding="utf-8") as f:
+            with open(real, encoding="utf-8") as f:
                 current = json.load(f)
         except ValueError:
-            sys.exit("STOP: ~/.claude/settings.json is not valid JSON. Nothing was changed.")
+            stop("~/.claude/settings.json is not valid JSON.")
         if not isinstance(current, dict):
-            sys.exit("STOP: ~/.claude/settings.json is not a JSON object. Nothing was changed.")
+            stop("~/.claude/settings.json is not a JSON object.")
     added, kept = [], []
     for dotted in to_replace:
         try:
             replace(current, block, dotted)
         except (KeyError, TypeError):
-            sys.exit("STOP: " + dotted + " is not in the kit block. Nothing was changed.")
+            stop(dotted + " is not in the kit block.")
         added.append(dotted + " (replaced, as you asked)")
     merge(current, block, [], added, kept)
     kept = [k for k in kept if not any(r.startswith(k + ".") for r in to_replace)]
-    if added:
-        tmp = TARGET + ".aiac-tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
+    if added or not os.path.exists(real):
+        os.makedirs(os.path.dirname(real), exist_ok=True)
+        tmp = real + ".aiac-tmp"
+        if os.path.lexists(tmp):
+            os.unlink(tmp)
+        # Created private (0600) from the start, never briefly readable by others.
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(current, f, indent=2, ensure_ascii=False)
             f.write("\n")
-        if os.path.exists(TARGET):
-            shutil.copymode(TARGET, tmp)
-        os.replace(tmp, TARGET)
+        if os.path.exists(real):
+            shutil.copymode(real, tmp)
+        os.replace(tmp, real)
     for name in added:
         print("added: " + name)
     for name in kept:
         print("kept your existing value (not shown): " + name)
-    with open(TARGET, encoding="utf-8") as f:
+    with open(real, encoding="utf-8") as f:
         gaps = missing(json.load(f), block, [], kept)
     if gaps:
         sys.exit("STOP: still missing after the merge: " + ", ".join(gaps))
@@ -515,18 +539,22 @@ main()
 > ([Claude Code permissions](https://code.claude.com/docs/en/permissions)): Claude's file tools (Read,
 > Glob, Grep) work inside the folder you launched it from — your vault — without a prompt and ask before
 > reading anywhere else; and a built-in set of read-only shell commands — `ls`, `cat`, `head`, `tail`,
-> `grep`, `find`, `wc` and read-only `git` among them — runs **without a prompt, anywhere on your disk**.
+> `grep`, `find`, `wc`, `diff`, `stat` and read-only `git` among them — runs **without a prompt, anywhere
+> on your disk**.
 > That set can't be switched off; the documented way to get a prompt for one of them is an `ask` (or
 > `deny`) rule. So:
 >
 > - **`allow` holds only read-only commands:** five exact git commands (`git status`,
 >   `git status --short`, `git diff`, `git log --oneline`, `git remote -v`) plus `ls` and `wc`. Nothing
 >   in it writes, publishes or runs a program — not even `mkdir`: creating a folder asks each time.
-> - **`ask` turns the promised confirmations into rules.** `cat`, `head`, `tail` and `grep` print file
->   contents, so they ask every time (inside the vault Claude reads with its Read tool, which needs no
->   prompt there). `git add`, `git commit`, `git push` and `gh repo create` ask every time too. An `ask`
->   rule wins over any `allow` rule — including one saved by answering "Yes, and don't ask again" — and
->   it still asks in auto mode.
+> - **`ask` turns the promised confirmations into rules.** `cat`, `head`, `tail`, `grep`, `diff`, `sed`,
+>   `sort` and `git show` can print a file's contents, so they ask every time (inside the vault Claude
+>   reads with its Read tool, which needs no prompt there). `git add`, `git commit`, `git push` and
+>   `gh repo create` ask every time too, and so does any git command written as `git -C <folder> …` or
+>   `git -c <setting> …` — forms that would otherwise slip past the `git push` rule. An `ask` rule wins
+>   over any `allow` rule — including one saved by answering "Yes, and don't ask again" — and it still
+>   asks in auto mode. That is also why there is no `ask` rule for all of `git log` or `git diff`: it
+>   would make the allowed `git log --oneline` and `git diff` ask too.
 > - **Left out on purpose:**
 >   - **Any git wildcard in `allow`.** Options such as `--output`, `--ext-diff` or `--template` can
 >     write files, run programs or plant git hooks, and a `git diff *` allow rule would approve them
@@ -540,11 +568,13 @@ main()
 >     in the folder you launched it from. Glob and Grep already search the vault without a prompt.
 >
 > **What this does and doesn't give you:** your vault is Claude's working folder. Claude's file tools
-> ask before reading or writing outside it, and the `ask` rules cover the commands that print files or
-> publish. But other read-only commands such as `ls`, `find` and `wc` can still list file names and
-> count lines outside the vault without asking, and a script you approve can open any file. These rules
-> match the command as Claude writes it: they are prompts, not a wall. If you want a hard, verifiable
-> boundary, that is Doc 02-S (the opt-in sandbox).
+> ask before reading or writing outside it, and the `ask` rules cover the usual commands that print
+> files or publish. They can't cover everything: the built-in read-only set is longer than this list and
+> can't be switched off, so some read-only commands still run without asking anywhere on your disk —
+> `ls`, `find`, `stat` and `wc` list names, sizes and line counts, and read-only `git` forms such as
+> `git log -p` (or `git diff` with extra options) can print file contents. A script you approve can open
+> any file. These rules match the command as Claude writes it: they are prompts, not a wall. If you want
+> a hard, verifiable boundary, that is Doc 02-S (the opt-in sandbox).
 
 **What this does:**
 - **Permissions:** Pre-approves a few read-only, everyday commands so Claude doesn't ask every time, and makes the commands that print files, commit or publish ask every time. Everything else follows Claude Code's defaults. You can add more later, one rule at a time.
@@ -1201,12 +1231,15 @@ Confirm. Move to Step 12.
 
 ## STEP 12: FIRST COMMIT
 
-Go to the `<repo-name>` repo (in `~/dev` — see Step 6) and stage everything:
+Work in the `<repo-name>` repo (in `~/dev` — see Step 6). **Start every command in this step with
+`cd ~/dev/<repo-name> &&`, exactly as written below.** Claude Code moves its shell back to the vault
+after any command that ends outside it, so a `git commit` or `git push` on a line of its own would run
+in the wrong folder. Don't rewrite them as `git -C <path> …` either. (A `cd` followed by `git` asks for
+approval every time — git could run that folder's hooks — so expect a prompt for each block: read it,
+then approve.) Stage everything:
 
 ```bash
-cd ~/dev/<repo-name>
-git add -A
-git status --short
+cd ~/dev/<repo-name> && git add -A && git status --short
 ```
 
 **Show me the list of staged files and wait for my OK.** Point out anything that looks like it
@@ -1216,14 +1249,13 @@ first commit there is no `HEAD` yet, so `git restore --staged` doesn't work here
 (it only unstages; the file stays on disk), then show me the revised list:
 
 ```bash
-git rm --cached -- <file>
-git status --short
+cd ~/dev/<repo-name> && git rm --cached -- <file> && git status --short
 ```
 
 Only after I confirm the list, commit:
 
 ```bash
-git commit -m "Initial project setup: CLAUDE.md, folder structure, README, .gitignore"
+cd ~/dev/<repo-name> && git commit -m "Initial project setup: CLAUDE.md, folder structure, README, .gitignore"
 ```
 
 **Now put it on GitHub — as a Private repo under the right account.** Before creating anything,
@@ -1236,7 +1268,7 @@ confirm three things with me and wait for my "yes":
 **With `gh`** (the default path):
 
 ```bash
-gh repo create <owner>/<repo-name> --private --source . --remote origin
+cd ~/dev/<repo-name> && gh repo create <owner>/<repo-name> --private --source . --remote origin
 ```
 
 **If it prints any error, STOP.** The name may be taken, an `origin` may already exist, or the login
@@ -1249,7 +1281,7 @@ unticked. When I've created it, have me confirm the repo page shows the **Privat
 it:
 
 ```bash
-git remote add origin https://github.com/<owner>/<repo-name>.git
+cd ~/dev/<repo-name> && git remote add origin https://github.com/<owner>/<repo-name>.git
 ```
 
 If it prints any error (for example `remote origin already exists`), **STOP** the same way: don't push,
@@ -1258,8 +1290,7 @@ don't change the remote, show me the error.
 **Before pushing, check where the push would really go — both paths, DO NOT SKIP:**
 
 ```bash
-git remote get-url --push --all origin
-git log --oneline
+cd ~/dev/<repo-name> && git remote get-url --push --all origin && git log --oneline
 ```
 
 1. **Destination.** The first command prints the address git will actually push to, after any rewrite
@@ -1275,11 +1306,12 @@ git log --oneline
    `git log --oneline` lists every commit that will go up, and it must show only the commit we made
    today. Anything I don't recognize means **STOP**.
 
-Show me all three results and wait for my "yes". Only then push (it asks for my approval every time —
-the `ask` rule from Step 3 makes sure of that):
+Show me all three results and wait for my "yes". Only then push. It asks for my approval every time: the
+`ask` rule from Step 3 matches `git push` written exactly like this (and the `git -C` / `git -c`
+forms), which is one more reason not to rewrite the command:
 
 ```bash
-git push -u origin main
+cd ~/dev/<repo-name> && git push -u origin main
 ```
 
 **If the push asks for credentials or fails auth:** with `gh`, run `gh auth setup-git` and push again.
@@ -1290,8 +1322,7 @@ show me the error so I can share it with my facilitator.
 **Then verify the push really arrived** — ask GitHub, don't assume:
 
 ```bash
-git rev-parse HEAD
-git ls-remote origin refs/heads/main
+cd ~/dev/<repo-name> && git rev-parse HEAD && git ls-remote origin refs/heads/main
 ```
 
 Both must show the same commit ID: the second one comes from GitHub itself. With `gh`,

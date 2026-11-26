@@ -82,12 +82,14 @@ DOC02_ALLOW = ["Bash(git status)", "Bash(git status --short)", "Bash(git diff)",
                "Bash(git log --oneline)", "Bash(git remote -v)",
                "Bash(ls *)", "Bash(wc *)"]
 DOC02_ASK = ["Bash(cat *)", "Bash(head *)", "Bash(tail *)", "Bash(grep *)",
+             "Bash(diff *)", "Bash(sed *)", "Bash(sort *)", "Bash(git show *)",
+             "Bash(git -C *)", "Bash(git -c *)",
              "Bash(git add *)", "Bash(git commit *)", "Bash(git push *)",
              "Bash(gh repo create *)"]
 # 02-S Part 3b canonical deny list, spelled exactly as the doc writes it.
 DOC02S_DENY = ["Read(~/.ssh/**)", "Read(~/.aws/**)", "Read(~/.gnupg/**)",
                "Read(~/.config/gh/**)", "Read(~/Library/Keychains/**)",
-               "Read(~/**/.env)", "Read(~/**/*.pem)", "Read(~/**/*.key)"]
+               "Read(~/.claude/.credentials.json)", "Read(~/**/.env)", "Read(~/**/*.pem)", "Read(~/**/*.key)"]
 FIXED_LINES = re.compile(
     r"^(Status check: v\d+(\.\d+)*"
     r"|OS: (macOS|Windows|Windows \(WSL\)|Linux|unsupported)"
@@ -392,13 +394,13 @@ class TestPrivacy(StatusCheckCase):
         output = self.run_script()
         self.assertEqual(statuses(output)["Doc 02 - no blanket approvals in settings"],
                          "NOT DONE")
-        self.assertIn("7 broad rule(s) found", output)
+        self.assertIn("7 broad rule(s) in 1 settings file(s)", output)
         self.assertNotIn("Bash(git *)", output)
         details = self.run_script("--details")
-        # Even --details names a fixed category, never the rule text.
-        self.assertIn("broad rule (5): a git rule with a wildcard", details)
-        self.assertIn("broad rule (1): a cat / head wildcard", details)
-        self.assertIn("broad rule (1): an interpreter rule", details)
+        # Even --details names a fixed file label and category, never the rule text.
+        self.assertIn("broad rule (5): global settings.json: a git rule with a wildcard", details)
+        self.assertIn("broad rule (1): global settings.json: a command rule with a wildcard", details)
+        self.assertIn("broad rule (1): global settings.json: an interpreter or shell rule", details)
         self.assertNotIn("Bash(git *)", details)
         self.assertNotIn("Bash(python3 *)", details)
 
@@ -475,7 +477,9 @@ class TestNoLeaksInDefaultOutput(StatusCheckCase):
                 self.assert_no_leaks(output, paths=not args)
                 self.assertRegex(output, r"Doc 01 - GitHub CLI \(gh\) installed +installed "
                                          r"\(version not read\)")
-                self.assertRegex(output, r"Doc 01 - Claude Code installed +version 9\.9\.9")
+                # claude and gh are never run (either can write files on first run).
+                self.assertRegex(output, r"Doc 01 - Claude Code installed +installed "
+                                         r"\(version not read\)")
                 self.assertRegex(output, r"Doc 01 - Python 3 installed +version 3\.12\.0")
                 self.assertRegex(output, r"Chip / architecture +other")
 
@@ -836,7 +840,8 @@ class TestSandboxLines(StatusCheckCase):
         self.assertEqual(SANDBOX_NAMES & set(statuses(self.run_script())), SANDBOX_NAMES)
 
     def write_sandbox(self, **filesystem):
-        fs = {"denyRead": ["~/"], "allowRead": [".", "~/.claude"], "allowWrite": []}
+        fs = {"denyRead": ["~/", "~/.claude/.credentials.json"],
+              "allowRead": [".", "~/.claude"], "allowWrite": []}
         fs.update(filesystem)
         write(self.vault / ".claude" / "settings.json", json.dumps({"sandbox": {
             "enabled": True, "failIfUnavailable": True, "allowUnsandboxedCommands": False,
@@ -862,6 +867,7 @@ class TestSandboxLines(StatusCheckCase):
     @unittest.skipUnless(JQ, "jq required")
     def test_broad_or_weak_sandbox_configs_are_not_done(self):
         for fs in ({"denyRead": ["~/.ssh/**"]},
+                   {"denyRead": ["~/"]},  # the login file inside ~/.claude stays readable
                    {"allowRead": [".", "~/.claude", "~"]},
                    {"allowRead": [".", "~/.claude", "~/dev"]},
                    {"allowRead": [".", "~/.claude", "~/Documents/**"]},
@@ -914,7 +920,8 @@ class TestSandboxLines(StatusCheckCase):
         # Each canonical rule missing on its own must fail hardening, and the
         # detail line names the missing entry with a fixed label.
         labels = ["~/.ssh", "~/.aws", "~/.gnupg", "~/.config/gh",
-                  "~/Library/Keychains", ".env files", "*.pem files", "*.key files"]
+                  "~/Library/Keychains", "~/.claude/.credentials.json",
+                  ".env files", "*.pem files", "*.key files"]
         for rule, label in zip(DOC02S_DENY, labels):
             with self.subTest(missing=rule):
                 settings = self.part_3b_settings()
@@ -968,6 +975,118 @@ class TestReadOnly(StatusCheckCase):
         self.assertEqual(self.snapshot(), before)
         self.assertEqual(list(self.tmpdir.iterdir()), [])
 
+    def test_gh_and_claude_are_never_run(self):
+        # gh can create ~/.config/gh/config.yml on its first run, and claude can
+        # write its own state. Stubs that WOULD write prove neither is executed.
+        vault = self.make_vault(self.home / "AIAC-Vault", full=True)
+        self.write_router(vault)
+        self.write_settings()
+        marker_gh = self.home / ".config" / "gh" / "config.yml"
+        marker_claude = self.home / ".claude.json"
+        self.stub("gh", 'mkdir -p "$HOME/.config/gh" && echo x > "$HOME/.config/gh/config.yml"; '
+                        'echo "gh version 9.9.9"')
+        self.stub("claude", 'echo x > "$HOME/.claude.json"; echo "9.9.9 (Claude Code)"')
+        before = self.snapshot()
+        for args in ((), ("--details",), ("--sandbox",)):
+            output = self.run_script(*args)
+            self.assertRegex(output, r"Doc 01 - GitHub CLI \(gh\) installed +installed")
+        self.assertFalse(marker_gh.exists())
+        self.assertFalse(marker_claude.exists())
+        self.assertEqual(self.snapshot(), before)
+
+    def test_claude_and_gh_versions_come_from_the_install_path(self):
+        versions = self.base / "share" / "claude" / "versions"
+        write(versions / "2.1.300", "#!/bin/sh\necho x > \"$HOME/ran\"\n", 0o755)
+        (self.bin / "claude").symlink_to(versions / "2.1.300")
+        cellar = self.base / "Cellar" / "gh" / "2.63.0" / "bin"
+        write(cellar / "gh", "#!/bin/sh\necho x > \"$HOME/ran\"\n", 0o755)
+        (self.bin / "gh").symlink_to(cellar / "gh")
+        output = self.run_script()
+        self.assertRegex(output, r"Doc 01 - Claude Code installed +version 2\.1\.300")
+        self.assertRegex(output, r"Doc 01 - GitHub CLI \(gh\) installed +version 2\.63\.0")
+        self.assertFalse((self.home / "ran").exists())
+
+
+@unittest.skipUnless(BASH and shutil.which("git") and JQ, "bash, git and jq required")
+class TestBroadRules(StatusCheckCase):
+    """"No blanket approvals" means what it says, in every settings file."""
+
+    LABEL = "Doc 02 - no blanket approvals in settings"
+
+    def setUp(self):
+        super().setUp()
+        self.vault = self.complete_setup()
+        self.repo = self.home / "dev" / "client-zeta-secret"
+        self.gs = self.home / ".claude" / "settings.json"
+        self.base_settings = json.loads(self.gs.read_text())
+
+    def status(self):
+        return statuses(self.run_script())[self.LABEL]
+
+    def with_global(self, allow=(), **perms):
+        settings = json.loads(json.dumps(self.base_settings))
+        settings["permissions"]["allow"] = DOC02_ALLOW + list(allow)
+        settings["permissions"].update(perms)
+        write(self.gs, json.dumps(settings))
+
+    def test_complete_setup_is_done(self):
+        self.assertEqual(self.status(), "DONE")
+
+    def test_broad_allow_rules_and_modes_in_global_settings_are_not_done(self):
+        for rule in ("Bash(rm *)", "Bash(sudo *)", "Bash(curl *)", "Bash(gh *)",
+                     "Edit(~/**)", "Write(*)", "Read(~/Documents/**)",
+                     "Bash(/usr/bin/python3 *)", "Bash(/usr/bin/python3 tool.py)",
+                     "Bash(uv run *)", "Bash(osascript *)", "Bash(npm:*)",
+                     "PowerShell(Remove-Item *)", "WebFetch", "Bash", "Edit",
+                     "WebFetch(domain:*)", "mcp__server__*"):
+            with self.subTest(allow=rule):
+                self.with_global([rule])
+                self.assertEqual(self.status(), "NOT DONE")
+        for mode in ("auto", "acceptEdits", "dontAsk", "bypassPermissions"):
+            with self.subTest(defaultMode=mode):
+                self.with_global(defaultMode=mode)
+                self.assertEqual(self.status(), "NOT DONE")
+
+    def test_exact_and_scoped_rules_are_fine(self):
+        self.with_global(["Bash(npm test)", "mcp__claude_ai_Granola__get_meetings",
+                          "WebFetch(domain:example.com)", "WebSearch"], defaultMode="plan")
+        self.assertEqual(self.status(), "DONE")
+
+    def test_saved_approvals_in_vault_and_repo_files_count(self):
+        cases = [
+            (self.vault / ".claude" / "settings.local.json",
+             {"permissions": {"allow": ["Bash"], "defaultMode": "bypassPermissions"}}),
+            (self.vault / ".claude" / "settings.json",
+             {"permissions": {"allow": ["Bash(git push *)"]}}),
+            (self.repo / ".claude" / "settings.local.json",
+             {"permissions": {"allow": ["Bash(python3 *)"]}}),
+            (self.repo / ".claude" / "settings.json",
+             {"permissions": {"additionalDirectories": ["~/"]}}),
+            (self.home / ".claude" / "settings.local.json",
+             {"permissions": {"allow": ["Bash(rm *)"]}}),
+        ]
+        for path, data in cases:
+            with self.subTest(path=str(path.relative_to(self.home))):
+                write(path, json.dumps(data))
+                output = self.run_script()
+                self.assertEqual(statuses(output)[self.LABEL], "NOT DONE")
+                self.assertNotIn(str(self.home), output)
+                path.unlink()
+        self.assertEqual(self.status(), "DONE")
+
+    def test_details_name_the_file_by_a_fixed_label_only(self):
+        write(self.vault / ".claude" / "settings.local.json",
+              json.dumps({"permissions": {"allow": ["Bash(acme-hidden-tool *)"]}}))
+        details = self.run_script("--details")
+        self.assertIn("broad rule (1): vault .claude/settings.local.json: "
+                      "a command rule with a wildcard", details)
+        self.assertNotIn("acme-hidden", details)
+
+    def test_malformed_local_settings_file_is_not_done(self):
+        write(self.vault / ".claude" / "settings.local.json", '{"permissions": {"allow": [')
+        output = self.run_script()
+        self.assertEqual(statuses(output)[self.LABEL], "NOT DONE")
+        self.assertIn("1 settings file(s) could not be read", output)
 
 @unittest.skipUnless(BASH and shutil.which("git"), "bash and git required")
 class TestPlatforms(StatusCheckCase):

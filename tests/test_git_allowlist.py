@@ -16,7 +16,8 @@ REMOTE_ALLOWED = ("git remote -v",)
 # The setup docs' "ask" rules. A wildcard in an ask rule only adds prompts, so
 # these exact literals are exempt from the text scan; the JSON check below makes
 # sure none of them ever lands in an allow list.
-ASK_RULES = ("Bash(git add *)", "Bash(git commit *)", "Bash(git push *)")
+ASK_RULES = ("Bash(git show *)", "Bash(git -C *)", "Bash(git -c *)",
+             "Bash(git add *)", "Bash(git commit *)", "Bash(git push *)")
 JSON_BLOCK = re.compile(r"^```json\n(.*?)\n```$", re.DOTALL | re.MULTILINE)
 
 
