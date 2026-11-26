@@ -12,14 +12,19 @@ Modes:
               reported UNSCANNABLE). In CI the index equals the checkout.
               Locally, unstaged edits are not read: stage them first.
   --history   every object reachable from every ref, including commit and tag
-              headers and messages (raw and, if re-encoded, decoded). A GitHub
-              no-reply address is accepted only as the identity in an author,
-              committer or tagger header, or (users' no-reply forms only) on an
-              exact `Co-authored-by: Name <address>` line of a commit message.
+              headers and messages (raw and, if re-encoded, decoded).
               Historical submodule entries are reported UNSCANNABLE, as in
               --tree.
   --ci        with any mode: CI output, see below. Also on when the
               GITHUB_ACTIONS or CI environment variable is set.
+
+Where an address may appear at all (see attributed()): a GitHub no-reply
+address, or an entry of .githooks/allow-patterns.txt, only as the identity in
+an author, committer or tagger header, or (GitHub users' no-reply forms and
+allow-patterns.txt entries) on a `Co-authored-by: Name <address>` line of a
+commit message's FINAL trailer block: its last paragraph, not the subject,
+every line `Key: value`. Anywhere else -- file contents, file names, tag
+messages, the body of a commit message -- every such address fails.
 
 Findings never print an address: addresses are shown as `address#<8 hex>`
 (prefix of the deny-list hash). CI logs are public and a file or ref NAME is
@@ -88,10 +93,10 @@ COMMIT_MSG_PATH = "<commit message>"
 # Settings > Emails > "Keep my email addresses private"). The third form is
 # the committer GitHub stamps on web-UI merges. They route to no one, so any
 # contributor may commit with one. Allowed ONLY as the identity in a commit or
-# tag header (see github_identity) or, users' forms only, on an exact
-# Co-authored-by trailer line (see github_coauthor); written anywhere else
-# they are ordinary addresses. A login is 1-39 letters, digits and hyphens,
-# never starting with a hyphen.
+# tag header (see in_identity_header) or, users' forms only, on a
+# Co-authored-by line of the final trailer block (see in_coauthor_trailer);
+# written anywhere else they are ordinary addresses. A login is 1-39 letters,
+# digits and hyphens, never starting with a hyphen.
 GITHUB_USER_NOREPLY_RE = re.compile(
     r"(?:\d+\+)?[A-Za-z0-9][A-Za-z0-9-]{0,38}@users\.noreply\.github\.com",
     re.IGNORECASE)
@@ -99,10 +104,24 @@ GITHUB_NOREPLY_RE = re.compile(
     GITHUB_USER_NOREPLY_RE.pattern + r"|noreply@github\.com", re.IGNORECASE)
 IDENTITY_HEADERS = ("author ", "committer ", "tagger ")
 # The one trailer form in which a co-author's no-reply address may appear in a
-# commit message: the whole line, `Co-authored-by: Name <address>`.
+# commit message: the whole line, `Co-authored-by: Name <address>`, inside
+# the message's final trailer block (see final_trailer_block).
 COAUTHOR_LINE_RE = re.compile(
     r"co-authored-by:[ \t]+[^<>\n]*[^<>\s][ \t]+<([^<>\s]+)>[ \t]*\r?",
     re.IGNORECASE)
+# A Git trailer line, `Key: value`: a token of letters, digits and hyphens,
+# a colon, whitespace, then a value. Stricter than `git interpret-trailers`
+# (no continuation lines, no other separators, no "mostly trailers" block):
+# a block that is not unambiguously trailers is not a trailer block.
+TRAILER_LINE_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]*:[ \t]+\S[^\n]*")
+# How scan_blob locates a commit message's final trailer block:
+TRAILERS_MESSAGE = "message"  # a commit message as stored in history
+TRAILERS_HOOK = "hook"        # the file the commit-msg hook receives, which
+#                               may still hold git's comment template
+TRAILERS_OBJECT = "object"    # a whole commit (headers, blank line, message)
+# `git commit --verbose` puts the diff after this line; git drops it and
+# everything below before committing.
+SCISSORS_LINE = "# ------------------------ >8 ------------------------"
 
 
 # Set by main(): True when output goes to a public CI log (see path_label).
@@ -347,14 +366,10 @@ def address_matches(text):
             yield match
 
 
-def github_identity(variant, m):
-    """True for a GitHub-issued no-reply address used as an identity: inside
-    the <...> of an author, committer or tagger header line, before the first
-    blank line of a commit or tag object. Any contributor's own no-reply
-    address passes there; the same address anywhere else (a message, a file)
-    is still UNALLOWLISTED."""
-    if not GITHUB_NOREPLY_RE.fullmatch(m.group(0)):
-        return False
+def in_identity_header(variant, m):
+    """True when the address match is the whole <...> of an author, committer
+    or tagger header line, before the first blank line of a commit or tag
+    object. Only the CALLER decides which addresses may pass there."""
     start, end = m.span()
     if (start == 0 or end >= len(variant) or variant[start - 1] != "<" or
             variant[end] != ">"):
@@ -366,14 +381,59 @@ def github_identity(variant, m):
     return variant.startswith(IDENTITY_HEADERS, line_start)
 
 
-def github_coauthor(variant, m):
-    """True for a GitHub user no-reply address that is the address of an
-    exact `Co-authored-by: Name <address>` line (the trailer GitHub itself
-    writes). The address must be the whole <...> of that line; the same
-    address in prose, in another trailer or in a file is still UNALLOWLISTED."""
-    if not GITHUB_USER_NOREPLY_RE.fullmatch(m.group(0)):
+def final_trailer_block(text, mode):
+    """(start, end) offsets of a commit message's final Git trailer block, or
+    None. The block is the last paragraph (lines after the last blank line),
+    never the first paragraph (the subject), and EVERY line in it must be a
+    `Key: value` trailer (TRAILER_LINE_RE). mode TRAILERS_OBJECT skips the
+    object's header paragraph first. mode TRAILERS_HOOK first drops what git
+    drops before committing an edited message: everything from the scissors
+    line on, and the trailing run of `#` comment lines (the template)."""
+    pos = 0
+    if mode == TRAILERS_OBJECT:
+        cut = text.find("\n\n")
+        if cut == -1:
+            return None
+        pos = cut + 2
+    lines = []  # (start, end, text without CR) of each line, in order
+    while True:
+        nl = text.find("\n", pos)
+        end = len(text) if nl == -1 else nl
+        line = text[pos:end].rstrip("\r")
+        if mode == TRAILERS_HOOK and line == SCISSORS_LINE:
+            break
+        lines.append((pos, end, line))
+        if nl == -1:
+            break
+        pos = nl + 1
+
+    def trailing_noise(line):
+        return not line.strip() or (mode == TRAILERS_HOOK and
+                                    line.startswith("#"))
+    while lines and trailing_noise(lines[-1][2]):
+        lines.pop()
+    k = len(lines)
+    while k > 0 and lines[k - 1][2].strip():
+        k -= 1
+    block = lines[k:]
+    if not block or not any(l[2].strip() for l in lines[:k]):
+        return None  # no message, or only one paragraph: the subject
+    if not all(TRAILER_LINE_RE.fullmatch(l[2]) for l in block):
+        return None
+    return block[0][0], block[-1][1]
+
+
+def in_coauthor_trailer(variant, m, block):
+    """True when the address match is the whole <...> of a
+    `Co-authored-by: Name <address>` line inside the final trailer block
+    (block = final_trailer_block(...)). The same line in the body, in a
+    paragraph that holds anything but trailers, or in another trailer
+    (Signed-off-by, ...) does not count."""
+    if block is None:
         return False
     start, end = m.span()
+    if start < block[0] or end > block[1]:
+        return False
     line_start = variant.rfind("\n", 0, start) + 1
     line_end = variant.find("\n", end)
     if line_end == -1:
@@ -382,14 +442,32 @@ def github_coauthor(variant, m):
     return bool(line) and line.span(1) == (start, end)
 
 
+def attributed(variant, m, allow_l, identity_headers, block):
+    """The only places an address that is not on the deny list may appear:
+    - as the identity in a commit or tag header (identity_headers=True):
+      any GitHub no-reply address, or an allow-patterns.txt entry;
+    - on a Co-authored-by line of a commit message's final trailer block
+      (block is not None): a GitHub USER no-reply address (not GitHub's
+      web-merge service address), or an allow-patterns.txt entry.
+    allow-patterns.txt therefore never permits an address in file contents,
+    file names, a tag message or the body of a commit message."""
+    a = m.group(0)
+    listed = a.lower() in allow_l
+    if (identity_headers and (listed or GITHUB_NOREPLY_RE.fullmatch(a)) and
+            in_identity_header(variant, m)):
+        return True
+    return bool(block is not None and
+                (listed or GITHUB_USER_NOREPLY_RE.fullmatch(a)) and
+                in_coauthor_trailer(variant, m, block))
+
+
 def scan_blob(data, path, deny_hashes, allow, findings, identity_headers=False,
-              coauthor_trailers=False):
-    """Content scan. A deny-hash match is unconditional; the allowlist can
-    only suppress the generic UNALLOWLISTED rule, never a known address.
-    identity_headers=True (commit and tag objects only) also lets GitHub
-    no-reply identities through, see github_identity(). coauthor_trailers=True
-    (commit messages only) lets a user's no-reply address through on an exact
-    Co-authored-by line, see github_coauthor()."""
+              trailers=None):
+    """Content scan. A deny-hash match is unconditional. Any other address
+    fails as UNALLOWLISTED unless attributed() places it: identity_headers=True
+    (commit and tag objects) lets header identities through; trailers (commit
+    messages only: TRAILERS_MESSAGE, TRAILERS_HOOK or TRAILERS_OBJECT) lets
+    Co-authored-by lines of the final trailer block through."""
     deny_only = path in DENY_ONLY_CONTENT
     try:
         text = data.decode("utf-8")
@@ -402,12 +480,12 @@ def scan_blob(data, path, deny_hashes, allow, findings, identity_headers=False,
     seen = set()
     unescaped = html.unescape(text)
     for variant in (text, unescaped, deobfuscate(unescaped)):
+        block = final_trailer_block(variant, trailers) if trailers else None
         for m in address_matches(variant):
             a = m.group(0)
             known = h(a) in deny_hashes
-            if not known and (deny_only or a.lower() in allow_l or
-                              (identity_headers and github_identity(variant, m)) or
-                              (coauthor_trailers and github_coauthor(variant, m))):
+            if not known and (deny_only or attributed(variant, m, allow_l,
+                                                      identity_headers, block)):
                 continue
             line = variant.count("\n", 0, m.start()) + 1
             why = "KNOWN-PRIVATE" if known else "UNALLOWLISTED"
@@ -530,23 +608,27 @@ def metadata_object(sha, kind):
 def scan_metadata(sha, kind, headers, message, forms, problems,
                   deny_hashes, allow, findings):
     # Strict UTF-8 for raw bytes, even when a declared encoding is also read.
-    # Headers (and decoded whole objects, which start with them) may carry a
-    # GitHub no-reply identity; messages may not.
+    # Headers (and decoded whole objects, which start with them) may carry an
+    # identity; messages may not.
     scan_blob(headers, f"<{kind} header> {sha[:12]}", deny_hashes, allow, findings,
               identity_headers=True)
-    # Commit messages may carry a co-author's no-reply address on an exact
-    # Co-authored-by line; tag messages may not.
+    # Commit messages may carry a co-author on a Co-authored-by line of their
+    # final trailer block; tag messages may not.
     commit = kind == "commit"
     scan_blob(message, f"<{kind} message> {sha[:12]}", deny_hashes, allow, findings,
-              coauthor_trailers=commit)
+              trailers=TRAILERS_MESSAGE if commit else None)
     for label, problem in problems:
         findings.append((f"{label} {sha[:12]}", 0, problem))
     for label, form in forms:
         # Decoded whole objects and git's re-encoded view both hold the
-        # message after the headers, so the trailer rule applies to them too.
+        # message after the headers, so the trailer rule applies to them too,
+        # with the header paragraph skipped.
+        whole = label == f"<{kind} decoded>"
+        mode = None
+        if commit:
+            mode = TRAILERS_OBJECT if whole else TRAILERS_MESSAGE
         scan_blob(form, f"{label} {sha[:12]}", deny_hashes, allow, findings,
-                  identity_headers=(label == f"<{kind} decoded>"),
-                  coauthor_trailers=commit)
+                  identity_headers=whole, trailers=mode)
 
 
 def commit_objects(tips=()):
@@ -639,7 +721,7 @@ def main():
             die(f"commit message file not found: {msg_file}")
         scanned = 1
         scan_blob(msg_file.read_bytes(), COMMIT_MSG_PATH, deny_hashes, allow, findings,
-                  coauthor_trailers=True)
+                  trailers=TRAILERS_HOOK)
     elif history:
         refs = list(ref_objects())
         tag_targets, commit_tips = {}, set()

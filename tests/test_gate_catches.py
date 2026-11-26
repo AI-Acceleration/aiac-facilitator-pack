@@ -35,6 +35,9 @@ OUTSIDE = "98765+outside-contrib" + "@" + NOREPLY_DOMAIN
 # The legacy login-only no-reply form older accounts still use.
 LEGACY = "outside-contrib" + "@" + NOREPLY_DOMAIN
 WEB_MERGE = "noreply" + "@" + "github.com"
+# The service address on the assistant-attribution trailer, the one entry of
+# the real .githooks/allow-patterns.txt.
+SERVICE = "noreply" + "@" + "anthropic.com"
 # A path word that is private without holding an address: CI output must
 # never echo it.
 PRIVATE_WORD = "participant-surname-zqxv"
@@ -746,6 +749,88 @@ class GateSandbox(unittest.TestCase):
         r = run_gate(self.tmp, "--history")
         self.assertBlocked(r, "UNALLOWLISTED")
         self.assertIn("tag message", r.stderr)
+
+    # --- trailers count only in the message's final trailer block --------
+    def assertMessage(self, msg, passes):
+        """Judge `msg` as the commit-msg hook does and as --history does."""
+        f = self.tmp / "COMMIT_EDITMSG"
+        f.write_text(msg, encoding="utf-8")
+        hook = run_gate(self.tmp, "--message", str(f))
+        if not getattr(self, "_msg_base", None):
+            self._msg_base = self.clean_commit()
+        self.write("change.md", "a change to commit\n")
+        self.commit_message_bytes(msg.encode("utf-8"))
+        hist = run_gate(self.tmp, "--history")
+        self.git("reset", "-q", "--hard", self._msg_base)
+        for r in (hook, hist):
+            if passes:
+                self.assertEqual(r.returncode, 0, msg + r.stdout + r.stderr)
+            else:
+                self.assertBlocked(r, "UNALLOWLISTED")
+                self.assertRedacted(r, OUTSIDE, SERVICE)
+
+    def test_coauthor_trailer_in_final_block_passes(self):
+        # Positive control: tightening must not break the attribution the
+        # repo's own history uses. (Passes on the looser old gate by design.)
+        for addr in (OUTSIDE, LEGACY, SERVICE):
+            with self.subTest(addr=addr):
+                self.assertMessage("subject\n\nWhy the change.\n\n"
+                                   "Reviewed-by: Nobody Real\n"
+                                   "Co-authored-by: Helper <%s>\n" % addr, True)
+
+    def test_coauthor_line_mid_body_fails(self):
+        for addr in (OUTSIDE, SERVICE):
+            with self.subTest(addr=addr):
+                line = "Co-authored-by: Helper <%s>" % addr
+                self.assertMessage("subject\n\n%s\n\nMore text after it.\n"
+                                   % line, False)
+                # In the last paragraph, but beside a line that is not a trailer.
+                self.assertMessage("subject\n\nThanks for the help!\n%s\n"
+                                   % line, False)
+                # The subject is never a trailer block.
+                self.assertMessage("%s\n" % line, False)
+
+    def test_service_address_in_mid_body_line_fails(self):
+        self.assertMessage("subject\n\nAttribution goes to %s here.\n\n"
+                           "Co-Authored-By: Claude <%s>\n" % (SERVICE, SERVICE),
+                           False)
+
+    def test_service_address_only_on_coauthor_trailer(self):
+        # A final block of trailers, but the address is on another trailer.
+        self.assertMessage("subject\n\nSigned-off-by: Claude <%s>\n" % SERVICE,
+                           False)
+
+    def test_service_address_in_a_file_fails(self):
+        self.write("doc.md", "Co-Authored-By: Claude <%s>\n" % SERVICE)
+        r = run_gate(self.tmp, "--tree")
+        self.assertBlocked(r, "UNALLOWLISTED")
+        self.assertRedacted(r, SERVICE)
+
+    def test_service_address_in_tag_message_fails(self):
+        self.clean_commit()
+        self.git("tag", "-a", "release", "-m",
+                 "clean\n\nCo-Authored-By: Claude <%s>" % SERVICE)
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "UNALLOWLISTED")
+        self.assertIn("tag message", r.stderr)
+
+    def test_hook_ignores_the_comment_template_after_trailers(self):
+        # The commit-msg hook runs before git strips the editor template.
+        f = self.tmp / "COMMIT_EDITMSG"
+        f.write_text("subject\n\nCo-authored-by: Helper <%s>\n\n"
+                     "# Please enter the commit message for your changes.\n"
+                     "#\n# ------------------------ >8 ------------------------\n"
+                     "diff --git a/x b/x\n" % SERVICE, encoding="utf-8")
+        r = run_gate(self.tmp, "--message", str(f))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        # ...but only the trailing template is dropped: a real line after
+        # the trailer makes that paragraph something other than trailers.
+        f.write_text("subject\n\nCo-authored-by: Helper <%s>\nnot a trailer\n"
+                     "# Please enter the commit message for your changes.\n"
+                     % SERVICE, encoding="utf-8")
+        r = run_gate(self.tmp, "--message", str(f))
+        self.assertBlocked(r, "UNALLOWLISTED")
+        self.assertRedacted(r, SERVICE)
 
     def test_denied_address_in_header_is_never_excused(self):
         self.commit_as(DENIED, OUTSIDE)
