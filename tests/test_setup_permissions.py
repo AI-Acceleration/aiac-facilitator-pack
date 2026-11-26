@@ -413,26 +413,89 @@ class TestSetupPermissions(unittest.TestCase):
                     self.has("git remote get-url --push --all origin", step12[:push_at])
                     self.has("git log --oneline", step12[:push_at])
                     self.has('"visibility": "PRIVATE"', step12[:push_at])
-                    # Server-side confirmation afterwards.
-                    self.has("git ls-remote origin refs/heads/main", step12[push_at:])
+                    self.has("gh repo view github.com/<owner>/<repo-name> --json nameWithOwner,visibility",
+                             step12[:push_at])
+                    # Server-side confirmation afterwards, from the confirmed push
+                    # address (origin's fetch address can differ) and host.
+                    self.has("git ls-remote <push-url> refs/heads/main", step12[push_at:])
+                    self.lacks("ls-remote origin", step12)
+                    self.has("gh repo view github.com/<owner>/<repo-name>", step12[push_at:])
+                    self.assertIsNone(re.search(r"gh repo view <owner>", step12))
+
+    # Every starter-pack install path: Docs 03/03W (fresh install and any
+    # retry) and the Doc 04 reinstall prompt, in both editions.
+    INSTALL_DOCS = SKILLS_DOCS + ("04 — Next Steps Brief (Participant).md",)
+    INSTALL_BLOCK = re.compile(r'^PACK_TMP="\$\(mktemp -d\)".*?^\[ -n "\$PACK_TMP" \] && rm -rf "\$PACK_TMP"$',
+                               re.DOTALL | re.MULTILINE)
+
+    def install_blocks(self, text):
+        return self.INSTALL_BLOCK.findall(text)
 
     def test_starter_pack_installer_runs_only_after_clone_or_verification(self):
+        blocks = set()
         for edition in EDITIONS:
-            for name in SKILLS_DOCS:
+            for name in self.INSTALL_DOCS:
                 text = kit_doc(edition, name).read_text(encoding="utf-8")
                 with self.subTest(doc="%s/%s" % (edition, name)):
-                    self.has("cc-starter-pack.git ~/.aiac/cc-starter-pack \\\n"
-                             "    && (cd ~/.aiac/cc-starter-pack \\\n"
-                             '        && if [ "$(git rev-parse HEAD)" = "%s" ]; then bash ./install.sh; '
-                             % STARTER_PACK_COMMIT, text)
-                    # No installer line on its own, where a failed clone could reach it.
-                    self.assertIsNone(re.search(r"^\(cd ~/\.aiac/cc-starter-pack && bash \./install\.sh\)$",
-                                                text, re.MULTILINE))
-                    # A tag can move: both install paths pin the reviewed commit.
-                    self.assertEqual(text.count(STARTER_PACK_COMMIT), 3)
-                    self.has('test "$(git rev-parse HEAD)" = "%s"' % STARTER_PACK_COMMIT, text)
-                    self.lacks("git ls-remote origin 'refs/tags/v1.0.0'", text)
-                    self.has("git status --porcelain --untracked-files=all", text)
+                    found = self.install_blocks(text)
+                    self.assertEqual(len(found), 1, "expected one install block")
+                    blocks.add(found[0])
+                    # The installer is run in this block only, nowhere else.
+                    runs = re.findall(r"^[^`\n]*bash \./install\.sh(?! force)", text, re.MULTILINE)
+                    self.assertEqual(len(runs), 1, runs)
+                    self.assertEqual(text.count(STARTER_PACK_COMMIT), 1 + ("03" in name[:3]))
+                    self.lacks("~/.aiac/cc-starter-pack \\", text)
+                    self.lacks("git status --porcelain", text)
+        self.assertEqual(len(blocks), 1, "install block differs between docs")
+        block = blocks.pop()
+        self.assertIn('git clone --depth 1 --branch v1.0.0 '
+                      'https://github.com/AI-Acceleration/cc-starter-pack.git "$PACK_TMP/cc-starter-pack"',
+                      block)
+        self.assertIn('!= "%s" ]' % STARTER_PACK_COMMIT, block)
+        self.run_install_block(block)
+
+    def run_install_block(self, block):
+        """Run the block with a stub git: the installer may run only after a
+        successful clone into the new temporary folder, on the pinned commit."""
+        with tempfile.TemporaryDirectory() as base:
+            base = Path(base)
+            fakebin = base / "bin"
+            fakebin.mkdir()
+            marker = base / "installed"
+            (fakebin / "git").write_text(
+                "#!/bin/sh\n"
+                'case "$1" in\n'
+                '  clone) [ "$FAKE_CLONE" = ok ] || exit 128\n'
+                '         for last; do :; done\n'
+                '         mkdir -p "$last" && printf \'echo ran > "%s"\\n\' > "$last/install.sh" ;;\n'
+                '  rev-parse) echo "$FAKE_HEAD" ;;\n'
+                "  *) exit 1 ;;\n"
+                "esac\n" % marker)
+            (fakebin / "git").chmod(0o755)
+            tmp = base / "tmp"
+            tmp.mkdir()
+            env = {"PATH": str(fakebin) + os.pathsep + os.defpath, "HOME": str(base),
+                   "TMPDIR": str(tmp)}
+            cases = (("fail", STARTER_PACK_COMMIT, False, "STOP: the clone failed"),
+                     ("ok", "0" * 40, False, "STOP: v1.0.0 is not the reviewed commit"),
+                     ("ok", "", False, "STOP: v1.0.0 is not the reviewed commit"),
+                     ("ok", STARTER_PACK_COMMIT, True, None))
+            for clone, head, runs, message in cases:
+                with self.subTest(clone=clone, head=head[:7]):
+                    if marker.exists():
+                        marker.unlink()
+                    env.update(FAKE_CLONE=clone, FAKE_HEAD=head)
+                    # Claude Code runs it in the user's shell: sh/bash or zsh.
+                    for shell in [s for s in ("/bin/sh", "/bin/bash", "/bin/zsh") if os.path.exists(s)]:
+                        if marker.exists():
+                            marker.unlink()
+                        r = subprocess.run([shell, "-c", block], env=env, cwd=str(base),
+                                           capture_output=True, text=True, timeout=60)
+                        self.assertEqual(marker.exists(), runs, shell + ": " + r.stdout + r.stderr)
+                        if message:
+                            self.assertIn(message, r.stdout)
+                        # The temporary folder is always removed.
+                        self.assertEqual(list(tmp.iterdir()), [])
 
     # -- round 3 -------------------------------------------------------------
     @staticmethod
@@ -457,30 +520,54 @@ class TestSetupPermissions(unittest.TestCase):
         self.assertTrue(self.rule_matches("Bash(git -C *)", "git -C ../x push origin main"))
         self.assertFalse(self.rule_matches("Bash(git -C *)", "git log --oneline"))
 
+    # Inline `git ...` spans Step 12 may carry: names of commands it talks
+    # about (or forbids), never a command to run. Anything to run is a block.
+    STEP12_MENTIONS = {"git -C <path> …", "git -C <ruta> …", "git -C", "git -c", "git commit",
+                       "git log --oneline", "git push", "git remote add", "git remote set-url",
+                       "git restore --staged"}
+
     def test_step_12_runs_every_repo_command_from_the_repo(self):
         heads = {"EN": ("## STEP 12:", "## STEP 12.5"), "ES": ("## PASO 12:", "## PASO 12.5")}
+        fence = re.compile(r"^( *)```bash\n(.*?)\n\1```$", re.DOTALL | re.MULTILINE)
         for edition in EDITIONS:
             for name in MAIN_DOCS:
                 text = kit_doc(edition, name).read_text(encoding="utf-8")
                 a, b = heads[edition]
                 step = text[text.index(a):text.index(b)]
-                blocks = re.findall(r"^```bash\n(.*?)\n```$", step, re.DOTALL | re.MULTILINE)
+                blocks = [body.strip() for _, body in fence.findall(step)]
+                prose = fence.sub("", step)
                 with self.subTest(doc="%s/%s" % (edition, name)):
-                    self.assertGreaterEqual(len(blocks), 8)
+                    # 8 git blocks + owner, visibility, setup-git, ls-remote, re-check.
+                    self.assertGreaterEqual(len(blocks), 11)
                     for block in blocks:
                         self.assertEqual(block.count("\n"), 0, "one line per block")
                         self.assertTrue(block.startswith("cd ~/dev/<repo-name> && "), block[:40])
                     self.lacks("git -C", "\n".join(blocks))
+                    # Every gh command (and every retry) sits in a repo-scoped block.
+                    for span in re.findall(r"`([^`\n]+)`", prose):
+                        self.assertFalse(span.startswith(("gh ", "GH_")), span)
+                        if span.startswith("git "):
+                            self.assertIn(span, self.STEP12_MENTIONS)
+                    self.has("cd ~/dev/<repo-name> && gh auth setup-git --hostname github.com",
+                             "\n".join(blocks))
+                    self.has("cd ~/dev/<repo-name> && gh api --hostname github.com user --jq .login",
+                             "\n".join(blocks))
 
     def test_backups_are_never_overwritten_on_a_rerun(self):
+        # settings.json is backed up by the merge script (privately, through a
+        # symlink); a cp -a of a symlink would only copy the link.
         for edition in EDITIONS:
             for name in SETTINGS_DOCS:
                 text = kit_doc(edition, name).read_text(encoding="utf-8")
                 with self.subTest(doc="%s/%s" % (edition, name)):
-                    self.has("[ -e ~/.claude/settings.json.bak ] || cp -a ~/.claude/settings.json "
-                             "~/.claude/settings.json.bak", text)
+                    self.lacks("cp -a ~/.claude/settings.json", text)
                     self.assertIsNone(re.search(r"^cp -a ~/\.claude/\S+ ~/\.claude/\S+\.bak",
                                                 text, re.MULTILINE))
+            for name in MAIN_DOCS:
+                text = kit_doc(edition, name).read_text(encoding="utf-8")
+                with self.subTest(doc="%s/%s" % (edition, name)):
+                    self.has("[ -e ~/.claude/CLAUDE.md.bak ] || [ -L ~/.claude/CLAUDE.md.bak ] || "
+                             "cp -pL ~/.claude/CLAUDE.md ~/.claude/CLAUDE.md.bak", text)
 
     def test_sandbox_denies_the_login_file_inside_the_allowed_claude_folder(self):
         for edition in EDITIONS:
@@ -623,6 +710,122 @@ class TestSetupPermissions(unittest.TestCase):
                 text = kit_doc(edition, name).read_text(encoding="utf-8")
                 with self.subTest(doc="%s/%s" % (edition, name)):
                     self.assertEqual(programs.findall(text), programs.findall(script))
+
+    # -- round 4 -------------------------------------------------------------
+    def test_precompact_hook_blocks_with_the_documented_decision(self):
+        # The hooks reference: PreCompact blocks with "decision": "block" or
+        # exit code 2, and discards "continue" (so it would never pause).
+        hook = re.compile(r"context-warn-precompact\.sh`:\n\n```bash\n(.*?)\n```", re.DOTALL)
+        for edition in EDITIONS:
+            for name in MAIN_DOCS:
+                text = kit_doc(edition, name).read_text(encoding="utf-8")
+                with self.subTest(doc="%s/%s" % (edition, name)):
+                    m = hook.search(text)
+                    self.assertIsNotNone(m)
+                    payload = m.group(1).split("<<'EOF'\n", 1)[1].split("\nEOF", 1)[0]
+                    data = json.loads(payload)
+                    self.assertEqual(data.get("decision"), "block")
+                    self.assertTrue(data.get("reason"))
+                    self.assertNotIn("continue", data)
+                    self.lacks('"continue": false', text)
+                    self.has('"matcher": "auto"', text)
+
+    def test_merge_script_validates_the_kit_block_before_merging(self):
+        # A wrong shape stops the merge even for a key the settings don't have
+        # yet, and nothing from the block's values is printed.
+        bad_blocks = [
+            {"permissions": {"allow": "Bash(git status)"}},
+            {"permissions": {"ask": [["Bash(cat *)"]]}},
+            {"permissions": {"allowed": ["Bash(git status)"]}},
+            {"hooks": {"Stop": [{"hooks": "afplay x"}]}},
+            {"hooks": {"Stop": [{"hooks": [{"type": "command", "command": 7}]}]}},
+            {"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "x", "timeout": "3"}]}]}},
+            {"hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "x"}]}]}},
+            {"env": {"CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": 75}},
+            {"statusLine": {"type": "command", "command": ["sk-test-SYNTHETIC-3333"]}},
+            {"statusLine": {"type": "static", "command": "x"}},
+            {"model": "sk-test-SYNTHETIC-3333"},
+        ]
+        with tempfile.TemporaryDirectory() as home:
+            target = Path(home) / ".claude" / "settings.json"
+            target.parent.mkdir()
+            for existing in ({}, {"model": "keep-me"}):
+                for block in bad_blocks:
+                    with self.subTest(existing=existing, block=block):
+                        raw = json.dumps(existing)
+                        target.write_text(raw, encoding="utf-8")
+                        run = self.run_merge(home, block)
+                        self.assertNotEqual(run.returncode, 0)
+                        self.assertIn("STOP:", run.stderr)
+                        self.assertNotIn("Verified", run.stdout)
+                        self.assertNotIn("SYNTHETIC-3333", run.stdout + run.stderr)
+                        self.assertNotIn("Traceback", run.stderr)
+                        self.assertEqual(target.read_text(encoding="utf-8"), raw)
+                        self.assertFalse((Path(home) / ".claude" / "settings.json.bak").exists())
+            # No file yet: a bad block creates nothing.
+            target.unlink()
+            run = self.run_merge(home, bad_blocks[0])
+            self.assertNotEqual(run.returncode, 0)
+            self.assertFalse(target.exists())
+        # Every block the docs ask the reader to merge passes the check.
+        for edition in EDITIONS:
+            for name in SETTINGS_DOCS:
+                text = kit_doc(edition, name).read_text(encoding="utf-8")
+                blocks = re.findall(r"<<'JSON'\n(.*?)\nJSON$", text, re.DOTALL | re.MULTILINE)
+                blocks = [json.loads(b) for b in blocks if b.lstrip().startswith("{")]
+                blocks += settings_blocks(text)
+                for block in blocks:
+                    with self.subTest(doc="%s/%s" % (edition, name), keys=sorted(block)):
+                        with tempfile.TemporaryDirectory() as home:
+                            run = self.run_merge(home, block)
+                            self.assertEqual(run.returncode, 0, run.stderr[-300:])
+
+    @unittest.skipUnless(os.name == "posix", "symlinks and modes")
+    def test_merge_script_backs_up_the_real_file_privately_and_never_twice(self):
+        block = settings_blocks(kit_doc("EN", SETTINGS_DOCS[0]).read_text(encoding="utf-8"))[0]
+        original = '{"env": {"API_KEY": "sk-test-SYNTHETIC-4444"}}'
+        with tempfile.TemporaryDirectory() as home:
+            real = Path(home) / "dotfiles" / "settings.json"
+            real.parent.mkdir()
+            real.write_text(original, encoding="utf-8")
+            real.chmod(0o644)
+            link = Path(home) / ".claude" / "settings.json"
+            link.parent.mkdir()
+            link.symlink_to(real)
+            run = self.run_merge(home, block)
+            self.assertEqual(run.returncode, 0, run.stderr[-300:])
+            self.assertNotIn("SYNTHETIC-4444", run.stdout + run.stderr)
+            bak = Path(home) / ".claude" / "settings.json.bak"
+            # A regular, private file holding the original bytes - not a link
+            # that would follow the updated target.
+            self.assertFalse(bak.is_symlink())
+            self.assertEqual(bak.read_text(encoding="utf-8"), original)
+            self.assertEqual(bak.stat().st_mode & 0o777, 0o600)
+            self.assertIn("backup of your previous settings (private): ~/.claude/settings.json.bak",
+                          run.stdout)
+            # Still written through the link; the target keeps its mode.
+            self.assertTrue(link.is_symlink())
+            self.assertEqual(real.stat().st_mode & 0o777, 0o644)
+            self.assertIn("ask", json.loads(real.read_text(encoding="utf-8"))["permissions"])
+            # A later change never overwrites the earlier backup.
+            run = self.run_merge(home, {"env": {"CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "75"}})
+            self.assertEqual(run.returncode, 0, run.stderr[-300:])
+            self.assertEqual(bak.read_text(encoding="utf-8"), original)
+            self.assertEqual(sorted(p.name for p in bak.parent.iterdir() if ".bak" in p.name),
+                             ["settings.json.bak"])
+        with tempfile.TemporaryDirectory() as home:
+            # An old "backup" that is only a link (cp -a of a symlink) is kept,
+            # and the real bytes go to the next free name.
+            claude = Path(home) / ".claude"
+            claude.mkdir()
+            target = claude / "settings.json"
+            target.write_text(original, encoding="utf-8")
+            (claude / "settings.json.bak").symlink_to(target)
+            run = self.run_merge(home, block)
+            self.assertEqual(run.returncode, 0, run.stderr[-300:])
+            self.assertTrue((claude / "settings.json.bak").is_symlink())
+            self.assertEqual((claude / "settings.json.bak.1").read_text(encoding="utf-8"), original)
+            self.assertEqual((claude / "settings.json.bak.1").stat().st_mode & 0o777, 0o600)
 
 if __name__ == "__main__":
     unittest.main()

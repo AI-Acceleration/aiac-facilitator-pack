@@ -100,6 +100,7 @@ Corre tú mismo los Docs 01 → 02 → 03, de principio a fin, en una **máquina
 - [ ] **Marcadores llenos.** `[SET: your support channel]` aparece en el **Doc 01** y en el **Doc 04**. Reemplázalo por el canal que tus participantes usan para escribirte (un número de WhatsApp, un correo, un canal de Slack). `[TOOL]` aparece en el **Doc 03 / 03W**: reemplázalo por la herramienta de transcripción del participante (`Granola`, otra herramienta, o `none / pasted transcript`). Son los únicos valores que llenas; todo lo demás lo genera el participante en vivo.
 - [ ] **Ediciones correctas.** Participante con Windows → **02W / 03W**. Participante argentino → aplica la tabla de voseo `00V` a los documentos del participante.
 - [ ] **Compartir pantalla probado** en la herramienta de llamadas que vas a usar.
+- [ ] **Ubicación revisada.** El participante va a estar en un [país o región admitidos](https://www.anthropic.com/legal/supported-regions) durante la sesión (depende de dónde esté físicamente). Si no, elige otra fecha; no planees una forma de saltarte la restricción.
 - [ ] **Fecha límite fijada** para el pre-vuelo (ver § 4).
 - [ ] **Proyecto concreto confirmado** (ver § 6).
 - [ ] **Grabación decidida:** opcional, y sólo con consentimiento (ver § 8).
@@ -147,10 +148,10 @@ El participante tiene que llegar con **un proyecto concreto**: una entrada que p
 
 `tools/aiac-status-check.sh` es un script de sólo lectura (no instala, no cambia y no envía nada) que reporta hasta dónde llegó una configuración. Úsalo cuando una línea de pre-vuelo no esté clara o un participante se trabe entre sesiones.
 
-- Dile que corra **el nombre exacto del archivo que recibió**, por ejemplo `bash ~/Downloads/aiac-status-check.sh.txt` (Claude se lo puede correr; el Doc 01 trae el prompt).
+- Dile que corra **el nombre exacto del archivo que recibió**, por ejemplo `bash ~/Downloads/aiac-status-check.sh.txt`. Si Claude se lo corre, corre `bash ~/Downloads/aiac-status-check.sh.txt --share` (el Doc 01 trae el prompt): `--share` imprime sólo el bloque seguro para compartir, así que el detalle nunca entra al contexto de Claude. El reporte completo lo corre el participante en su propia terminal.
 - Pídele que comparta **sólo** el bloque entre `----- AIAC STATUS (safe to share) -----` y `----- END -----`. Trae nombres de chequeos, `DONE` / `NOT DONE` / `SKIPPED (optional)`, el sistema operativo y un veredicto general. El script imprime en inglés a propósito. **Nunca pidas los detalles de arriba**, ni la salida de `--details`: esa parte es sólo para los ojos del participante.
 - El primer `NOT DONE` es el punto de retome. `SKIPPED (optional)` no es tarea pendiente. Antes de la sesión, una configuración completa dice `VERDICT: PRE-SESSION - homework complete, ready for the session`; después, `VERDICT: PHASE 0 SETUP COMPLETE - …`. El script sólo reporta lo que puede ver en la máquina — por ejemplo `GitHub CLI credentials present`, `Obsidian config found in this folder`, `repo origin points at GitHub` — y su lista `NOT CHECKED HERE` nombra lo que no puede probar: que las credenciales de `gh` sigan funcionando (`gh auth status`), que Obsidian tenga abierta esta carpeta exacta, y que el repo exista en GitHub, sea Private y tenga el commit. Eso lo verificas tú: la carpeta en su pantalla compartida, y el repo del lado del servidor (Compuerta 6).
-- Si el participante ya montó el sandbox del 02-S, lo corre en una terminal normal y no dentro de Claude Code, donde los comandos encerrados no ven `~/.claude`.
+- Si el participante ya montó el sandbox del 02-S, lo corre en una terminal normal y no dentro de Claude Code: los comandos encerrados sólo pueden leer el vault, `~/.claude` (menos su archivo de inicio de sesión) y el único repo que nombra el 02-S, así que el script en `~/Downloads` y varios de los archivos que revisa (el inicio de sesión de `gh`, las apps instaladas) quedan fuera de su alcance.
 
 ### 8. Grabación: opcional, con consentimiento
 
@@ -163,6 +164,7 @@ Si el participante pide que Claude sólo toque la carpeta que él le dé, mánda
 - El **bloque de permisos del PASO 3 del Doc 02 se salta**: el 02-S lo reemplaza a propósito.
 - Lee con el participante lo que el propio 02-S dice del límite: el sandbox encierra los comandos de terminal de Claude, pero no es un muro para todo (el 02-S lista lo que queda afuera). No prometas más de lo que dice.
 - **Puede que Claude no pueda correr `git` ni `gh`** dentro del sandbox. Esos los corre el participante, y el commit se convierte en su acto de aprobación. Dilo de entrada para que no parezca una falla a mitad de sesión. Si `gh` falla, usa el camino por navegador del § 10 (sin tokens).
+- **El repo se nombra de antemano.** La Parte 3c del 02-S agrega al sandbox exactamente un `~/dev/<repo-name>`; acuerden el nombre del repo antes de la sesión y usen el mismo nombre en el Doc 02. En el Paso 6 el participante crea la carpeta en una terminal normal y reinicia Claude Code en el vault.
 - Sólo Mac y Linux. Windows nativo no tiene sandbox (hace falta WSL2).
 
 ### 10. Acceso a GitHub (la versión de este kit)
@@ -368,7 +370,7 @@ Tu trabajo durante la entrevista es ser el copiloto humano: ayúdalo a escoger u
 - **Git no está instalado** → Doc 01, Paso 2 (`xcode-select --install` en Mac, Git para Windows en Windows).
 - **Falla la creación del repo** → `gh auth status` tiene que mostrar un usuario con sesión iniciada; si no, el participante corre `gh auth login --hostname github.com --git-protocol https --web` en **otra ventana de terminal** (Claude no puede contestar sus preguntas). Sin `gh` → el camino por navegador de Pre-Sesión § 10.
 - **Venció la sesión de Claude Code** → `/login`, o sal y vuelve a correr `claude`.
-- **País bloqueado** → la VPN tiene que quedar **encendida** toda la sesión; los pasos de red fallan en el momento en que se cae.
+- **Claude no está disponible donde está el participante** → Claude solo funciona en los [países y regiones admitidos](https://www.anthropic.com/legal/supported-regions), según dónde está físicamente la persona. No intentes saltarte esa restricción: reprograma para un momento en que esté en una región admitida (pídele que revise la lista antes de agendar). Si una red o VPN *de la empresa* bloquea `claude.ai`, `github.com` u `obsidian.md`, su IT habilita esos dominios.
 - **Claude bloquea una edición de configuración y menciona el modo** → presiona **Shift+Tab** para pasar al modo por defecto, haz la edición y vuelve.
 - **La entrevista se atasca, el participante no logra nombrar un problema** → vuelve al proyecto que trajo según el Doc 01; si sigue trabado, escoge una tarea concreta y recurrente de su rol y nómbrala tú. Un caso decente le gana a uno perfecto.
 
@@ -549,17 +551,17 @@ GitHub es el paso que sigue pasando en la sala y fallando en el disco. `git remo
 
 **Con `gh` (lo normal).** En la sesión del repo, el participante le da a Claude este prompt (reemplaza dueño y repo):
 
-> «Corre `gh repo view <dueño>/<repo> --json nameWithOwner,visibility`, después `gh api repos/<dueño>/<repo>/commits --jq '.[0].sha[0:7]'` y `git log --oneline -1`. Muéstrame la salida tal cual de los tres.»
+> «Corre `gh repo view github.com/<dueño>/<repo> --json nameWithOwner,visibility`, después `gh api --hostname github.com repos/<dueño>/<repo>/commits --jq '.[0].sha[0:7]'` y `git log --oneline -1`. Muéstrame la salida tal cual de los tres.»
 
 **PASA** = `nameWithOwner` es su repo, `visibility` es **`PRIVATE`**, y el SHA del commit que da GitHub coincide con los primeros 7 caracteres de la línea local de `git log`. Un error de `gh`, una respuesta vacía, un repo público o un SHA distinto es **FALLA**, sin importar lo que mostraba la terminal diez minutos antes.
 
-**Sin `gh`.** El participante le pide a Claude que corra `git remote get-url --push --all origin`, `git ls-remote origin HEAD` y `git rev-parse --short HEAD`. El primero tiene que imprimir exactamente una línea, `https://github.com/<dueño>/<repo>.git` (o la misma dirección en la forma SSH de GitHub), con su dueño y su nombre de repo; el segundo le pregunta a GitHub por su último commit, y sus primeros 7 caracteres tienen que coincidir con el tercero. Después abre la página del repo en el navegador mientras comparte pantalla, y tú confirmas la etiqueta **Private** junto al nombre del repositorio.
+**Sin `gh`.** El participante le pide a Claude que corra `git remote get-url --push --all origin`, luego `git ls-remote <esa dirección> HEAD` y `git rev-parse --short HEAD`. El primero tiene que imprimir exactamente una línea, `https://github.com/<dueño>/<repo>.git` (o la misma dirección en la forma SSH de GitHub), con su dueño y su nombre de repo; el segundo le pregunta a esa dirección exacta (no a `origin`, cuya dirección de lectura puede ser otra) por su último commit, y sus primeros 7 caracteres tienen que coincidir con el tercero. Después abre la página del repo en el navegador mientras comparte pantalla, y tú confirmas la etiqueta **Private** junto al nombre del repositorio.
 
 **Variante con repo del facilitador.** Ser colaborador no prueba nada sobre la privacidad ni sobre el push, así que corres tú las tres comprobaciones en tu máquina:
 
 1. `gh api repos/<dueño>/<repo>/collaborators --jq '.[].login'` — aparece su usuario. Una **invitación pendiente es FALLA**: que la acepte ya en `https://github.com/<dueño>/<repo>/invitations`.
-2. `gh repo view <dueño>/<repo> --json nameWithOwner,visibility` — `visibility` es **`PRIVATE`**.
-3. `gh api repos/<dueño>/<repo>/commits --jq '.[0].sha[0:7]'` — coincide con los primeros 7 caracteres de la línea de `git log --oneline -1` que el Claude del participante muestra en su pantalla.
+2. `gh repo view github.com/<dueño>/<repo> --json nameWithOwner,visibility` — `visibility` es **`PRIVATE`**.
+3. `gh api --hostname github.com repos/<dueño>/<repo>/commits --jq '.[0].sha[0:7]'` — coincide con los primeros 7 caracteres de la línea de `git log --oneline -1` que el Claude del participante muestra en su pantalla.
 
 PASA = las tres. Si falta cualquiera, es **FALLA**.
 

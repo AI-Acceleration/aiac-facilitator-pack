@@ -37,9 +37,9 @@ and
 So the accurate sentence, for the configuration below, is:
 
 - **Everything Claude executes through Bash** (and every child process) is kernel-confined: it can
-  **write** only to the working folder (your vault) and the session's temp folder; it can **read** your
-  vault and `~/.claude` (Claude Code's own config, skills and plugins), but **nothing else inside your
-  home folder** — and not Claude Code's login file `~/.claude/.credentials.json` (where Linux and WSL2
+  **write** only to the working folder (your vault), the session's temp folder and the one code repo you
+  name in Part 3c; it can **read** your vault, that repo and `~/.claude` (Claude Code's own config, skills
+  and plugins), but **nothing else inside your home folder** — and not Claude Code's login file `~/.claude/.credentials.json` (where Linux and WSL2
   keep your sign-in token), which Part 3a denies again so no command can read it and send it to an
   allowed domain such as `github.com`. Paths outside your home folder (system folders such as `/usr` or `/etc`) stay readable —
   the deny rule covers `~/`, not the whole disk.
@@ -132,6 +132,28 @@ Line by line, because you should not accept any of these on my word:
 - **`failIfUnavailable: true`** — **this is the setting your request actually depends on.** By default, if the sandbox can't start (missing dependency, unsupported platform), Claude Code *prints a warning and runs your commands unsandboxed anyway*. That's a silent downgrade from "confined" to "not confined." This makes it a hard failure instead. Without this line, none of the above is a guarantee.
 - **`allowUnsandboxedCommands: false`** — the "strict sandbox mode" toggle. By default, when a command fails on a sandbox restriction, Claude may retry it with `dangerouslyDisableSandbox`, which runs it outside the boundary (subject to a permission prompt). This makes that parameter **completely ignored**. Note the tradeoff: some tools genuinely don't work sandboxed (`docker`, `watchman`/`jest`, and Go-based CLIs like `gh` can fail TLS verification under Seatbelt on macOS). With this off, they fail instead of escaping. That is the trade you're asking for. If `gh` breaks, run the `gh` steps yourself in a normal terminal (Part 5) — never fall back to a classic personal access token.
 - **`network.allowedDomains`** — no domains are pre-allowed by default; the first hit on a new domain prompts you. This list pre-approves only what Phase 0 needs (GitHub, npm, PyPI) so you aren't click-fatigued into approving something you didn't read. Everything else still prompts. Keep it narrow — a broad entry here is the exfiltration path the docs warn about.
+
+**Keep it exactly like this — in every settings file.** Claude Code merges the sandbox's path and domain
+lists from every settings file it loads (your vault's `.claude/settings.json` and `.claude/settings.local.json`,
+where `/sandbox` saves its choices, your global `~/.claude/settings.json`, and any policy your organization
+installs), and a later file can switch a setting off. So the boundary is only as narrow as all of them
+together. The status check (`--sandbox`) reads every one of those files and reports this part `NOT DONE`
+— never `DONE` — when, together, they:
+
+- allow a domain that isn't one of the six above (a saved `WebFetch(domain:…)` approval counts too),
+  or leave one out;
+- make anything readable or writable beyond the vault, `~/.claude` and the one repo from Part 3c — including
+  `Read`/`Edit`/`Write` allow rules and `additionalDirectories`, whose paths are added to the sandbox;
+- turn one of the three switches above the other way;
+- list `excludedCommands` (those run **outside** the sandbox, with your full access);
+- set `filesystem.disabled` (it turns filesystem isolation off while keeping the network filter — user and
+  managed settings can set it, project settings can't), or any other loosening switch: weaker nested or
+  network isolation, Apple Events, nested user namespaces, Unix sockets, Mach lookups, local port binding or
+  a custom proxy ([sandboxing docs](https://code.claude.com/docs/en/sandboxing)).
+
+If a settings or policy file exists but can't be read, the check says "unverified" and reports `NOT DONE`.
+It can't see settings passed with `--settings` or pushed by an MDM profile: `/sandbox` → **Config** (Part 4,
+step 1) shows the resolved result and is the final word.
 
 Two things you get for free, worth knowing: the sandbox **automatically denies writes to Claude Code's own `settings.json` at every scope**, so a sandboxed command cannot rewrite its own policy. And **subagents inherit the parent session's sandbox config** — they run in the same process, so there's no bypass there.
 
@@ -237,14 +259,15 @@ that part is the sandbox's job.
 
 ```bash
 mkdir -p ~/.claude
-[ -e ~/.claude/settings.json.bak ] || cp -a ~/.claude/settings.json ~/.claude/settings.json.bak 2>/dev/null
 ```
 
 Then save the JSON block above as `~/.claude/aiac-02s-block.json` (edit the `Stop` line first — see
 below), save the script below as `~/.claude/aiac-merge-settings.py` (it is the same script Doc 02 Step 3
 uses), and run `python3 ~/.claude/aiac-merge-settings.py ~/.claude/aiac-02s-block.json`. It adds each
 missing entry, keeps every key and rule you already had, prints only the kit's entries and the *names*
-of keys it left alone, and its last line must start with `Verified:`.
+of keys it left alone, and its last line must start with `Verified:`. Before its first change it saves a
+private backup of your current file as `~/.claude/settings.json.bak` (of the real file, if
+`settings.json` is a symlink; an earlier backup is never overwritten).
 
 ```python
 # aiac-merge-settings.py - merges the AIAC kit's entries into ~/.claude/settings.json.
@@ -252,15 +275,58 @@ of keys it left alone, and its last line must start with `Verified:`.
 # of keys you already had. Usage: python3 aiac-merge-settings.py [--replace KEY] - < block
 import json
 import os
+import re
 import shutil
 import sys
 
 TARGET = os.path.expanduser("~/.claude/settings.json")
+BACKUP = TARGET + ".bak"
 DEEP = ("permissions", "hooks", "env")  # top-level objects merged key by key
+HOOK_EVENTS = ("Stop", "UserPromptSubmit", "PreCompact")
 
 
 def stop(message):
     sys.exit("STOP: " + message + " Nothing was changed.")
+
+
+def number(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0
+
+
+def hook_groups(v):
+    return isinstance(v, list) and all(
+        isinstance(g, dict) and set(g) <= {"matcher", "hooks"}
+        and isinstance(g.get("matcher", ""), str)
+        and isinstance(g.get("hooks"), list) and len(g["hooks"]) > 0
+        and all(isinstance(h, dict) and set(h) <= {"type", "command", "timeout"}
+                and h.get("type") == "command"
+                and isinstance(h.get("command"), str) and h["command"] != ""
+                and ("timeout" not in h or number(h["timeout"]))
+                for h in g["hooks"])
+        for g in v)
+
+
+# The only shapes a kit block may have. Checked before anything is merged,
+# whether or not your settings already have the key.
+SCHEMA = {
+    "permissions": lambda v: isinstance(v, dict) and set(v) <= {"allow", "ask", "deny"}
+    and all(isinstance(x, list) and all(isinstance(r, str) for r in x) for x in v.values()),
+    "hooks": lambda v: isinstance(v, dict) and set(v) <= set(HOOK_EVENTS)
+    and all(hook_groups(x) for x in v.values()),
+    "env": lambda v: isinstance(v, dict) and all(isinstance(x, str) for x in v.values()),
+    "statusLine": lambda v: isinstance(v, dict) and set(v) <= {"type", "command", "padding"}
+    and v.get("type") == "command" and isinstance(v.get("command"), str) and v["command"] != ""
+    and ("padding" not in v or (isinstance(v["padding"], int) and not isinstance(v["padding"], bool))),
+}
+
+
+def check_block(block):
+    for key, val in block.items():
+        name = key if re.match(r"^[A-Za-z][A-Za-z0-9_]{0,40}$", key) else "a key"
+        if key not in SCHEMA:
+            stop("the kit block has an entry the kit never uses (" + name + "); check it was copied whole.")
+        if not SCHEMA[key](val):
+            stop("the kit block's " + name + " entry has the wrong shape; check it was copied whole.")
 
 
 def merge(dst, new, path, added, kept):
@@ -309,6 +375,24 @@ def replace(dst, new, dotted):
     dst[keys[-1]] = new[keys[-1]]
 
 
+def backup(real):
+    """A private copy (0600) of the file's current bytes - the file a symlink
+    points at, never the link - made before the first change. An earlier
+    backup is never overwritten: if one exists, it is kept as it is."""
+    if os.path.isfile(BACKUP) and not os.path.islink(BACKUP):
+        return None
+    name, n = BACKUP, 0
+    while os.path.lexists(name):
+        n += 1
+        name = BACKUP + "." + str(n)
+    with open(real, "rb") as f:
+        data = f.read()
+    fd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "wb") as f:
+        f.write(data)
+    return name
+
+
 def main():
     args, to_replace = sys.argv[1:], []
     while len(args) >= 2 and args[0] == "--replace":
@@ -324,6 +408,7 @@ def main():
         stop("the kit block could not be read as JSON (check it was copied whole).")
     if not isinstance(block, dict):
         stop("the kit block is not a JSON object.")
+    check_block(block)
     # Write through a symlinked settings.json to the file it points at.
     real = os.path.realpath(TARGET)
     current = {}
@@ -344,8 +429,14 @@ def main():
         added.append(dotted + " (replaced, as you asked)")
     merge(current, block, [], added, kept)
     kept = [k for k in kept if not any(r.startswith(k + ".") for r in to_replace)]
+    saved = None
     if added or not os.path.exists(real):
         os.makedirs(os.path.dirname(real), exist_ok=True)
+        if os.path.exists(real):
+            try:
+                saved = backup(real)
+            except OSError:
+                stop("could not save a backup of ~/.claude/settings.json first.")
         tmp = real + ".aiac-tmp"
         if os.path.lexists(tmp):
             os.unlink(tmp)
@@ -357,6 +448,8 @@ def main():
         if os.path.exists(real):
             shutil.copymode(real, tmp)
         os.replace(tmp, real)
+    if saved:
+        print("backup of your previous settings (private): ~/.claude/" + os.path.basename(saved))
     for name in added:
         print("added: " + name)
     for name in kept:
@@ -381,24 +474,33 @@ Why the list looks like this, and why each choice is deliberate:
 
 **Also check `additionalDirectories`.** If that key exists in any settings file, whatever it lists is added to Claude's built-in-tool scope. It should be absent or empty. Same for the `--add-dir` flag and the `/add-dir` command — don't use them.
 
-### 3c — Where the code repo goes (decide before Step 6)
+### 3c — Name the code repo (decide before Step 6)
 
-Phase 0 as designed puts your git repo in **`~/dev/<repo-name>`, outside the vault**, on the reasoning that a nested `.git` fights Obsidian sync. That collides with a vault-only boundary: with `allowRead: ["."]`, Bash cannot see `~/dev` at all, and `git` won't work there.
+Phase 0 puts your git repo in **`~/dev/<repo-name>`, outside the vault** — Doc 02 Step 6 creates it there and
+checks that it landed there, the router names it there, and Doc 04 and the status check look for it there.
+That collides with a vault-only boundary: with `allowRead: ["."]`, Bash cannot see `~/dev` at all.
 
-Pick one before the session:
+So name exactly **one** repo — the name you'll use in Doc 02 Step 0 — and add it to the sandbox. Replace the
+`"filesystem"` block from 3a with:
 
-- **(A) Repo inside the vault** — e.g. `<vault>/dev/<repo-name>/`. One boundary, nothing to widen, the config above works unchanged. Cost: you should add `dev/` to Obsidian's *Settings → Files and links → Excluded files* so it stays out of search and sync.
-- **(B) Repo in `~/dev`, named explicitly** — keep Phase 0's layout and add exactly one path to the sandbox:
-  ```json
-  "filesystem": {
-    "denyRead": ["~/", "~/.claude/.credentials.json"],
-    "allowRead": [".", "~/.claude", "~/dev/<repo-name>"],
-    "allowWrite": ["~/dev/<repo-name>"]
-  }
-  ```
-  Two boundaries instead of one, but both are named, auditable, and still exclude the rest of the machine.
+```json
+"filesystem": {
+  "denyRead": ["~/", "~/.claude/.credentials.json"],
+  "allowRead": [".", "~/.claude", "~/dev/<repo-name>"],
+  "allowWrite": ["~/dev/<repo-name>"]
+}
+```
 
-Either satisfies "not my whole computer." **(A) is the stricter reading of your request and the one I'd default to**; (B) preserves the kit's layout. Your call — tell the facilitator which, at the start of the session.
+Two boundaries instead of one, but both are named, auditable, and still exclude the rest of the machine,
+including the rest of `~/dev`. Use the same `<repo-name>` everywhere afterwards: in Doc 02 (Steps 0, 6 and
+the router) and in Doc 04. If you later pick a different name, change this entry to match — the status check
+reports Part 3a `NOT DONE` when the sandbox names a repo other than the one your router names, or more than
+one.
+
+The folder must exist before the sandbox can open it for writing (on Linux and WSL2 an `allowWrite` entry
+for a missing path has no effect), and sandboxed commands can't create it, because they can't write to
+`~/dev`. So in Doc 02 Step 6 **you** run the creation block in a normal terminal (Part 5), then restart
+Claude Code in your vault.
 
 ### 3d — Installs into `~/.claude` happen outside the boundary (by design)
 
@@ -409,7 +511,7 @@ Under this sandbox, Bash can read `~/.claude` but **cannot write to it**. A few 
 | Doc 02 Step 3.5 — `chmod +x` on the statusline and hook scripts | changes files in `~/.claude` |
 | Doc 02 Step 3.5 — the three settings merges (`aiac-merge-settings.py`) | writes `~/.claude/settings.json`, which sandboxed commands may never write |
 | Doc 03 Step 2 and 2.7b — `claude plugin install …` | writes to `~/.claude/plugins/` |
-| Doc 03 Step 2.7a — the starter-pack install | writes to `~/.claude/skills/` and `~/.aiac/` |
+| Doc 03 Step 2.7a — the starter-pack install | writes to `~/.claude/skills/` |
 
 Do those steps from a Claude Code session started **outside the vault** — for example from `~/dev` — where the vault's sandbox config doesn't apply. That is a deliberate, short step outside the boundary for reviewed installs: read each command before you approve it, then go back to your vault session. The skills come from a pinned, public version (`AI-Acceleration/cc-starter-pack` `v1.0.0`), so you can read every file before installing.
 
@@ -497,12 +599,20 @@ system that cannot override it.
 > point rather than a tax.
 
 **If the friction outweighs the benefit** (you're committing constantly and it's breaking your flow),
-the escape hatch is the sandbox's **Excluded Commands** setting for `git`, which drops git back to
-ordinary permission prompts instead of a hard block. That is a real loosening of the boundary — make
-it a deliberate Week-1 decision, not a session-day reflex.
+the escape hatch is the sandbox's `excludedCommands` setting for `git`. Be clear what that does: an
+excluded command runs **outside the sandbox, with your full access** — no filesystem limits and no
+network filter — and only the ordinary permission prompts stay ([sandboxing docs](https://code.claude.com/docs/en/sandboxing)).
+That is a real loosening of the boundary, so the status check then reports Part 3a `NOT DONE` — make it a
+deliberate Week-1 decision, not a session-day reflex.
 
-**Authentication.** Use `gh auth login --web` (run in a normal terminal) or Git Credential Manager, both
-of which keep the credential in the OS keychain. Don't create a classic personal access token for this.
+**Authentication.** Use `gh auth login --web` (run in a normal terminal) or Git Credential Manager. Don't
+create a classic personal access token for this. Know where the credential ends up: `gh` stores its token
+in your operating system's credential store (macOS Keychain, Windows Credential Manager, a Linux keyring)
+**when one is available**, and otherwise falls back to a plain-text file, `~/.config/gh/hosts.yml` — common
+on Linux and WSL2 without a keyring. `gh auth status` shows which one it used. Either way the sandbox's
+`denyRead: ["~/"]` keeps sandboxed commands away from `~/.config/gh`, and the Part 3b deny rule
+`Read(~/.config/gh/**)` keeps Claude's Read tool away from it. Git Credential Manager uses the operating
+system's credential store.
 
 ---
 
@@ -514,9 +624,9 @@ Run Doc 02 normally, with these overrides:
 |---|---|
 | **Before you start Doc 02** | `cd` into your vault. Confirm with `pwd`. The working directory *is* the boundary — if you launch Claude from anywhere else, the built-in-tool scope follows you there and `.` resolves somewhere else entirely. |
 | **STEP 3 — permissions block** | **Already done in Part 3b** — same `allow` and `ask` lists plus the `deny` list, merged with the script. Tell Claude to skip the Step 3 merge: under the sandbox the script can't write `~/.claude/settings.json` anyway (Claude Code always denies sandboxed writes to it). |
-| **STEP 3 — global router** | Run normally. If you chose option (A) in Part 3c, tell Claude to change router rule 3 to point at `<vault>/dev/` instead of `~/dev/`. |
+| **STEP 3 — global router** | Run normally. It names `~/dev/<repo-name>`, the same repo as Part 3c. |
 | **STEP 3.5 — hooks** | Read both hook commands and the statusline script before they're written — they run unsandboxed. The `chmod +x` lines and the three settings merges fail sandboxed (they write in `~/.claude`): run them from a session outside the vault (Part 3d). `jq` must be installed (Doc 01 prerequisites). |
-| **STEP 6 — create the repo** | Use whichever location you picked in Part 3c. |
+| **STEP 6 — create the repo** | Use the repo name from Part 3c. Claude shows you the creation block; **you** run it in a normal terminal (sandboxed commands can't write to `~/dev` or run git — Part 4.5). Then restart Claude Code in your vault, so the Part 3c entry applies to the new folder, and run the verify command there yourself too. |
 | **STEP 12 — first push** | Under the sandbox Claude can't run git (Part 4.5). Claude shows you the staged file list and the commands; you check owner, **Private** visibility and files, and run `gh repo create … --private` and `git push` yourself in a normal terminal. |
 | **If `gh` fails** | Likely the Seatbelt/TLS issue with Go-based CLIs. Expected under strict mode. Run `gh` yourself in a normal terminal; don't create a classic personal access token. |
 | **Doc 03 — plugins and skills** | Install from a session outside the vault (Part 3d). |

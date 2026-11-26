@@ -225,45 +225,36 @@ The starter skills come from one public, reviewed pack: **`AI-Acceleration/cc-st
 - **`/skill-create`** — build new skills from a guided conversation (your Week-1 weekly-review skill)
 - plus `/context`, `/permissions`, `/extract`, `/deep-research`, `/deep-planning`, `/fermi-decomposition`
 
-Several skills ship helper files next to their `SKILL.md`, so install the whole pack, not single files. The pack's copy goes in `~/.aiac/`, **not** in `~/dev/` — it's a program tool, not one of my repos.
+Several skills ship helper files next to their `SKILL.md`, so install the whole pack, not single files. Nothing
+of the pack is kept afterwards: it is cloned into a brand-new temporary folder that is deleted at the end, so a
+leftover or changed copy can never be installed by mistake.
 
-### 2.7a — Clone the pack at `v1.0.0` and run its installer
+### 2.7a — Clone the pack at `v1.0.0` into a temporary folder and run its installer
 
-The installer runs **only** after a successful fresh clone — never on a leftover checkout:
+Every install — the first one, a retry after an error, or a reinstall later (Doc 04) — uses this same block.
+Run it as **one** command:
 
 ```bash
-mkdir -p ~/.aiac
-if [ -e ~/.aiac/cc-starter-pack ]; then
-  echo "STOP: ~/.aiac/cc-starter-pack already exists - not installed"
+PACK_TMP="$(mktemp -d)" || PACK_TMP=""
+if [ -z "$PACK_TMP" ]; then
+  echo "STOP: could not create a temporary folder - not installed"
+elif ! git clone --depth 1 --branch v1.0.0 https://github.com/AI-Acceleration/cc-starter-pack.git "$PACK_TMP/cc-starter-pack"; then
+  echo "STOP: the clone failed - not installed"
+elif [ "$(cd "$PACK_TMP/cc-starter-pack" && git rev-parse HEAD)" != "711372c99e27700e70389a09b9a40b1911be8ca4" ]; then
+  echo "STOP: v1.0.0 is not the reviewed commit 711372c - not installed"
 else
-  git clone --depth 1 --branch v1.0.0 https://github.com/AI-Acceleration/cc-starter-pack.git ~/.aiac/cc-starter-pack \
-    && (cd ~/.aiac/cc-starter-pack \
-        && if [ "$(git rev-parse HEAD)" = "711372c99e27700e70389a09b9a40b1911be8ca4" ]; then bash ./install.sh; \
-           else echo "STOP: v1.0.0 is not the reviewed commit 711372c - not installed"; fi)
+  (cd "$PACK_TMP/cc-starter-pack" && bash ./install.sh)
 fi
+[ -n "$PACK_TMP" ] && rm -rf "$PACK_TMP"
 ```
 
-(The parentheses keep this session's working folder on the vault. The `&&` means a failed clone never
-runs anything. A tag can be moved after the fact, so the installer also runs only if the clone sits on
-commit `711372c99e27700e70389a09b9a40b1911be8ca4` — the exact `v1.0.0` this kit was reviewed against. A
-`STOP: v1.0.0 is not the reviewed commit` line means nothing was installed: show me, and don't work
-around it.)
+It runs the installer **only** when all three hold: the temporary folder was created, the clone succeeded,
+and the clone sits on commit `711372c99e27700e70389a09b9a40b1911be8ca4` — the exact `v1.0.0` this kit was reviewed against (a tag can be moved
+after the fact, a commit can't). The parentheses keep this session's working folder on the vault. Any
+`STOP:` line means nothing was installed: show me, and don't work around it. **Never run `install.sh` from
+any other folder** — not from a copy left by an earlier attempt, and not from an older `~/.aiac/cc-starter-pack`
+from a previous version of this kit (you can delete that one).
 
-- **If it prints `STOP`** (a copy exists from an earlier attempt), tell me before touching it. Either,
-  with my OK, rename it out of the way (`mv ~/.aiac/cc-starter-pack ~/.aiac/cc-starter-pack.old`) and
-  run the block again, or verify it first — this installs only if the copy points at the official
-  repo, sits exactly on the reviewed `v1.0.0` commit (`711372c`) and has no changed or extra files:
-
-  ```bash
-  (cd ~/.aiac/cc-starter-pack \
-    && test "$(git remote get-url origin)" = "https://github.com/AI-Acceleration/cc-starter-pack.git" \
-    && test -z "$(git status --porcelain --untracked-files=all)" \
-    && test "$(git rev-parse HEAD)" = "711372c99e27700e70389a09b9a40b1911be8ca4" \
-    && echo "VERIFIED: v1.0.0, clean" && bash ./install.sh)
-  ```
-
-  No `VERIFIED` line means one check failed and nothing was installed: show me, and use the rename
-  route instead.
 - `install.sh` copies each skill folder into `~/.claude/skills/<skill>/`. It **skips** any skill I already have with the same name and prints `SKIP: …` for it — that skill keeps my version, not the `v1.0.0` one. If you see a `SKIP`, show me the list and ask me what to do — never overwrite one of my skills without my OK (`bash ./install.sh force` overwrites).
 - It ends with "Restart Claude Code": **don't restart now.** The skills load in my next session.
 

@@ -105,7 +105,9 @@ Send the byte-identical `.sh.txt` twin of the status check (it runs the same).
 The participant runs the **exact filename they received**, e.g.
 `bash ~/Downloads/aiac-status-check.sh.txt`, and sends you **only** the block
 between `----- AIAC STATUS (safe to share) -----` and `----- END -----`.
-Everything above that block is for their eyes only. Keep any script you send
+Everything above that block is for their eyes only. When Claude runs the check
+for them, it runs it with `--share`, which prints only the block, so the
+details never reach Claude's context. Keep any script you send
 **100% ASCII** so it survives copy-paste through chat apps.
 
 **4. Private per-participant delivery repos work well.**
@@ -129,6 +131,7 @@ subfolder that is the only place you ever share from.
   the participant first, then a short **safe-to-share block** with only check
   names and `DONE` / `NOT DONE` / `SKIPPED (optional)`, the operating system
   and an overall verdict. The first `NOT DONE` is where to resume.
+  `--share` prints only that block (use it whenever Claude runs the check);
   `--details` shows more local detail and warns not to share it. Contributed
   by Mangan.
 
@@ -138,7 +141,10 @@ Docs 03/03W and 04 install the starter skills from the public
 [`AI-Acceleration/cc-starter-pack`](https://github.com/AI-Acceleration/cc-starter-pack)
 repo, **pinned to tag `v1.0.0`**, so every fresh install gets the same reviewed
 files (a skill the participant already has under the same name is skipped and
-keeps their version). A new version means a new tag and an update to the docs.
+keeps their version). Every install path clones into a new temporary folder and
+runs the installer only if the clone succeeded and sits on the reviewed commit
+(`711372c`), because a tag can be moved. A new version means a new tag, a new
+reviewed commit and an update to the docs.
 
 ## Not locked to one AI tool
 

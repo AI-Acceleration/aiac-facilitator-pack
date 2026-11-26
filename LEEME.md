@@ -74,6 +74,8 @@ tiene la lista completa de qué enviar.
   byte, a propósito. El participante corre el nombre exacto que recibió, por
   ejemplo `bash ~/Downloads/aiac-status-check.sh.txt`, y comparte solo el
   bloque entre `----- AIAC STATUS (safe to share) -----` y `----- END -----`.
+  Cuando Claude lo corre por él, agrega `--share`, que imprime solo ese
+  bloque, así el detalle nunca llega al contexto de Claude.
 
 ## Contribuir
 

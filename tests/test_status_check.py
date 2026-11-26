@@ -160,6 +160,8 @@ class StatusCheckCase(unittest.TestCase):
             "LC_ALL": "C",
             "GIT_CONFIG_NOSYSTEM": "1",
             "AIAC_STATUS_OBSIDIAN_APP": str(self.base / "no-obsidian.app"),
+            # No managed policy from the machine running the tests.
+            "AIAC_STATUS_MANAGED_DIR": str(self.base / "no-managed-policy"),
         }
 
     # -- fixture builders ------------------------------------------------
@@ -295,6 +297,21 @@ class StatusCheckCase(unittest.TestCase):
             self.assertIn(status, STATUSES, "unexpected status: %r" % entry)
         self.assertEqual(sum(1 for e in block if e.startswith("VERDICT: ")), 1)
         self.assertEqual(sum(1 for e in block if e.startswith("OS: ")), 1)
+
+
+class TestDocsUseShare(unittest.TestCase):
+    def test_every_prompt_that_has_claude_run_the_check_uses_share(self):
+        # Whatever Claude runs lands in its context: only the safe block may.
+        prompt = re.compile(r"^```\n((?:Run|Corre) `bash [^`\n]*aiac-status-check[^`\n]*`[^\n]*)\n```$",
+                            re.MULTILINE)
+        for edition in ("EN", "ES"):
+            path = ROOT / ("Co-Facilitator Kit (%s)" % edition) / \
+                "01 — Pre-Session Setup Instructions (Participant).md"
+            found = prompt.findall(path.read_text(encoding="utf-8"))
+            with self.subTest(edition=edition):
+                self.assertTrue(found)
+                for line in found:
+                    self.assertIn(".sh.txt --share`", line)
 
 
 class TestShippedCopies(unittest.TestCase):
@@ -480,8 +497,57 @@ class TestNoLeaksInDefaultOutput(StatusCheckCase):
                 # claude and gh are never run (either can write files on first run).
                 self.assertRegex(output, r"Doc 01 - Claude Code installed +installed "
                                          r"\(version not read\)")
-                self.assertRegex(output, r"Doc 01 - Python 3 installed +version 3\.12\.0")
+                # Extra text on the version line: Python counts, no version shown.
+                self.assertRegex(output, r"Doc 01 - Python 3 installed +installed, version not "
+                                         r"read \(python3\)")
                 self.assertRegex(output, r"Chip / architecture +other")
+
+    # -- round 4: version probes and --share -------------------------------
+    PROBE_LEAKS = ("192.0.2.17", "probe-host.example.test", "ghp_" + "SYNTHPROBE0000")
+
+    def test_failed_version_probe_output_is_never_shown(self):
+        # A probe that fails but prints an address, a host name and a token on
+        # stdout: the report says only "installed (version not read)".
+        leak = " ".join(self.PROBE_LEAKS)
+        self.stub("git", 'echo "git version %s"; exit 1' % leak)
+        self.stub("jq", 'echo "jq-1.7.1 %s"; exit 3' % leak)
+        for py in ("python3", "python", "py"):
+            self.stub(py, 'echo "Python 3.12.0"; echo "%s"; exit 1' % leak)
+        for args in ((), ("--details",), ("--share",)):
+            with self.subTest(args=args):
+                output = self.run_script(*args)
+                for value in self.PROBE_LEAKS:
+                    self.assertNotIn(value, output)
+                if args != ("--share",):
+                    self.assertRegex(output, r"Doc 01 - Git installed +installed \(version not read\)")
+                    self.assertRegex(output, r"Doc 01 - jq installed +installed \(version not read\)")
+                # A failed Python probe does not count as a working Python 3.
+                self.assertEqual(statuses(output)["Doc 01 - Python 3 installed"], "NOT DONE")
+
+    def test_successful_probe_shows_only_a_strict_version(self):
+        self.stub("git", 'echo "git version 192.0.2.17"')  # address-shaped: refused
+        self.stub("python3", 'echo "Python 3.12.0"')
+        output = self.run_script()
+        self.assertNotIn("192.0.2", output)
+        self.assertRegex(output, r"Doc 01 - Git installed +installed \(version not read\)")
+        self.assertRegex(output, r"Doc 01 - Python 3 installed +version 3\.12\.0 \(python3\)")
+        self.stub("git", 'echo "git version 2.43.0.windows.1"')
+        self.assertRegex(self.run_script(), r"Doc 01 - Git installed +version 2\.43\.0\n")
+        self.stub("git", 'echo "git version 2.39.5 (Apple Git-154)"')
+        self.assertRegex(self.run_script(), r"Doc 01 - Git installed +version 2\.39\.5\n")
+
+    def test_share_prints_only_the_safe_block(self):
+        self.failing_tools()
+        full = self.run_script()
+        for args in (("--share",), ("--share", "--details"), ("--details", "--share")):
+            with self.subTest(args=args):
+                shared = self.run_script(*args)
+                lines = shared.splitlines()
+                self.assertEqual(lines[0], SAFE_START)
+                self.assertEqual(lines[-1], SAFE_END)
+                self.assertEqual(lines[1:-1], safe_block(full))
+                self.assert_no_leaks(shared)
+                self.assertNotIn("--details was ON", shared)
 
     def test_gh_token_variable_counts_but_is_never_printed(self):
         self.env["GH_TOKEN"] = "ghp_SYNTH" + "ETICTOKENVALUE"
@@ -877,6 +943,128 @@ class TestSandboxLines(StatusCheckCase):
             with self.subTest(fs=fs):
                 self.write_sandbox(**fs)
                 self.assertEqual(self.sandbox_status(), "NOT DONE")
+
+    # -- round 4: the effective sandbox, across every settings file --------
+    DOMAINS = ["github.com", "api.github.com", "codeload.github.com",
+               "registry.npmjs.org", "pypi.org", "files.pythonhosted.org"]
+
+    def write_json(self, path, data):
+        write(path, json.dumps(data))
+
+    @unittest.skipUnless(JQ, "jq required")
+    def test_domains_must_match_the_02s_list_exactly(self):
+        for domains in (self.DOMAINS + ["acme-hidden-exfil.test"],
+                        self.DOMAINS[:-1],
+                        ["*"],
+                        self.DOMAINS[:3] + ["*.github.com"] + self.DOMAINS[3:]):
+            with self.subTest(domains=domains):
+                self.write_sandbox()
+                data = json.loads((self.vault / ".claude" / "settings.json").read_text())
+                data["sandbox"]["network"]["allowedDomains"] = domains
+                self.write_json(self.vault / ".claude" / "settings.json", data)
+                output = self.run_script()
+                self.assertEqual(statuses(output)[
+                    "Doc 02-S - sandbox config in the vault (Part 3a)"], "NOT DONE")
+                self.assertNotIn("acme-hidden", output)
+        # Order and duplicates don't matter.
+        self.write_sandbox()
+        data = json.loads((self.vault / ".claude" / "settings.json").read_text())
+        data["sandbox"]["network"]["allowedDomains"] = list(reversed(self.DOMAINS)) + ["pypi.org"]
+        self.write_json(self.vault / ".claude" / "settings.json", data)
+        self.assertEqual(self.sandbox_status(), "DONE")
+
+    @unittest.skipUnless(JQ, "jq required")
+    def test_at_most_the_one_chosen_repo_is_readable_or_writable(self):
+        for fs in ({"allowRead": [".", "~/.claude", "~/dev/zeta", "~/dev/acme-hidden"],
+                    "allowWrite": ["~/dev/zeta"]},
+                   {"allowRead": [".", "~/.claude", "~/dev/zeta"],
+                    "allowWrite": ["~/dev/zeta", "~/dev/acme-hidden"]},
+                   {"allowRead": [".", "~/.claude", "~/dev/zeta"],
+                    "allowWrite": ["~/dev/acme-hidden"]},
+                   {"allowRead": [".", "~/.claude"], "allowWrite": ["~/dev/zeta"]}):
+            with self.subTest(fs=fs):
+                self.write_sandbox(**fs)
+                output = self.run_script()
+                self.assertEqual(statuses(output)[
+                    "Doc 02-S - sandbox config in the vault (Part 3a)"], "NOT DONE")
+                self.assertNotIn("acme-hidden", output)
+        # Trailing / and /** spell the same repo.
+        self.write_sandbox(allowRead=[".", "~/.claude", "~/dev/zeta/"], allowWrite=["~/dev/zeta/**"])
+        self.assertEqual(self.sandbox_status(), "DONE")
+
+    @unittest.skipUnless(JQ, "jq required")
+    def test_the_repo_must_be_the_one_the_router_names(self):
+        self.write_router(self.vault, repo_name="zeta")
+        self.make_repo("zeta")
+        self.write_sandbox(allowRead=[".", "~/.claude", "~/dev/zeta"], allowWrite=["~/dev/zeta"])
+        self.assertEqual(self.sandbox_status(), "DONE")
+        self.write_sandbox(allowRead=[".", "~/.claude", "~/dev/other"], allowWrite=["~/dev/other"])
+        self.assertEqual(self.sandbox_status(), "NOT DONE")
+
+    @unittest.skipUnless(JQ, "jq required")
+    def test_other_settings_files_that_widen_or_weaken_the_sandbox(self):
+        local = self.vault / ".claude" / "settings.local.json"
+        user = self.home / ".claude" / "settings.json"
+        cases = [
+            (local, {"sandbox": {"enabled": False}}),
+            (local, {"sandbox": {"allowUnsandboxedCommands": True}}),
+            (local, {"sandbox": {"excludedCommands": ["git *"]}}),
+            (local, {"sandbox": {"filesystem": {"allowWrite": ["~/acme-hidden"]}}}),
+            (local, {"sandbox": {"network": {"allowedDomains": ["acme-hidden.test"]}}}),
+            (local, {"permissions": {"allow": ["WebFetch(domain:acme-hidden.test)"]}}),
+            (local, {"permissions": {"allow": ["Edit(~/acme-hidden/**)"]}}),
+            (local, {"sandbox": "acme-hidden"}),
+            (user, {"sandbox": {"filesystem": {"disabled": True}}}),
+            (user, {"sandbox": {"filesystem": {"allowRead": ["~/acme-hidden"]}}}),
+            (user, {"sandbox": {"excludedCommands": ["docker *"]}}),
+            (user, {"sandbox": {"allowAppleEvents": True}}),
+            (user, {"sandbox": {"enableWeakerNestedSandbox": True}}),
+            (user, {"sandbox": {"network": {"allowUnixSockets": ["/var/run/acme-hidden.sock"]}}}),
+            (user, {"sandbox": {"network": {"httpProxyPort": 8080}}}),
+            (user, {"permissions": {"allow": list(DOC02_ALLOW), "additionalDirectories": ["~/acme-hidden"]}}),
+        ]
+        for path, data in cases:
+            with self.subTest(file=path.name, data=data):
+                self.write_sandbox()
+                for f in (local, user):
+                    if f.exists():
+                        f.unlink()
+                self.write_json(path, data)
+                output = self.run_script()
+                self.assertEqual(statuses(output)[
+                    "Doc 02-S - sandbox config in the vault (Part 3a)"], "NOT DONE")
+                self.assertNotIn("acme-hidden", output)
+                self.assertNotIn("8080", output)
+
+    @unittest.skipUnless(JQ, "jq required")
+    def test_harmless_local_and_user_settings_keep_it_done(self):
+        self.write_sandbox()
+        self.write_json(self.vault / ".claude" / "settings.local.json",
+                        {"sandbox": {"enabled": True, "autoAllowBashIfSandboxed": True},
+                         "permissions": {"allow": ["Bash(npm test)", "WebFetch(domain:pypi.org)"]}})
+        self.write_json(self.home / ".claude" / "settings.json", self.part_3b_settings())
+        self.assertEqual(self.sandbox_status(), "DONE")
+
+    @unittest.skipUnless(JQ, "jq required")
+    def test_managed_policy_counts_and_unreadable_policy_is_unverified(self):
+        managed = self.base / "managed"
+        self.env["AIAC_STATUS_MANAGED_DIR"] = str(managed)
+        self.write_sandbox()
+        self.write_json(managed / "managed-settings.json", {"sandbox": {"filesystem": {"disabled": True}}})
+        self.assertEqual(self.sandbox_status(), "NOT DONE")
+        (managed / "managed-settings.json").unlink()
+        self.write_json(managed / "managed-settings.d" / "10-acme-hidden.json",
+                        {"sandbox": {"excludedCommands": ["acme-hidden *"]}})
+        self.assertEqual(self.sandbox_status(), "NOT DONE")
+        (managed / "managed-settings.d" / "10-acme-hidden.json").unlink()
+        write(managed / "managed-settings.json", '{"sandbox": {"acme-hidden"')
+        output = self.run_script()
+        self.assertEqual(statuses(output)[
+            "Doc 02-S - sandbox config in the vault (Part 3a)"], "NOT DONE")
+        self.assertIn("unverified", output)
+        self.assertNotIn("acme-hidden", output)
+        write(managed / "managed-settings.json", json.dumps({"sandbox": {"enabled": True}}))
+        self.assertEqual(self.sandbox_status(), "DONE")
 
     def part_3b_settings(self, stop=True):
         settings = self.write_settings()

@@ -342,12 +342,11 @@ Confirma que el archivo se creó. Luego pasa al Paso 3.
 
 Ahora configura los ajustes globales de Claude Code. Viven en `~/.claude/settings.json` (fuera del vault — esta es la única excepción, porque Claude Code los exige ahí).
 
-**Primero, respalda lo que ya exista** (en una máquina nueva estos comandos no hacen nada, y eso está bien; si ya hay un respaldo de un intento anterior, se conserva y nunca se sobrescribe):
+**Primero, respalda lo que ya exista.** El script de fusión de abajo respalda `settings.json` por su cuenta, antes de su primer cambio: una copia privada (solo tú puedes leerla) del contenido actual del archivo — del archivo real, si `settings.json` es un enlace a otro — guardada como `~/.claude/settings.json.bak`, y nunca sobrescribe un respaldo anterior. Para el archivo del router, corre esto (en una máquina nueva no hace nada, y eso está bien; un respaldo existente se conserva):
 
 ```bash
 mkdir -p ~/.claude
-[ -e ~/.claude/settings.json.bak ] || cp -a ~/.claude/settings.json ~/.claude/settings.json.bak 2>/dev/null
-[ -e ~/.claude/CLAUDE.md.bak ] || cp -a ~/.claude/CLAUDE.md ~/.claude/CLAUDE.md.bak 2>/dev/null
+[ -e ~/.claude/CLAUDE.md.bak ] || [ -L ~/.claude/CLAUDE.md.bak ] || cp -pL ~/.claude/CLAUDE.md ~/.claude/CLAUDE.md.bak 2>/dev/null
 ```
 
 **Luego fusiona — nunca sobrescribas, y nunca muestres lo que ya hay.** `~/.claude/settings.json`
@@ -360,7 +359,7 @@ yo ya tenía:
    (mira la nota después del bloque).
 2. Guarda el script de fusión que está más abajo como `~/.claude/aiac-merge-settings.py`, exactamente
    como está escrito.
-3. Ejecútalo con el bloque por la entrada estándar (Python pide aprobación cada vez — es intencional; nunca respondas "don't ask again") y
+3. Ejecútalo con el bloque por la entrada estándar (correr Python no está preaprobado, así que Claude Code debería preguntar antes — apruébalo, pero nunca con "don't ask again") y
    muéstrame su salida. Su última línea tiene que empezar con `Verified:`. Si empieza con `STOP:`, no se
    cambió nada: muéstrame el mensaje y lo arreglamos juntos (mi respaldo es `~/.claude/settings.json.bak`).
 
@@ -434,8 +433,11 @@ El bloque del kit:
 
 **El script de fusión** — guárdalo como `~/.claude/aiac-merge-settings.py`. Agrega cada entrada del kit
 que falte, conserva cada clave y cada regla `allow`, `ask` y `deny` que yo ya tenga, se niega a tocar un
-archivo que no sea JSON válido, conserva los permisos de acceso del archivo, vuelve a leer el resultado
-para verificarlo, y de mis ajustes existentes no imprime nada más que nombres de claves:
+archivo que no sea JSON válido, primero comprueba que el bloque del kit tenga exactamente la forma del kit
+(se detiene ante cualquier otra cosa, incluso para una clave que mis ajustes todavía no tienen), guarda el
+respaldo privado descrito arriba, escribe a través de un `settings.json` que sea enlace simbólico hacia el
+archivo al que apunta, conserva los permisos de acceso del archivo, vuelve a leer el resultado para
+verificarlo, y de mis ajustes existentes no imprime nada más que nombres de claves:
 
 ```python
 # aiac-merge-settings.py - merges the AIAC kit's entries into ~/.claude/settings.json.
@@ -443,15 +445,58 @@ para verificarlo, y de mis ajustes existentes no imprime nada más que nombres d
 # of keys you already had. Usage: python3 aiac-merge-settings.py [--replace KEY] - < block
 import json
 import os
+import re
 import shutil
 import sys
 
 TARGET = os.path.expanduser("~/.claude/settings.json")
+BACKUP = TARGET + ".bak"
 DEEP = ("permissions", "hooks", "env")  # top-level objects merged key by key
+HOOK_EVENTS = ("Stop", "UserPromptSubmit", "PreCompact")
 
 
 def stop(message):
     sys.exit("STOP: " + message + " Nothing was changed.")
+
+
+def number(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0
+
+
+def hook_groups(v):
+    return isinstance(v, list) and all(
+        isinstance(g, dict) and set(g) <= {"matcher", "hooks"}
+        and isinstance(g.get("matcher", ""), str)
+        and isinstance(g.get("hooks"), list) and len(g["hooks"]) > 0
+        and all(isinstance(h, dict) and set(h) <= {"type", "command", "timeout"}
+                and h.get("type") == "command"
+                and isinstance(h.get("command"), str) and h["command"] != ""
+                and ("timeout" not in h or number(h["timeout"]))
+                for h in g["hooks"])
+        for g in v)
+
+
+# The only shapes a kit block may have. Checked before anything is merged,
+# whether or not your settings already have the key.
+SCHEMA = {
+    "permissions": lambda v: isinstance(v, dict) and set(v) <= {"allow", "ask", "deny"}
+    and all(isinstance(x, list) and all(isinstance(r, str) for r in x) for x in v.values()),
+    "hooks": lambda v: isinstance(v, dict) and set(v) <= set(HOOK_EVENTS)
+    and all(hook_groups(x) for x in v.values()),
+    "env": lambda v: isinstance(v, dict) and all(isinstance(x, str) for x in v.values()),
+    "statusLine": lambda v: isinstance(v, dict) and set(v) <= {"type", "command", "padding"}
+    and v.get("type") == "command" and isinstance(v.get("command"), str) and v["command"] != ""
+    and ("padding" not in v or (isinstance(v["padding"], int) and not isinstance(v["padding"], bool))),
+}
+
+
+def check_block(block):
+    for key, val in block.items():
+        name = key if re.match(r"^[A-Za-z][A-Za-z0-9_]{0,40}$", key) else "a key"
+        if key not in SCHEMA:
+            stop("the kit block has an entry the kit never uses (" + name + "); check it was copied whole.")
+        if not SCHEMA[key](val):
+            stop("the kit block's " + name + " entry has the wrong shape; check it was copied whole.")
 
 
 def merge(dst, new, path, added, kept):
@@ -500,6 +545,24 @@ def replace(dst, new, dotted):
     dst[keys[-1]] = new[keys[-1]]
 
 
+def backup(real):
+    """A private copy (0600) of the file's current bytes - the file a symlink
+    points at, never the link - made before the first change. An earlier
+    backup is never overwritten: if one exists, it is kept as it is."""
+    if os.path.isfile(BACKUP) and not os.path.islink(BACKUP):
+        return None
+    name, n = BACKUP, 0
+    while os.path.lexists(name):
+        n += 1
+        name = BACKUP + "." + str(n)
+    with open(real, "rb") as f:
+        data = f.read()
+    fd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "wb") as f:
+        f.write(data)
+    return name
+
+
 def main():
     args, to_replace = sys.argv[1:], []
     while len(args) >= 2 and args[0] == "--replace":
@@ -515,6 +578,7 @@ def main():
         stop("the kit block could not be read as JSON (check it was copied whole).")
     if not isinstance(block, dict):
         stop("the kit block is not a JSON object.")
+    check_block(block)
     # Write through a symlinked settings.json to the file it points at.
     real = os.path.realpath(TARGET)
     current = {}
@@ -535,8 +599,14 @@ def main():
         added.append(dotted + " (replaced, as you asked)")
     merge(current, block, [], added, kept)
     kept = [k for k in kept if not any(r.startswith(k + ".") for r in to_replace)]
+    saved = None
     if added or not os.path.exists(real):
         os.makedirs(os.path.dirname(real), exist_ok=True)
+        if os.path.exists(real):
+            try:
+                saved = backup(real)
+            except OSError:
+                stop("could not save a backup of ~/.claude/settings.json first.")
         tmp = real + ".aiac-tmp"
         if os.path.lexists(tmp):
             os.unlink(tmp)
@@ -548,6 +618,8 @@ def main():
         if os.path.exists(real):
             shutil.copymode(real, tmp)
         os.replace(tmp, real)
+    if saved:
+        print("backup of your previous settings (private): ~/.claude/" + os.path.basename(saved))
     for name in added:
         print("added: " + name)
     for name in kept:
@@ -572,14 +644,15 @@ main()
 >
 > - **`allow` tiene solo comandos de solo lectura:** cinco comandos de git exactos (`git status`,
 >   `git status --short`, `git diff`, `git log --oneline`, `git remote -v`) más `ls` y `wc`. Nada de eso
->   escribe, publica ni ejecuta un programa — ni siquiera `mkdir`: crear una carpeta pregunta cada vez.
+>   escribe, publica ni ejecuta un programa — ni siquiera `mkdir`: crear una carpeta tampoco está preaprobado.
 > - **`ask` convierte en reglas las confirmaciones prometidas.** `cat`, `head`, `tail`, `grep`, `diff`,
 >   `sed`, `sort` y `git show` pueden imprimir el contenido de un archivo, así que preguntan cada vez
 >   (dentro del vault Claude lee con su herramienta Read, que ahí no pide permiso). `git add`,
 >   `git commit`, `git push` y `gh repo create` también preguntan cada vez, y lo mismo cualquier comando
 >   de git escrito como `git -C <carpeta> …` o `git -c <ajuste> …` — formas que de otro modo esquivarían
 >   la regla de `git push`. Una regla `ask` le gana a cualquier regla `allow` — incluida una guardada al
->   responder "Yes, and don't ask again" — y sigue preguntando en auto mode. Por eso tampoco hay una
+>   responder "Yes, and don't ask again" — y sigue preguntando en auto mode y en el modo auto-allow del
+>   sandbox (Doc 02-S). Estas catorce reglas son los **únicos** comandos que seguro preguntan cada vez. Por eso tampoco hay una
 >   regla `ask` para todo `git log` o `git diff`: haría preguntar también a los `git log --oneline` y
 >   `git diff` permitidos.
 > - **Fuera a propósito:**
@@ -588,8 +661,11 @@ main()
 >     las aprobaría en silencio. (En `ask`, un comodín solo puede agregar preguntas.)
 >   - **Python, Node y otros intérpretes, y `pip install`.** Un script puede leer y escribir cualquier
 >     archivo como subproceso, y las reglas de permisos no ven eso. Preaprobar un intérprete dejaría
->     decorativa cualquier regla `deny` que agregues después. Vas a recibir una solicitud de permiso cada
->     vez que Claude ejecute uno — apruébala una vez, nunca con "don't ask again".
+>     decorativa cualquier regla `deny` que agregues después. Sin una regla allow, Claude Code normalmente
+>     pregunta antes de ejecutar uno — pero no siempre: una aprobación que guardaste antes ("Yes, and
+>     don't ask again"), un modo de permisos que se salta las preguntas o el modo auto-allow del sandbox
+>     (Doc 02-S) pueden dejar correr un script sin preguntar, porque los intérpretes no están en la lista
+>     `ask`. Apruébalo cada vez que te pregunte, nunca con "don't ask again".
 >   - **Nombres de herramienta a secas — `Read`, `Write`, `Edit`, `Glob`, `Grep`.** Listado sin una
 >     ruta, un nombre de herramienta la preaprueba para **cualquier lugar de tu disco**, lo que anula el
 >     comportamiento por defecto de Claude Code de trabajar en la carpeta desde donde lo lanzaste. Glob y
@@ -825,11 +901,17 @@ Escribe `~/.claude/hooks/context-warn-precompact.sh`:
 ```bash
 #!/bin/bash
 cat <<'EOF'
-{"continue": false, "stopReason": "Auto-compact paused at 75%. Run /session-close to preserve plans/tasks to disk (then /clear), or run /compact to proceed with default compaction."}
+{"decision": "block", "reason": "Auto-compactación pausada al 75%. Corre /session-close para guardar planes y tareas en disco (luego /clear), o corre /compact para seguir con la compactación normal."}
 EOF
 ```
 
-`chmod +x ~/.claude/hooks/context-warn-precompact.sh`. **Pipe-test:** `echo '{}' | bash ~/.claude/hooks/context-warn-precompact.sh | jq -e .`
+`chmod +x ~/.claude/hooks/context-warn-precompact.sh`. **Pipe-test:** `echo '{}' | bash ~/.claude/hooks/context-warn-precompact.sh | jq -e '.decision == "block"'`
+
+> **Cómo funciona la pausa** ([referencia de hooks, PreCompact](https://code.claude.com/docs/en/hooks#precompact)): un *hook* PreCompact frena
+> la compactación imprimiendo `"decision": "block"` (o saliendo con código 2). El campo `continue` se ignora en este evento,
+> así que no sirve para pausar. El *hook* está conectado solo al disparador `auto`, así que un `/compact` que escribas tú sigue funcionando. Si el
+> contexto ya está completamente lleno, una auto-compactación frenada hace fallar el pedido actual en vez de pausar: en ese punto corre
+> `/session-close` o `/compact` tú mismo.
 
 ### Conecta ambos *hooks* en settings.json + verifica
 
@@ -1328,7 +1410,12 @@ cd ~/dev/<repo-name> && git commit -m "Initial project setup: CLAUDE.md, folder 
 **Ahora ponlo en GitHub — como repositorio Private y bajo la cuenta correcta.** Antes de crear nada,
 confirma tres cosas conmigo y espera mi "sí":
 
-1. **Dueño:** la cuenta bajo la que se va a crear (`gh api user --jq .login`, o mi nombre de usuario del Paso 5).
+1. **Dueño:** la cuenta bajo la que se va a crear — mi nombre de usuario del Paso 5 o, con `gh`:
+
+   ```bash
+   cd ~/dev/<repo-name> && gh api --hostname github.com user --jq .login
+   ```
+
 2. **Visibilidad: Private.**
 3. **Nombre:** `<repo-name>`.
 
@@ -1366,8 +1453,14 @@ cd ~/dev/<repo-name> && git remote get-url --push --all origin && git log --onel
    línea**, y esa línea tiene que ser `https://github.com/<owner>/<repo-name>.git` (o, si uso
    SSH, la forma SSH de GitHub de esa dirección) con el dueño y el nombre que confirmé. Otro dueño, otro
    nombre, otro servidor o más de una línea significa **PARA** — no hagas push.
-2. **Visibilidad.** Con `gh`, ejecuta `gh repo view <owner>/<repo-name> --json nameWithOwner,visibility`:
-   tiene que imprimir mi `nameWithOwner` **y `"visibility": "PRIVATE"`**. Sin `gh`, yo confirmo la
+2. **Visibilidad.** Con `gh`, pregúntale al propio GitHub por el servidor, el dueño y el nombre exactos del
+   punto 1:
+
+   ```bash
+   cd ~/dev/<repo-name> && gh repo view github.com/<owner>/<repo-name> --json nameWithOwner,visibility
+   ```
+
+   Tiene que imprimir mi `nameWithOwner` **y `"visibility": "PRIVATE"`**. Sin `gh`, yo confirmo la
    etiqueta **Private** en la página del repositorio. Si no es privado, **PARA** y ayúdame primero a
    arreglarlo (en el repositorio: **Settings → General → Danger Zone → Change visibility**).
 3. **Qué se va a enviar.** El primer push envía **todo el historial**, no solo los archivos de hoy.
@@ -1382,20 +1475,33 @@ otra razón para no reescribir el comando:
 cd ~/dev/<repo-name> && git push -u origin main
 ```
 
-**Si el push pide credenciales o falla la autenticación:** con `gh`, ejecuta `gh auth setup-git` y vuelve
-a hacer push. Sin `gh`, Git Credential Manager (incluido con Git for Windows) abre un inicio de sesión en
+**Si el push pide credenciales o falla la autenticación:** con `gh`, conecta git con el inicio de sesión
+de GitHub de `gh` y luego vuelve a correr exactamente el bloque de push de arriba (mismo comando, misma
+aprobación):
+
+```bash
+cd ~/dev/<repo-name> && gh auth setup-git --hostname github.com
+```
+
+Sin `gh`, Git Credential Manager (incluido con Git for Windows) abre un inicio de sesión en
 el navegador — inicia sesión y autoriza ahí. **No crees un *personal access token* clásico.** Si sigue
 fallando, **PARA** y muéstrame el error para que se lo pueda pasar a mi facilitador.
 
-**Luego verifica que el push de verdad llegó** — pregúntale a GitHub, no lo des por hecho:
+**Luego verifica que el push de verdad llegó** — pregúntale a GitHub, no lo des por hecho. Pregunta a la
+dirección exacta que confirmamos en el punto 1 (escribe `<push-url>` como esa única línea, por ejemplo
+`https://github.com/<owner>/<repo-name>.git`), no a `origin`: la dirección de lectura de un remoto puede
+ser distinta de la dirección a la que git hace push.
 
 ```bash
-cd ~/dev/<repo-name> && git rev-parse HEAD && git ls-remote origin refs/heads/main
+cd ~/dev/<repo-name> && git rev-parse HEAD && git ls-remote <push-url> refs/heads/main
 ```
 
-Los dos tienen que mostrar el mismo identificador de commit: el segundo viene del propio GitHub. Con
-`gh`, `gh repo view <owner>/<repo-name> --json nameWithOwner,visibility` otra vez confirma que el
-repositorio sigue siendo `PRIVATE`.
+Los dos tienen que mostrar el mismo identificador de commit: el segundo viene del propio GitHub. Con `gh`,
+confirma otra vez que el repositorio sigue siendo `PRIVATE`:
+
+```bash
+cd ~/dev/<repo-name> && gh repo view github.com/<owner>/<repo-name> --json nameWithOwner,visibility
+```
 
 Si no podemos conectarnos a GitHub ahora mismo, un commit solo local está bien por hoy — dilo claramente
 en el resumen, y nos conectamos después.

@@ -228,46 +228,36 @@ Las *skills* iniciales vienen de un solo paquete público y revisado: **`AI-Acce
 - **`/skill-create`** — construye *skills* nuevas a partir de una conversación guiada (tu *skill* de revisión semanal de la Semana 1)
 - además `/context`, `/permissions`, `/extract`, `/deep-research`, `/deep-planning`, `/fermi-decomposition`
 
-Varias *skills* traen archivos de apoyo junto a su `SKILL.md`, así que instala el paquete completo, no archivos sueltos. La copia del paquete va en `~/.aiac/`, **no** en `~/dev/` — es una herramienta del programa, no uno de mis repositorios.
+Varias *skills* traen archivos de apoyo junto a su `SKILL.md`, así que instala el paquete completo, no archivos
+sueltos. Del paquete no queda nada después: se clona en una carpeta temporal nueva que se borra al final, así que
+nunca se puede instalar por error una copia vieja o modificada.
 
-### 2.7a — Clonar el paquete en `v1.0.0` y correr su instalador
+### 2.7a — Clonar el paquete en `v1.0.0` en una carpeta temporal y correr su instalador
 
-El instalador corre **solo** después de una clonación nueva y exitosa — nunca sobre una copia que quedó de antes:
+Toda instalación — la primera, un reintento después de un error o una reinstalación más adelante (Doc 04) — usa
+este mismo bloque. Córrelo como **un solo** comando:
 
 ```bash
-mkdir -p ~/.aiac
-if [ -e ~/.aiac/cc-starter-pack ]; then
-  echo "STOP: ~/.aiac/cc-starter-pack already exists - not installed"
+PACK_TMP="$(mktemp -d)" || PACK_TMP=""
+if [ -z "$PACK_TMP" ]; then
+  echo "STOP: could not create a temporary folder - not installed"
+elif ! git clone --depth 1 --branch v1.0.0 https://github.com/AI-Acceleration/cc-starter-pack.git "$PACK_TMP/cc-starter-pack"; then
+  echo "STOP: the clone failed - not installed"
+elif [ "$(cd "$PACK_TMP/cc-starter-pack" && git rev-parse HEAD)" != "711372c99e27700e70389a09b9a40b1911be8ca4" ]; then
+  echo "STOP: v1.0.0 is not the reviewed commit 711372c - not installed"
 else
-  git clone --depth 1 --branch v1.0.0 https://github.com/AI-Acceleration/cc-starter-pack.git ~/.aiac/cc-starter-pack \
-    && (cd ~/.aiac/cc-starter-pack \
-        && if [ "$(git rev-parse HEAD)" = "711372c99e27700e70389a09b9a40b1911be8ca4" ]; then bash ./install.sh; \
-           else echo "STOP: v1.0.0 is not the reviewed commit 711372c - not installed"; fi)
+  (cd "$PACK_TMP/cc-starter-pack" && bash ./install.sh)
 fi
+[ -n "$PACK_TMP" ] && rm -rf "$PACK_TMP"
 ```
 
-(Los paréntesis mantienen la carpeta de trabajo de esta sesión en el *vault*. El `&&` hace que una
-clonación fallida nunca ejecute nada. Una etiqueta se puede mover después, así que el instalador además
-corre solo si la clonación está en el commit `711372c99e27700e70389a09b9a40b1911be8ca4` — exactamente el
-`v1.0.0` contra el que se revisó este kit. Una línea `STOP: v1.0.0 is not the reviewed commit` significa
-que no se instaló nada: muéstramela y no intentes saltarte la verificación.)
+Corre el instalador **solo** cuando se cumplen las tres cosas: se creó la carpeta temporal, la clonación salió
+bien y la clonación está en el commit `711372c99e27700e70389a09b9a40b1911be8ca4` — exactamente el `v1.0.0` contra el que se revisó este kit (una
+etiqueta se puede mover después, un commit no). Los paréntesis mantienen la carpeta de trabajo de esta sesión en
+el *vault*. Cualquier línea `STOP:` significa que no se instaló nada: muéstramela y no intentes saltarte la
+verificación. **Nunca corras `install.sh` desde otra carpeta** — ni desde una copia que quedó de un intento
+anterior, ni desde un `~/.aiac/cc-starter-pack` viejo de una versión anterior de este kit (ése lo puedes borrar).
 
-- **Si imprime `STOP`** (existe una copia de un intento anterior), dímelo antes de tocarla. O bien, con
-  mi OK, la renombras para quitarla del camino (`mv ~/.aiac/cc-starter-pack ~/.aiac/cc-starter-pack.old`)
-  y vuelves a correr el bloque, o la verificas primero — esto instala solo si la copia apunta al
-  repositorio oficial, está exactamente en el commit revisado de `v1.0.0` (`711372c`) y no tiene archivos
-  cambiados ni de más:
-
-  ```bash
-  (cd ~/.aiac/cc-starter-pack \
-    && test "$(git remote get-url origin)" = "https://github.com/AI-Acceleration/cc-starter-pack.git" \
-    && test -z "$(git status --porcelain --untracked-files=all)" \
-    && test "$(git rev-parse HEAD)" = "711372c99e27700e70389a09b9a40b1911be8ca4" \
-    && echo "VERIFIED: v1.0.0, clean" && bash ./install.sh)
-  ```
-
-  Si no aparece la línea `VERIFIED`, falló una comprobación y no se instaló nada: muéstramelo y usa el
-  camino de renombrar.
 - `install.sh` copia cada carpeta de *skill* a `~/.claude/skills/<skill>/`. **Se salta** cualquier *skill* que yo ya tenga con el mismo nombre e imprime `SKIP: …` para ella — esa *skill* se queda con mi versión, no con la de `v1.0.0`. Si ves un `SKIP`, muéstrame la lista y pregúntame qué hacer — nunca sobrescribas una de mis *skills* sin mi OK (`bash ./install.sh force` sobrescribe).
 - Termina con "Restart Claude Code": **no reinicies ahora.** Las *skills* se cargan en mi próxima sesión.
 

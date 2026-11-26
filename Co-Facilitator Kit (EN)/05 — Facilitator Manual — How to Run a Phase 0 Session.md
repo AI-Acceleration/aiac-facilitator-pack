@@ -98,6 +98,7 @@ Run Docs 01 → 02 → 03 yourself, end to end, on a **clean machine or a fresh 
 - [ ] **Placeholders filled.** `[SET: your support channel]` appears in **Doc 01** and **Doc 04**. Replace it with the channel your participants use to reach you (a WhatsApp number, an email, a Slack channel). `[TOOL]` appears in **Doc 03 / 03W**: replace it with the participant's transcription tool (`Granola`, another tool, or `none / pasted transcript`). These are the only values you fill in; everything else the participant generates live.
 - [ ] **Right editions picked.** Windows participant → **02W / 03W**. Spanish → the ES kit (tú); Argentine participant → apply the `00V` voseo table to the participant docs.
 - [ ] **Screen sharing tested** on the call tool you'll use.
+- [ ] **Location checked.** The participant will be in a [supported country or region](https://www.anthropic.com/legal/supported-regions) for the session (it depends on where they physically are). If not, pick another date; don't plan a workaround.
 - [ ] **A dated cutoff set** for the pre-flight (see § 4).
 - [ ] **Concrete project confirmed** (see § 6).
 - [ ] **Recording decided:** optional, and only with consent (see § 8).
@@ -145,10 +146,10 @@ The participant must arrive with **one concrete project**: an input they can bri
 
 `tools/aiac-status-check.sh` is a read-only script (it installs, changes and sends nothing) that reports how far a setup got. Use it when a pre-flight line is unclear or a participant is stuck between sessions.
 
-- Tell them to run **the exact filename they received**, for example `bash ~/Downloads/aiac-status-check.sh.txt` (Claude can run it for them; Doc 01 has the prompt).
+- Tell them to run **the exact filename they received**, for example `bash ~/Downloads/aiac-status-check.sh.txt`. If Claude runs it for them, it runs `bash ~/Downloads/aiac-status-check.sh.txt --share` (Doc 01 has the prompt): `--share` prints only the safe-to-share block, so the details never enter Claude's context. The full report is for the participant to run in their own terminal.
 - Ask them to share **only** the block between `----- AIAC STATUS (safe to share) -----` and `----- END -----`. It holds check names, `DONE` / `NOT DONE` / `SKIPPED (optional)`, the OS and an overall verdict. **Never ask for the details above it**, and never ask for `--details` output: that part is for the participant's own eyes.
 - The first `NOT DONE` is the resume point. `SKIPPED (optional)` is not homework. Before the session, a complete setup reads `VERDICT: PRE-SESSION - homework complete, ready for the session`; after it, `VERDICT: PHASE 0 SETUP COMPLETE - …`. The script reports only what it can see on the machine — for example "GitHub CLI credentials present", "Obsidian config found in this folder", "repo origin points at GitHub" — and its "NOT CHECKED HERE" list names what it cannot prove: that the `gh` credentials still work (`gh auth status`), that Obsidian has this exact folder open, and that the repo exists on GitHub, is Private and holds the commit. You verify those yourself: the folder on their shared screen, and the repo server-side (Gate 6).
-- If the participant has already set up the 02-S sandbox, they run it in a plain terminal rather than inside Claude Code, where sandboxed commands can't see `~/.claude`.
+- If the participant has already set up the 02-S sandbox, they run it in a plain terminal rather than inside Claude Code: sandboxed commands can read only the vault, `~/.claude` (minus its login file) and the one repo named in 02-S, so the script in `~/Downloads` and several of the files it checks (the `gh` sign-in, installed apps) are out of their reach.
 
 ### 8. Recording: optional, with consent
 
@@ -161,6 +162,7 @@ If the participant asks that Claude only touch the folder they give it, send **`
 - Doc 02's **STEP 3 permissions block is skipped**: 02-S replaces it deliberately.
 - Read 02-S's own statement of the boundary with the participant: the sandbox confines Claude's shell commands, but it is not an all-purpose wall (02-S lists what stays outside it). Don't promise more than it states.
 - **Claude may not be able to run `git` or `gh`** under the sandbox. The participant runs those themselves, and the commit becomes their act of approval. Say this up front so it doesn't read as a failure mid-session. If `gh` fails, use the browser path in § 10 (no tokens).
+- **The repo is named up front.** 02-S Part 3c adds exactly one `~/dev/<repo-name>` to the sandbox; agree the repo name before the session and use the same name in Doc 02. In Step 6 the participant creates the folder in a normal terminal and restarts Claude Code in the vault.
 - Mac and Linux only. Native Windows has no sandbox (WSL2 required).
 
 ### 10. GitHub access (this kit's version)
@@ -366,7 +368,7 @@ Your job during the interview is to be the human co-pilot: help them pick the ca
 - **Git not installed** → Doc 01 Step 2 (`xcode-select --install` on Mac, Git for Windows on Windows).
 - **Repo creation fails** → `gh auth status` must show a logged-in user; if not, the participant runs `gh auth login --hostname github.com --git-protocol https --web` in a **second terminal window** (Claude can't answer its prompts). No `gh` at all → the browser path from Pre-Session § 10.
 - **Claude Code login expired** → `/login`, or exit and run `claude` again.
-- **Blocked country** → the VPN must stay **on** for the whole session; network steps fail the moment it drops.
+- **Claude unavailable where the participant is** → Claude works only in [supported countries and regions](https://www.anthropic.com/legal/supported-regions), based on where the person physically is. Don't work around it: reschedule for a time when they're in a supported region (ask them to check the list before booking). If a *company* network or VPN blocks `claude.ai`, `github.com` or `obsidian.md`, their IT allows those domains.
 - **Claude blocks a settings edit and mentions the mode** → press **Shift+Tab** to switch to the default mode, make the edit, then switch back.
 - **The interview stalls, participant can't name a problem** → fall back to the project they brought per Doc 01; if still stuck, pick a concrete, recurring task from their described role and name it yourself. A decent first case beats a perfect one.
 
@@ -547,17 +549,17 @@ GitHub is the step that keeps passing in the room and failing on disk. `git remo
 
 **With `gh` (default).** In the repo session, the participant gives Claude this prompt (replace owner and repo):
 
-> "Run `gh repo view <owner>/<repo> --json nameWithOwner,visibility`, then `gh api repos/<owner>/<repo>/commits --jq '.[0].sha[0:7]'` and `git log --oneline -1`. Show me the raw output of all three."
+> "Run `gh repo view github.com/<owner>/<repo> --json nameWithOwner,visibility`, then `gh api --hostname github.com repos/<owner>/<repo>/commits --jq '.[0].sha[0:7]'` and `git log --oneline -1`. Show me the raw output of all three."
 
 **PASS** = `nameWithOwner` is their repo, `visibility` is **`PRIVATE`**, and the commit SHA from GitHub matches the first 7 characters of the local `git log` line. A `gh` error, an empty answer, a public repo or a mismatched SHA is a **FAIL**, whatever the terminal showed ten minutes ago.
 
-**Without `gh`.** The participant asks Claude to run `git remote get-url --push --all origin`, `git ls-remote origin HEAD` and `git rev-parse --short HEAD`. The first must print exactly one line, `https://github.com/<owner>/<repo>.git` (or the same address in GitHub's SSH form), with their owner and repo name; the second asks GitHub for its latest commit, and its first 7 characters must match the third. Then they open the repo page in the browser while sharing their screen, and you confirm the **Private** label next to the repository name.
+**Without `gh`.** The participant asks Claude to run `git remote get-url --push --all origin`, then `git ls-remote <that address> HEAD` and `git rev-parse --short HEAD`. The first must print exactly one line, `https://github.com/<owner>/<repo>.git` (or the same address in GitHub's SSH form), with their owner and repo name; the second asks that exact address (not `origin`, whose fetch address can differ) for its latest commit, and its first 7 characters must match the third. Then they open the repo page in the browser while sharing their screen, and you confirm the **Private** label next to the repository name.
 
 **Facilitator-owned variant.** Membership alone proves nothing about privacy or the push, so you run all three checks on your own machine:
 
 1. `gh api repos/<owner>/<repo>/collaborators --jq '.[].login'` — their username is listed. A **pending invitation is a FAIL**: have them accept it now at `https://github.com/<owner>/<repo>/invitations`.
-2. `gh repo view <owner>/<repo> --json nameWithOwner,visibility` — `visibility` is **`PRIVATE`**.
-3. `gh api repos/<owner>/<repo>/commits --jq '.[0].sha[0:7]'` — matches the first 7 characters of the `git log --oneline -1` line that the participant's Claude shows on their screen.
+2. `gh repo view github.com/<owner>/<repo> --json nameWithOwner,visibility` — `visibility` is **`PRIVATE`**.
+3. `gh api --hostname github.com repos/<owner>/<repo>/commits --jq '.[0].sha[0:7]'` — matches the first 7 characters of the `git log --oneline -1` line that the participant's Claude shows on their screen.
 
 PASS = all three. Any one missing is a **FAIL**.
 

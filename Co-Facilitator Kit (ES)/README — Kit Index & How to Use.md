@@ -117,7 +117,9 @@ Envía el gemelo `.sh.txt` del chequeo de estado, byte-idéntico (corre igual).
 El participante corre el **nombre exacto que recibió**, por ejemplo
 `bash ~/Downloads/aiac-status-check.sh.txt`, y te envía **solo** el bloque
 entre `----- AIAC STATUS (safe to share) -----` y `----- END -----`. Todo lo
-que está arriba de ese bloque es solo para sus ojos. Mantén cualquier script
+que está arriba de ese bloque es solo para sus ojos. Cuando Claude le corre el
+chequeo, lo corre con `--share`, que imprime solo el bloque, así el detalle
+nunca llega al contexto de Claude. Mantén cualquier script
 que envíes **100% ASCII** para que sobreviva el copiar y pegar por
 aplicaciones de chat.
 
@@ -144,7 +146,8 @@ lugar desde el que compartes.
   imprime detalles para el participante y luego un **bloque corto que se
   puede compartir**, solo con nombres de chequeos y su estado, el sistema
   operativo y un veredicto general. El primer `NOT DONE` es el punto donde
-  retomar. `--details` muestra más detalle local y advierte que no se
+  retomar. `--share` imprime solo ese bloque (úsalo siempre que Claude corra
+  el chequeo); `--details` muestra más detalle local y advierte que no se
   comparta. Aportado por Mangan.
 - **Leyenda: el script imprime en inglés.** Es byte-idéntico al de la edición
   EN, para no bifurcarlo, así que su salida sale en inglés a propósito.
@@ -163,8 +166,10 @@ público
 [`AI-Acceleration/cc-starter-pack`](https://github.com/AI-Acceleration/cc-starter-pack),
 **fijado en la etiqueta `v1.0.0`**, para que cada instalación nueva reciba los
 mismos archivos revisados (una *skill* que el participante ya tenga con el mismo
-nombre se salta y conserva su versión). Una versión nueva implica una etiqueta nueva y
-actualizar los documentos.
+nombre se salta y conserva su versión). Todas las rutas de instalación clonan en una
+carpeta temporal nueva y corren el instalador solo si la clonación salió bien y está en
+el commit revisado (`711372c`), porque una etiqueta se puede mover. Una versión nueva
+implica una etiqueta nueva, un commit revisado nuevo y actualizar los documentos.
 
 ## No depende de una sola herramienta de IA
 
