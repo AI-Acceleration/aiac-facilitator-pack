@@ -100,6 +100,7 @@ Corre tú mismo los Docs 01 → 02 → 03, de principio a fin, en una **máquina
 - [ ] **Marcadores llenos.** `[SET: your support channel]` aparece en el **Doc 01** y en el **Doc 04**. Reemplázalo por el canal que tus participantes usan para escribirte (un número de WhatsApp, un correo, un canal de Slack). `[TOOL]` aparece en el **Doc 03 / 03W**: reemplázalo por la herramienta de transcripción del participante (`Granola`, otra herramienta, o `none / pasted transcript`). Son los únicos valores que llenas; todo lo demás lo genera el participante en vivo.
 - [ ] **Ediciones correctas.** Participante con Windows → **02W / 03W**. Participante argentino → aplica la tabla de voseo `00V` a los documentos del participante.
 - [ ] **Compartir pantalla probado** en la herramienta de llamadas que vas a usar.
+- [ ] **Ubicación revisada.** El participante va a estar en un [país o región admitidos](https://www.anthropic.com/legal/supported-regions) durante la sesión (depende de dónde esté físicamente). Si no, elige otra fecha; no planees una forma de saltarte la restricción.
 - [ ] **Fecha límite fijada** para el pre-vuelo (ver § 4).
 - [ ] **Proyecto concreto confirmado** (ver § 6).
 - [ ] **Grabación decidida:** opcional, y sólo con consentimiento (ver § 8).
@@ -368,7 +369,7 @@ Tu trabajo durante la entrevista es ser el copiloto humano: ayúdalo a escoger u
 - **Git no está instalado** → Doc 01, Paso 2 (`xcode-select --install` en Mac, Git para Windows en Windows).
 - **Falla la creación del repo** → `gh auth status` tiene que mostrar un usuario con sesión iniciada; si no, el participante corre `gh auth login --hostname github.com --git-protocol https --web` en **otra ventana de terminal** (Claude no puede contestar sus preguntas). Sin `gh` → el camino por navegador de Pre-Sesión § 10.
 - **Venció la sesión de Claude Code** → `/login`, o sal y vuelve a correr `claude`.
-- **País bloqueado** → la VPN tiene que quedar **encendida** toda la sesión; los pasos de red fallan en el momento en que se cae.
+- **Claude no está disponible donde está el participante** → Claude solo funciona en los [países y regiones admitidos](https://www.anthropic.com/legal/supported-regions), según dónde está físicamente la persona. No intentes saltarte esa restricción: reprograma para un momento en que esté en una región admitida (pídele que revise la lista antes de agendar). Si una red o VPN *de la empresa* bloquea `claude.ai`, `github.com` u `obsidian.md`, su IT habilita esos dominios.
 - **Claude bloquea una edición de configuración y menciona el modo** → presiona **Shift+Tab** para pasar al modo por defecto, haz la edición y vuelve.
 - **La entrevista se atasca, el participante no logra nombrar un problema** → vuelve al proyecto que trajo según el Doc 01; si sigue trabado, escoge una tarea concreta y recurrente de su rol y nómbrala tú. Un caso decente le gana a uno perfecto.
 

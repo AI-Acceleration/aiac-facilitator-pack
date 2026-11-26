@@ -98,6 +98,7 @@ Run Docs 01 → 02 → 03 yourself, end to end, on a **clean machine or a fresh 
 - [ ] **Placeholders filled.** `[SET: your support channel]` appears in **Doc 01** and **Doc 04**. Replace it with the channel your participants use to reach you (a WhatsApp number, an email, a Slack channel). `[TOOL]` appears in **Doc 03 / 03W**: replace it with the participant's transcription tool (`Granola`, another tool, or `none / pasted transcript`). These are the only values you fill in; everything else the participant generates live.
 - [ ] **Right editions picked.** Windows participant → **02W / 03W**. Spanish → the ES kit (tú); Argentine participant → apply the `00V` voseo table to the participant docs.
 - [ ] **Screen sharing tested** on the call tool you'll use.
+- [ ] **Location checked.** The participant will be in a [supported country or region](https://www.anthropic.com/legal/supported-regions) for the session (it depends on where they physically are). If not, pick another date; don't plan a workaround.
 - [ ] **A dated cutoff set** for the pre-flight (see § 4).
 - [ ] **Concrete project confirmed** (see § 6).
 - [ ] **Recording decided:** optional, and only with consent (see § 8).
@@ -366,7 +367,7 @@ Your job during the interview is to be the human co-pilot: help them pick the ca
 - **Git not installed** → Doc 01 Step 2 (`xcode-select --install` on Mac, Git for Windows on Windows).
 - **Repo creation fails** → `gh auth status` must show a logged-in user; if not, the participant runs `gh auth login --hostname github.com --git-protocol https --web` in a **second terminal window** (Claude can't answer its prompts). No `gh` at all → the browser path from Pre-Session § 10.
 - **Claude Code login expired** → `/login`, or exit and run `claude` again.
-- **Blocked country** → the VPN must stay **on** for the whole session; network steps fail the moment it drops.
+- **Claude unavailable where the participant is** → Claude works only in [supported countries and regions](https://www.anthropic.com/legal/supported-regions), based on where the person physically is. Don't work around it: reschedule for a time when they're in a supported region (ask them to check the list before booking). If a *company* network or VPN blocks `claude.ai`, `github.com` or `obsidian.md`, their IT allows those domains.
 - **Claude blocks a settings edit and mentions the mode** → press **Shift+Tab** to switch to the default mode, make the edit, then switch back.
 - **The interview stalls, participant can't name a problem** → fall back to the project they brought per Doc 01; if still stuck, pick a concrete, recurring task from their described role and name it yourself. A decent first case beats a perfect one.
 

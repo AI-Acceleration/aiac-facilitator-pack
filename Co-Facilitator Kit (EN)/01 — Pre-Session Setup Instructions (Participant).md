@@ -34,7 +34,7 @@ If your company doesn't allow this on its machines, talk to your facilitator. Do
 
 **Is your machine ready?** Old or very slow machines make the session painful. Check now: an operating system that still gets updates, at least 8 GB of memory, and a few GB of free disk space. If you're unsure, ask your facilitator. They may give you a **cutoff date** by which your machine and your pre-flight must be ready.
 
-**VPN.** In countries or regions where Claude is not available, a VPN has to stay **ON** for the whole setup and every time you use Claude afterward. Turning it off midway breaks logins and downloads. If a *company* VPN blocks `claude.ai`, `github.com` or `obsidian.md`, ask IT to allow those three domains. Don't switch a company VPN off against policy.
+**Where you are matters.** Claude is available only in [supported countries and regions](https://www.anthropic.com/legal/supported-regions), and what counts is where you physically are when you use it. Check that list **before** the session; if you'll be somewhere that isn't on it, tell your facilitator and pick a date when you'll be in a supported region. **Company network:** if your company's network or VPN blocks `claude.ai`, `github.com` or `obsidian.md`, ask IT to allow those three domains. Don't switch a company VPN off against policy.
 
 ## Windows Only — Read Before You Start
 

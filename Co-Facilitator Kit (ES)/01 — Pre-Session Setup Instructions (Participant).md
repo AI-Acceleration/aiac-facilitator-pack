@@ -36,7 +36,7 @@ Si tu empresa no permite esto en sus equipos, háblalo con tu facilitador. No pa
 
 **¿Tu computadora está lista?** Una máquina vieja o muy lenta hace la sesión muy cuesta arriba. Revísalo ahora: un sistema operativo que todavía recibe actualizaciones, al menos 8 GB de memoria y unos cuantos GB libres en disco. Si dudas, pregúntale a tu facilitador. Puede darte una **fecha límite** para tener lista la máquina y el pre-vuelo.
 
-**VPN.** En los países o regiones donde Claude no está disponible, la VPN tiene que quedar **ENCENDIDA** durante toda la instalación y cada vez que uses Claude después. Si la apagas a mitad de camino, se rompen los inicios de sesión y las descargas. Si es una VPN *de la empresa* la que bloquea `claude.ai`, `github.com` u `obsidian.md`, pídele a IT que habilite esos tres dominios. No apagues una VPN de la empresa en contra de la política.
+**Dónde estás importa.** Claude solo está disponible en los [países y regiones admitidos](https://www.anthropic.com/legal/supported-regions), y lo que cuenta es dónde estás físicamente cuando lo usas. Revisa esa lista **antes** de la sesión; si vas a estar en un lugar que no aparece ahí, avísale a tu facilitador y elijan una fecha en la que estés en una región admitida. **Red de la empresa:** si la red o la VPN de tu empresa bloquea `claude.ai`, `github.com` u `obsidian.md`, pídele a IT que habilite esos tres dominios. No apagues una VPN de la empresa en contra de la política.
 
 ## Sólo Windows — Léelo Antes de Empezar
 

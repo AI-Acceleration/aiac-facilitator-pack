@@ -95,6 +95,12 @@ English and the Spanish kit.
 
 - **Claude Pro is now the default plan.** Upgrade to Max only when the
   limits keep getting in the way.
+- **Location, not a VPN.** Docs 01 and 05 no longer tell anyone to use a
+  VPN to reach Claude. Claude is available only in supported countries and
+  regions, based on where the person physically is; participants check the
+  list before the session, and facilitators reschedule rather than work
+  around it. Company-network advice (ask IT to allow `claude.ai`,
+  `github.com` and `obsidian.md`) stays.
 - **Long prompts are loaded by file, not pasted.** Participants save the
   document and tell Claude "Read the file … and follow its instructions",
   because terminals (the Windows one especially) can cut a long paste short.
