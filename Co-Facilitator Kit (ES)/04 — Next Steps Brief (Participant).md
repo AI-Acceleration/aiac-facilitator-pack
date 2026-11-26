@@ -605,15 +605,29 @@ Vienen del repositorio público **[AI-Acceleration/cc-starter-pack](https://gith
 
 Además **`/meeting-minutes`**, configurada para tu herramienta de transcripción (o para transcripciones pegadas).
 
-**Reinstalar o actualizar las *skills* iniciales.** Pídeselo a Claude, fijado a una versión:
+**Reinstalar o actualizar las *skills* iniciales.** Pídeselo a Claude, fijado al commit revisado de `v1.0.0` (es el mismo bloque del paso de Skills y Configuración). Si tu terminal corta lo que pegas, guarda este documento y dile a Claude: `Lee el archivo <ruta>, busca "Reinstalar o actualizar las skills iniciales" y sigue ese prompt.`
 
 ```
-Reinstala mis skills iniciales desde el repositorio AI-Acceleration/cc-starter-pack en la versión v1.0.0:
-git clone --depth 1 --branch v1.0.0 https://github.com/AI-Acceleration/cc-starter-pack.git en una
-carpeta temporal, muéstrame qué va a hacer install.sh, córrelo cuando te apruebe y después borra la carpeta temporal.
+Reinstala mis skills iniciales desde AI-Acceleration/cc-starter-pack v1.0.0. Dime qué hace el comando de abajo
+y, cuando te apruebe, córrelo exactamente como está, como un solo comando, y muéstrame su salida. Clona en una
+carpeta temporal nueva y corre install.sh solo si la clonación salió bien y está en el commit revisado.
+Cualquier línea STOP significa que no se instaló nada: muéstramela y no intentes saltártela. Si install.sh
+imprime líneas SKIP, muéstrame la lista y pregúntame qué hacer. Nunca corras install.sh desde otra carpeta.
+
+PACK_TMP="$(mktemp -d)" || PACK_TMP=""
+if [ -z "$PACK_TMP" ]; then
+  echo "STOP: could not create a temporary folder - not installed"
+elif ! git clone --depth 1 --branch v1.0.0 https://github.com/AI-Acceleration/cc-starter-pack.git "$PACK_TMP/cc-starter-pack"; then
+  echo "STOP: the clone failed - not installed"
+elif [ "$(cd "$PACK_TMP/cc-starter-pack" && git rev-parse HEAD)" != "711372c99e27700e70389a09b9a40b1911be8ca4" ]; then
+  echo "STOP: v1.0.0 is not the reviewed commit 711372c - not installed"
+else
+  (cd "$PACK_TMP/cc-starter-pack" && bash ./install.sh)
+fi
+[ -n "$PACK_TMP" ] && rm -rf "$PACK_TMP"
 ```
 
-Después abre una sesión **nueva**. Usa una versión más nueva sólo cuando tu facilitador la anuncie.
+Después abre una sesión **nueva**. Usa una versión más nueva sólo cuando tu facilitador la anuncie — viene con su propio commit revisado.
 
 ### Skills de los plugins
 

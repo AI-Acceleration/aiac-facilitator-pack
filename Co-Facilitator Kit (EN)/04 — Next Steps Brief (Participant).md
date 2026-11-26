@@ -603,15 +603,29 @@ They come from the public **[AI-Acceleration/cc-starter-pack](https://github.com
 
 Plus **`/meeting-minutes`**, set up for your transcription tool (or for pasted transcripts).
 
-**Reinstalling or updating the starter skills.** Ask Claude to do it, pinned to a release tag:
+**Reinstalling or updating the starter skills.** Ask Claude to do it, pinned to the reviewed `v1.0.0` commit (it's the same block as the Skills & Config step). If your terminal cuts the paste short, save this document and tell Claude: `Read the file <path>, find "Reinstalling or updating the starter skills" and follow that prompt.`
 
 ```
-Reinstall my starter skills from the AI-Acceleration/cc-starter-pack repository at tag v1.0.0:
-git clone --depth 1 --branch v1.0.0 https://github.com/AI-Acceleration/cc-starter-pack.git into a
-temporary folder, show me what install.sh will do, run it after I approve, then delete the temporary folder.
+Reinstall my starter skills from AI-Acceleration/cc-starter-pack v1.0.0. Tell me what the command below
+does, then, after I approve, run it exactly as written, as one command, and show me its output. It clones
+into a new temporary folder and runs install.sh only if the clone succeeded and sits on the reviewed commit.
+Any STOP line means nothing was installed: show me and don't work around it. If install.sh prints SKIP lines,
+show me the list and ask me what to do. Never run install.sh from any other folder.
+
+PACK_TMP="$(mktemp -d)" || PACK_TMP=""
+if [ -z "$PACK_TMP" ]; then
+  echo "STOP: could not create a temporary folder - not installed"
+elif ! git clone --depth 1 --branch v1.0.0 https://github.com/AI-Acceleration/cc-starter-pack.git "$PACK_TMP/cc-starter-pack"; then
+  echo "STOP: the clone failed - not installed"
+elif [ "$(cd "$PACK_TMP/cc-starter-pack" && git rev-parse HEAD)" != "711372c99e27700e70389a09b9a40b1911be8ca4" ]; then
+  echo "STOP: v1.0.0 is not the reviewed commit 711372c - not installed"
+else
+  (cd "$PACK_TMP/cc-starter-pack" && bash ./install.sh)
+fi
+[ -n "$PACK_TMP" ] && rm -rf "$PACK_TMP"
 ```
 
-Then start a **new** session. Use a newer tag only when your facilitator announces one.
+Then start a **new** session. Use a newer version only when your facilitator announces one — it comes with its own reviewed commit.
 
 ### Plugin skills (from your plugins)
 

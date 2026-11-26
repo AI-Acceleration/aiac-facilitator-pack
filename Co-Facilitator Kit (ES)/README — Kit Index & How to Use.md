@@ -166,8 +166,10 @@ público
 [`AI-Acceleration/cc-starter-pack`](https://github.com/AI-Acceleration/cc-starter-pack),
 **fijado en la etiqueta `v1.0.0`**, para que cada instalación nueva reciba los
 mismos archivos revisados (una *skill* que el participante ya tenga con el mismo
-nombre se salta y conserva su versión). Una versión nueva implica una etiqueta nueva y
-actualizar los documentos.
+nombre se salta y conserva su versión). Todas las rutas de instalación clonan en una
+carpeta temporal nueva y corren el instalador solo si la clonación salió bien y está en
+el commit revisado (`711372c`), porque una etiqueta se puede mover. Una versión nueva
+implica una etiqueta nueva, un commit revisado nuevo y actualizar los documentos.
 
 ## No depende de una sola herramienta de IA
 

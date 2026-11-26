@@ -416,23 +416,80 @@ class TestSetupPermissions(unittest.TestCase):
                     # Server-side confirmation afterwards.
                     self.has("git ls-remote origin refs/heads/main", step12[push_at:])
 
+    # Every starter-pack install path: Docs 03/03W (fresh install and any
+    # retry) and the Doc 04 reinstall prompt, in both editions.
+    INSTALL_DOCS = SKILLS_DOCS + ("04 — Next Steps Brief (Participant).md",)
+    INSTALL_BLOCK = re.compile(r'^PACK_TMP="\$\(mktemp -d\)".*?^\[ -n "\$PACK_TMP" \] && rm -rf "\$PACK_TMP"$',
+                               re.DOTALL | re.MULTILINE)
+
+    def install_blocks(self, text):
+        return self.INSTALL_BLOCK.findall(text)
+
     def test_starter_pack_installer_runs_only_after_clone_or_verification(self):
+        blocks = set()
         for edition in EDITIONS:
-            for name in SKILLS_DOCS:
+            for name in self.INSTALL_DOCS:
                 text = kit_doc(edition, name).read_text(encoding="utf-8")
                 with self.subTest(doc="%s/%s" % (edition, name)):
-                    self.has("cc-starter-pack.git ~/.aiac/cc-starter-pack \\\n"
-                             "    && (cd ~/.aiac/cc-starter-pack \\\n"
-                             '        && if [ "$(git rev-parse HEAD)" = "%s" ]; then bash ./install.sh; '
-                             % STARTER_PACK_COMMIT, text)
-                    # No installer line on its own, where a failed clone could reach it.
-                    self.assertIsNone(re.search(r"^\(cd ~/\.aiac/cc-starter-pack && bash \./install\.sh\)$",
-                                                text, re.MULTILINE))
-                    # A tag can move: both install paths pin the reviewed commit.
-                    self.assertEqual(text.count(STARTER_PACK_COMMIT), 3)
-                    self.has('test "$(git rev-parse HEAD)" = "%s"' % STARTER_PACK_COMMIT, text)
-                    self.lacks("git ls-remote origin 'refs/tags/v1.0.0'", text)
-                    self.has("git status --porcelain --untracked-files=all", text)
+                    found = self.install_blocks(text)
+                    self.assertEqual(len(found), 1, "expected one install block")
+                    blocks.add(found[0])
+                    # The installer is run in this block only, nowhere else.
+                    runs = re.findall(r"^[^`\n]*bash \./install\.sh(?! force)", text, re.MULTILINE)
+                    self.assertEqual(len(runs), 1, runs)
+                    self.assertEqual(text.count(STARTER_PACK_COMMIT), 1 + ("03" in name[:3]))
+                    self.lacks("~/.aiac/cc-starter-pack \\", text)
+                    self.lacks("git status --porcelain", text)
+        self.assertEqual(len(blocks), 1, "install block differs between docs")
+        block = blocks.pop()
+        self.assertIn('git clone --depth 1 --branch v1.0.0 '
+                      'https://github.com/AI-Acceleration/cc-starter-pack.git "$PACK_TMP/cc-starter-pack"',
+                      block)
+        self.assertIn('!= "%s" ]' % STARTER_PACK_COMMIT, block)
+        self.run_install_block(block)
+
+    def run_install_block(self, block):
+        """Run the block with a stub git: the installer may run only after a
+        successful clone into the new temporary folder, on the pinned commit."""
+        with tempfile.TemporaryDirectory() as base:
+            base = Path(base)
+            fakebin = base / "bin"
+            fakebin.mkdir()
+            marker = base / "installed"
+            (fakebin / "git").write_text(
+                "#!/bin/sh\n"
+                'case "$1" in\n'
+                '  clone) [ "$FAKE_CLONE" = ok ] || exit 128\n'
+                '         for last; do :; done\n'
+                '         mkdir -p "$last" && printf \'echo ran > "%s"\\n\' > "$last/install.sh" ;;\n'
+                '  rev-parse) echo "$FAKE_HEAD" ;;\n'
+                "  *) exit 1 ;;\n"
+                "esac\n" % marker)
+            (fakebin / "git").chmod(0o755)
+            tmp = base / "tmp"
+            tmp.mkdir()
+            env = {"PATH": str(fakebin) + os.pathsep + os.defpath, "HOME": str(base),
+                   "TMPDIR": str(tmp)}
+            cases = (("fail", STARTER_PACK_COMMIT, False, "STOP: the clone failed"),
+                     ("ok", "0" * 40, False, "STOP: v1.0.0 is not the reviewed commit"),
+                     ("ok", "", False, "STOP: v1.0.0 is not the reviewed commit"),
+                     ("ok", STARTER_PACK_COMMIT, True, None))
+            for clone, head, runs, message in cases:
+                with self.subTest(clone=clone, head=head[:7]):
+                    if marker.exists():
+                        marker.unlink()
+                    env.update(FAKE_CLONE=clone, FAKE_HEAD=head)
+                    # Claude Code runs it in the user's shell: sh/bash or zsh.
+                    for shell in [s for s in ("/bin/sh", "/bin/bash", "/bin/zsh") if os.path.exists(s)]:
+                        if marker.exists():
+                            marker.unlink()
+                        r = subprocess.run([shell, "-c", block], env=env, cwd=str(base),
+                                           capture_output=True, text=True, timeout=60)
+                        self.assertEqual(marker.exists(), runs, shell + ": " + r.stdout + r.stderr)
+                        if message:
+                            self.assertIn(message, r.stdout)
+                        # The temporary folder is always removed.
+                        self.assertEqual(list(tmp.iterdir()), [])
 
     # -- round 3 -------------------------------------------------------------
     @staticmethod

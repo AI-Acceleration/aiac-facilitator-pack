@@ -141,7 +141,10 @@ Docs 03/03W and 04 install the starter skills from the public
 [`AI-Acceleration/cc-starter-pack`](https://github.com/AI-Acceleration/cc-starter-pack)
 repo, **pinned to tag `v1.0.0`**, so every fresh install gets the same reviewed
 files (a skill the participant already has under the same name is skipped and
-keeps their version). A new version means a new tag and an update to the docs.
+keeps their version). Every install path clones into a new temporary folder and
+runs the installer only if the clone succeeded and sits on the reviewed commit
+(`711372c`), because a tag can be moved. A new version means a new tag, a new
+reviewed commit and an update to the docs.
 
 ## Not locked to one AI tool
 
