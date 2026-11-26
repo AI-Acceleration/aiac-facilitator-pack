@@ -781,11 +781,17 @@ Escribe `~/.claude/hooks/context-warn-precompact.sh`:
 ```bash
 #!/bin/bash
 cat <<'EOF'
-{"continue": false, "stopReason": "Auto-compact paused at 75%. Run /session-close to preserve plans/tasks to disk (then /clear), or run /compact to proceed with default compaction."}
+{"decision": "block", "reason": "Auto-compactación pausada al 75%. Corre /session-close para guardar planes y tareas en disco (luego /clear), o corre /compact para seguir con la compactación normal."}
 EOF
 ```
 
-`chmod +x ~/.claude/hooks/context-warn-precompact.sh`. **Pipe-test:** `echo '{}' | bash ~/.claude/hooks/context-warn-precompact.sh | jq -e .`
+`chmod +x ~/.claude/hooks/context-warn-precompact.sh`. **Pipe-test:** `echo '{}' | bash ~/.claude/hooks/context-warn-precompact.sh | jq -e '.decision == "block"'`
+
+> **Cómo funciona la pausa** ([referencia de hooks, PreCompact](https://code.claude.com/docs/en/hooks#precompact)): un *hook* PreCompact frena
+> la compactación imprimiendo `"decision": "block"` (o saliendo con código 2). El campo `continue` se ignora en este evento,
+> así que no sirve para pausar. El *hook* está conectado solo al disparador `auto`, así que un `/compact` que escribas tú sigue funcionando. Si el
+> contexto ya está completamente lleno, una auto-compactación frenada hace fallar el pedido actual en vez de pausar: en ese punto corre
+> `/session-close` o `/compact` tú mismo.
 
 ### Conecta ambos *hooks* en settings.json + verifica
 

@@ -624,5 +624,24 @@ class TestSetupPermissions(unittest.TestCase):
                 with self.subTest(doc="%s/%s" % (edition, name)):
                     self.assertEqual(programs.findall(text), programs.findall(script))
 
+    # -- round 4 -------------------------------------------------------------
+    def test_precompact_hook_blocks_with_the_documented_decision(self):
+        # The hooks reference: PreCompact blocks with "decision": "block" or
+        # exit code 2, and discards "continue" (so it would never pause).
+        hook = re.compile(r"context-warn-precompact\.sh`:\n\n```bash\n(.*?)\n```", re.DOTALL)
+        for edition in EDITIONS:
+            for name in MAIN_DOCS:
+                text = kit_doc(edition, name).read_text(encoding="utf-8")
+                with self.subTest(doc="%s/%s" % (edition, name)):
+                    m = hook.search(text)
+                    self.assertIsNotNone(m)
+                    payload = m.group(1).split("<<'EOF'\n", 1)[1].split("\nEOF", 1)[0]
+                    data = json.loads(payload)
+                    self.assertEqual(data.get("decision"), "block")
+                    self.assertTrue(data.get("reason"))
+                    self.assertNotIn("continue", data)
+                    self.lacks('"continue": false', text)
+                    self.has('"matcher": "auto"', text)
+
 if __name__ == "__main__":
     unittest.main()
