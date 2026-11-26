@@ -265,9 +265,10 @@ Then save the JSON block above as `~/.claude/aiac-02s-block.json` (edit the `Sto
 below), save the script below as `~/.claude/aiac-merge-settings.py` (it is the same script Doc 02 Step 3
 uses), and run `python3 ~/.claude/aiac-merge-settings.py ~/.claude/aiac-02s-block.json`. It adds each
 missing entry, keeps every key and rule you already had, prints only the kit's entries and the *names*
-of keys it left alone, and its last line must start with `Verified:`. Before its first change it saves a
-private backup of your current file as `~/.claude/settings.json.bak` (of the real file, if
-`settings.json` is a symlink; an earlier backup is never overwritten).
+of keys it left alone, and its last line must start with `Verified:`. Before it changes anything it saves a
+private backup of your current file (of the real file, if `settings.json` is a symlink) and prints its
+name: `~/.claude/settings.json.bak` the first time, the next free `settings.json.bak.1`, `.bak.2`, … if
+an earlier backup exists (an earlier backup is never overwritten). Use the backup file the script names.
 
 ```python
 # aiac-merge-settings.py - merges the AIAC kit's entries into ~/.claude/settings.json.
@@ -377,10 +378,9 @@ def replace(dst, new, dotted):
 
 def backup(real):
     """A private copy (0600) of the file's current bytes - the file a symlink
-    points at, never the link - made before the first change. An earlier
-    backup is never overwritten: if one exists, it is kept as it is."""
-    if os.path.isfile(BACKUP) and not os.path.islink(BACKUP):
-        return None
+    points at, never the link - made once per run, before the change. An
+    earlier backup is never overwritten: the copy goes to the first free name
+    (settings.json.bak, then settings.json.bak.1, .bak.2, ...), printed below."""
     name, n = BACKUP, 0
     while os.path.lexists(name):
         n += 1
@@ -513,7 +513,7 @@ Under this sandbox, Bash can read `~/.claude` but **cannot write to it**. A few 
 | Doc 03 Step 2 and 2.7b — `claude plugin install …` | writes to `~/.claude/plugins/` |
 | Doc 03 Step 2.7a — the starter-pack install | writes to `~/.claude/skills/` |
 
-Do those steps from a Claude Code session started **outside the vault** — for example from `~/dev` — where the vault's sandbox config doesn't apply. That is a deliberate, short step outside the boundary for reviewed installs: read each command before you approve it, then go back to your vault session. The skills come from a pinned, public version (`AI-Acceleration/cc-starter-pack` `v1.0.0`), so you can read every file before installing.
+Do those steps from a Claude Code session started **outside the vault** — for example from `~/dev` — where the vault's sandbox config doesn't apply. That is a deliberate, short step outside the boundary for reviewed installs: read each command before you approve it, then go back to your vault session. The skills come from a pinned, public version (`AI-Acceleration/cc-starter-pack` `v1.0.1`), so you can read every file before installing.
 
 ---
 

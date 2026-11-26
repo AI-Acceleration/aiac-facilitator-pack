@@ -219,20 +219,20 @@ Confirma la fuente de transcripciones y que existe `~/.claude/skills/meeting-min
 
 ## PASO 2.7: INSTALAR LAS SKILLS INICIALES (UN PAQUETE, UN CLON)
 
-Las *skills* iniciales vienen de un solo paquete público y revisado: **`AI-Acceleration/cc-starter-pack`, fijado en la etiqueta `v1.0.0`** (una versión fija, para que cada instalación nueva reciba exactamente los mismos archivos; una *skill* que ya tengas con el mismo nombre se salta y conserva tu versión — mira 2.7a). Trae once *skills*, incluidas las que este kit usa todos los días:
+Las *skills* iniciales vienen de un solo paquete público y revisado: **`AI-Acceleration/cc-starter-pack`, fijado en la etiqueta `v1.0.1`** (una versión fija, para que cada instalación nueva reciba exactamente los mismos archivos; una *skill* que ya tengas con el mismo nombre se salta y conserva tu versión — mira 2.7a). Trae nueve *skills*, incluidas las que este kit usa todos los días:
 
 - **`/session-close`** — cierra una sesión: actualiza el brief, registra el trabajo, deja un Continuation Prompt (Paso 4)
 - **`/project-create`** — crea un Brief de Proyecto / Programa con preguntas y respuestas guiadas
 - **`/inbox-clear`** — procesa `00 HUB/00 INBOX/`: clasifica cada nota, propone movimientos, actúa solo tras la aprobación
 - **`/retro`** — retrospectivas de sesión que convierten la fricción en reglas de CLAUDE.md
 - **`/skill-create`** — construye *skills* nuevas a partir de una conversación guiada (tu *skill* de revisión semanal de la Semana 1)
-- además `/context`, `/permissions`, `/extract`, `/deep-research`, `/deep-planning`, `/fermi-decomposition`
+- además `/load-context`, `/deep-research`, `/deep-planning`, `/fermi-decomposition`
 
 Varias *skills* traen archivos de apoyo junto a su `SKILL.md`, así que instala el paquete completo, no archivos
 sueltos. Del paquete no queda nada después: se clona en una carpeta temporal nueva que se borra al final, así que
 nunca se puede instalar por error una copia vieja o modificada.
 
-### 2.7a — Clonar el paquete en `v1.0.0` en una carpeta temporal y correr su instalador
+### 2.7a — Clonar el paquete en `v1.0.1` en una carpeta temporal y correr su instalador
 
 Toda instalación — la primera, un reintento después de un error o una reinstalación más adelante (Doc 04) — usa
 este mismo bloque. Córrelo como **un solo** comando:
@@ -241,10 +241,10 @@ este mismo bloque. Córrelo como **un solo** comando:
 PACK_TMP="$(mktemp -d)" || PACK_TMP=""
 if [ -z "$PACK_TMP" ]; then
   echo "STOP: could not create a temporary folder - not installed"
-elif ! git clone --depth 1 --branch v1.0.0 https://github.com/AI-Acceleration/cc-starter-pack.git "$PACK_TMP/cc-starter-pack"; then
+elif ! git clone --depth 1 --branch v1.0.1 https://github.com/AI-Acceleration/cc-starter-pack.git "$PACK_TMP/cc-starter-pack"; then
   echo "STOP: the clone failed - not installed"
-elif [ "$(cd "$PACK_TMP/cc-starter-pack" && git rev-parse HEAD)" != "711372c99e27700e70389a09b9a40b1911be8ca4" ]; then
-  echo "STOP: v1.0.0 is not the reviewed commit 711372c - not installed"
+elif [ "$(cd "$PACK_TMP/cc-starter-pack" && git rev-parse HEAD)" != "a85d906849f1fbd200d0e44a59b0d1f24b450135" ]; then
+  echo "STOP: v1.0.1 is not the reviewed commit a85d906 - not installed"
 else
   (cd "$PACK_TMP/cc-starter-pack" && bash ./install.sh)
 fi
@@ -252,13 +252,14 @@ fi
 ```
 
 Corre el instalador **solo** cuando se cumplen las tres cosas: se creó la carpeta temporal, la clonación salió
-bien y la clonación está en el commit `711372c99e27700e70389a09b9a40b1911be8ca4` — exactamente el `v1.0.0` contra el que se revisó este kit (una
+bien y la clonación está en el commit `a85d906849f1fbd200d0e44a59b0d1f24b450135` — exactamente el `v1.0.1` contra el que se revisó este kit (una
 etiqueta se puede mover después, un commit no). Los paréntesis mantienen la carpeta de trabajo de esta sesión en
 el *vault*. Cualquier línea `STOP:` significa que no se instaló nada: muéstramela y no intentes saltarte la
 verificación. **Nunca corras `install.sh` desde otra carpeta** — ni desde una copia que quedó de un intento
 anterior, ni desde un `~/.aiac/cc-starter-pack` viejo de una versión anterior de este kit (ése lo puedes borrar).
 
-- `install.sh` copia cada carpeta de *skill* a `~/.claude/skills/<skill>/`. **Se salta** cualquier *skill* que yo ya tenga con el mismo nombre e imprime `SKIP: …` para ella — esa *skill* se queda con mi versión, no con la de `v1.0.0`. Si ves un `SKIP`, muéstrame la lista y pregúntame qué hacer — nunca sobrescribas una de mis *skills* sin mi OK (`bash ./install.sh force` sobrescribe).
+- `install.sh` copia cada carpeta de *skill* a `~/.claude/skills/<skill>/`. **Se salta** cualquier *skill* que yo ya tenga con el mismo nombre e imprime `SKIP: …` para ella — esa *skill* se queda con mi versión, no con la de `v1.0.1`. Si ves un `SKIP`, muéstrame la lista y pregúntame qué hacer — nunca sobrescribas una de mis *skills* sin mi OK (`bash ./install.sh force` sobrescribe).
+- Una línea `NOTE: …` significa que una *skill* de una versión anterior del paquete (`context`, `permissions` o `extract`) sigue en `~/.claude/skills/`. El instalador la deja donde está: muéstrame la línea y borra esa carpeta solo si yo te lo digo (`/context` y `/permissions` también son comandos integrados de Claude Code, así que las copias viejas no hacen falta).
 - Termina con "Restart Claude Code": **no reinicies ahora.** Las *skills* se cargan en mi próxima sesión.
 
 ### 2.7b — Instalar `/playground` (plugin oficial de Anthropic)
@@ -577,7 +578,7 @@ Dame un resumen final de todo lo de esta sesión:
 2. Plugin Compound Engineering — flujo Plan -> Construir
 3. Plugin Superpowers — depuración, lluvia de ideas, revisión de código
 4. Connectors — Google (Gmail / Drive / Calendar) o Microsoft 365, más Granola si es mi herramienta de reuniones (otros stacks diferidos; CLI `gws`, hoy no)
-5. *Skills* iniciales de `AI-Acceleration/cc-starter-pack` `v1.0.0` (`/session-close`, `/project-create`, `/inbox-clear`, `/retro`, `/skill-create` y más), además de `/meeting-minutes` y el plugin `/playground`
+5. *Skills* iniciales de `AI-Acceleration/cc-starter-pack` `v1.0.1` (`/session-close`, `/project-create`, `/inbox-clear`, `/retro`, `/skill-create` y más), además de `/meeting-minutes` y el plugin `/playground`
 6. Archivo de lecciones — `05 AI/CLAUDE CODE/resources/lessons.md`
 7. Modo Plan — aprendiste a planificar antes de construir
 8. Hoja de Referencia — referencia rápida en `00 HUB/00 INBOX/`

@@ -319,7 +319,7 @@ Confirm the file was created. Then move to Step 3.
 
 Now set up the global Claude Code settings. These live in `~/.claude/settings.json` (outside the vault — this is the one exception because Claude Code requires it there).
 
-**First, back up what already exists.** The merge script below backs up `settings.json` itself, before its first change: a private copy (only you can read it) of the file's current contents — of the real file, if `settings.json` is a link to one — saved as `~/.claude/settings.json.bak`, and an earlier backup is never overwritten. For the router file, run this (on a brand-new machine it does nothing, which is fine; an existing backup is kept):
+**First, back up what already exists.** The merge script below backs up `settings.json` itself, before it changes anything: a private copy (only you can read it) of the file's current contents — of the real file, if `settings.json` is a link to one. An earlier backup is never overwritten: the first copy is `~/.claude/settings.json.bak`, later ones go to the next free name (`settings.json.bak.1`, `.bak.2`, …), and the script names the file it wrote on its `backup of your previous settings` line. For the router file, run this (on a brand-new machine it does nothing, which is fine; an existing backup is kept):
 
 ```bash
 mkdir -p ~/.claude
@@ -336,7 +336,7 @@ that prints only the kit's own entries and the *names* of the keys I already had
 2. Save the merge script further down as `~/.claude/aiac-merge-settings.py`, exactly as written.
 3. Run it with the block on standard input (running Python isn't pre-approved, so Claude Code should ask first — approve it, but never with "don't ask again"), and show
    me its output. Its last line must start with `Verified:`. If it starts with `STOP:`, nothing was
-   changed: show me the message and we fix it together (my backup is `~/.claude/settings.json.bak`).
+   changed: show me the message and we fix it together (if an earlier run printed a `backup of your previous settings` line, my backup is the file named there).
 
    ```bash
    python3 ~/.claude/aiac-merge-settings.py - <<'JSON'
@@ -519,10 +519,9 @@ def replace(dst, new, dotted):
 
 def backup(real):
     """A private copy (0600) of the file's current bytes - the file a symlink
-    points at, never the link - made before the first change. An earlier
-    backup is never overwritten: if one exists, it is kept as it is."""
-    if os.path.isfile(BACKUP) and not os.path.islink(BACKUP):
-        return None
+    points at, never the link - made once per run, before the change. An
+    earlier backup is never overwritten: the copy goes to the first free name
+    (settings.json.bak, then settings.json.bak.1, .bak.2, ...), printed below."""
     name, n = BACKUP, 0
     while os.path.lexists(name):
         n += 1

@@ -588,7 +588,7 @@ Ayúdame a crear una skill que la automatice.
 
 ### Skills iniciales (instaladas en tu paso de Skills & Config)
 
-Vienen del repositorio público **[AI-Acceleration/cc-starter-pack](https://github.com/AI-Acceleration/cc-starter-pack)**, fijado en la versión **`v1.0.0`** para que todos reciban la misma versión revisada.
+Vienen del repositorio público **[AI-Acceleration/cc-starter-pack](https://github.com/AI-Acceleration/cc-starter-pack)**, fijado en la versión **`v1.0.1`** para que todos reciban la misma versión revisada.
 
 | Skill | Qué hace | Cómo se usa |
 |-------|-------------|-----------|
@@ -599,29 +599,29 @@ Vienen del repositorio público **[AI-Acceleration/cc-starter-pack](https://gith
 | **skill-create** | Crea tus propias *skills* con una conversación guiada | `/skill-create` |
 | **deep-research** | Investigación en varias fases: barrido amplio → profundización → síntesis, con fuentes | `/deep-research [tema]` |
 | **deep-planning** | Planificación (lluvia de ideas → plan) antes de construir | `/deep-planning` |
-| **extract** | Extracción estructurada de una nota o una URL | `/extract [nota o URL]` |
 | **fermi-decomposition** | Descompone números «imposibles de medir» en factores estimables | `/fermi-decomposition` |
-| **context** | Cuánto contexto llevas usado | `/context` |
-| **permissions** | Muestra tu configuración de permisos actual | `/permissions` |
+| **load-context** | Una estimación de cuánto contexto llevas usado y un resumen de los temas de la sesión (para la cifra exacta, usa el comando integrado `/context`) | `/load-context` |
 
 Además **`/meeting-minutes`**, configurada para tu herramienta de transcripción (o para transcripciones pegadas).
 
-**Reinstalar o actualizar las *skills* iniciales.** Pídeselo a Claude, fijado al commit revisado de `v1.0.0` (es el mismo bloque del paso de Skills y Configuración). Si tu terminal corta lo que pegas, guarda este documento y dile a Claude: `Lee el archivo <ruta>, busca "Reinstalar o actualizar las skills iniciales" y sigue ese prompt.`
+**Reinstalar o actualizar las *skills* iniciales.** Pídeselo a Claude, fijado al commit revisado de `v1.0.1` (es el mismo bloque del paso de Skills y Configuración). Si tu terminal corta lo que pegas, guarda este documento y dile a Claude: `Lee el archivo <ruta>, busca "Reinstalar o actualizar las skills iniciales" y sigue ese prompt.`
 
 ```
-Reinstala mis skills iniciales desde AI-Acceleration/cc-starter-pack v1.0.0. Dime qué hace el comando de abajo
+Reinstala mis skills iniciales desde AI-Acceleration/cc-starter-pack v1.0.1. Dime qué hace el comando de abajo
 y, cuando te apruebe, córrelo exactamente como está, como un solo comando, y muéstrame su salida. Clona en una
 carpeta temporal nueva y corre install.sh solo si la clonación salió bien y está en el commit revisado.
 Cualquier línea STOP significa que no se instaló nada: muéstramela y no intentes saltártela. Si install.sh
-imprime líneas SKIP, muéstrame la lista y pregúntame qué hacer. Nunca corras install.sh desde otra carpeta.
+imprime líneas SKIP, muéstrame la lista y pregúntame qué hacer. Si imprime líneas NOTE sobre skills que
+quedaron de una versión anterior del paquete, muéstramelas y deja esas carpetas donde están salvo que yo
+te diga otra cosa. Nunca corras install.sh desde otra carpeta.
 
 PACK_TMP="$(mktemp -d)" || PACK_TMP=""
 if [ -z "$PACK_TMP" ]; then
   echo "STOP: could not create a temporary folder - not installed"
-elif ! git clone --depth 1 --branch v1.0.0 https://github.com/AI-Acceleration/cc-starter-pack.git "$PACK_TMP/cc-starter-pack"; then
+elif ! git clone --depth 1 --branch v1.0.1 https://github.com/AI-Acceleration/cc-starter-pack.git "$PACK_TMP/cc-starter-pack"; then
   echo "STOP: the clone failed - not installed"
-elif [ "$(cd "$PACK_TMP/cc-starter-pack" && git rev-parse HEAD)" != "711372c99e27700e70389a09b9a40b1911be8ca4" ]; then
-  echo "STOP: v1.0.0 is not the reviewed commit 711372c - not installed"
+elif [ "$(cd "$PACK_TMP/cc-starter-pack" && git rev-parse HEAD)" != "a85d906849f1fbd200d0e44a59b0d1f24b450135" ]; then
+  echo "STOP: v1.0.1 is not the reviewed commit a85d906 - not installed"
 else
   (cd "$PACK_TMP/cc-starter-pack" && bash ./install.sh)
 fi

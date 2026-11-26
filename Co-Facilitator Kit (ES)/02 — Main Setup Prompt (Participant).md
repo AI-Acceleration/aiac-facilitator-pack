@@ -327,7 +327,7 @@ Confirma que el archivo se creó. Luego pasa al Paso 3.
 
 Ahora configura los ajustes globales de Claude Code. Viven en `~/.claude/settings.json` (fuera del vault — esta es la única excepción, porque Claude Code los exige ahí).
 
-**Primero, respalda lo que ya exista.** El script de fusión de abajo respalda `settings.json` por su cuenta, antes de su primer cambio: una copia privada (solo tú puedes leerla) del contenido actual del archivo — del archivo real, si `settings.json` es un enlace a otro — guardada como `~/.claude/settings.json.bak`, y nunca sobrescribe un respaldo anterior. Para el archivo del router, corre esto (en una máquina nueva no hace nada, y eso está bien; un respaldo existente se conserva):
+**Primero, respalda lo que ya exista.** El script de fusión de abajo respalda `settings.json` por su cuenta, antes de cambiar nada: una copia privada (solo tú puedes leerla) del contenido actual del archivo — del archivo real, si `settings.json` es un enlace a otro. Nunca sobrescribe un respaldo anterior: la primera copia es `~/.claude/settings.json.bak`, las siguientes van al próximo nombre libre (`settings.json.bak.1`, `.bak.2`, …), y el script nombra el archivo que escribió en su línea `backup of your previous settings`. Para el archivo del router, corre esto (en una máquina nueva no hace nada, y eso está bien; un respaldo existente se conserva):
 
 ```bash
 mkdir -p ~/.claude
@@ -346,7 +346,7 @@ yo ya tenía:
    como está escrito.
 3. Ejecútalo con el bloque por la entrada estándar (correr Python no está preaprobado, así que Claude Code debería preguntar antes — apruébalo, pero nunca con "don't ask again") y
    muéstrame su salida. Su última línea tiene que empezar con `Verified:`. Si empieza con `STOP:`, no se
-   cambió nada: muéstrame el mensaje y lo arreglamos juntos (mi respaldo es `~/.claude/settings.json.bak`).
+   cambió nada: muéstrame el mensaje y lo arreglamos juntos (si una ejecución anterior imprimió una línea `backup of your previous settings`, mi respaldo es el archivo que nombra ahí).
 
    ```bash
    python3 ~/.claude/aiac-merge-settings.py - <<'JSON'
@@ -530,10 +530,9 @@ def replace(dst, new, dotted):
 
 def backup(real):
     """A private copy (0600) of the file's current bytes - the file a symlink
-    points at, never the link - made before the first change. An earlier
-    backup is never overwritten: if one exists, it is kept as it is."""
-    if os.path.isfile(BACKUP) and not os.path.islink(BACKUP):
-        return None
+    points at, never the link - made once per run, before the change. An
+    earlier backup is never overwritten: the copy goes to the first free name
+    (settings.json.bak, then settings.json.bak.1, .bak.2, ...), printed below."""
     name, n = BACKUP, 0
     while os.path.lexists(name):
         n += 1

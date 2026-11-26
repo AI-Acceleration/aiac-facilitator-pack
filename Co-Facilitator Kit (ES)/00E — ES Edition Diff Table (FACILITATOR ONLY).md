@@ -46,7 +46,7 @@ cambió a propósito.
 >
 > La desviación anterior (la línea `Respond in Spanish.` de la *skill* `session-close` escrita a mano en
 > `03`/`03W`) ya no existe: desde v0.2 esa *skill* se instala desde el paquete público
-> `AI-Acceleration/cc-starter-pack` `v1.0.0`, que no fija un idioma y responde en el del participante.
+> `AI-Acceleration/cc-starter-pack` `v1.0.1`, que no fija un idioma y responde en el del participante.
 
 ## Decisión de alcance registrada — el cuerpo del prompt SÍ se traduce
 

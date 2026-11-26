@@ -84,7 +84,7 @@ Verificadas contra la documentación viva de Anthropic, y luego contra una máqu
 | 15 | STEP 5 | revisión de `gh` | añade **`winget install --id GitHub.cli -e`** si falta | La misma vía de instalación que en los prerrequisitos |
 | 16 | `~/dev` + revisión de ubicación del STEP 6 | redacción solo para Mac; comparación simple de rutas | añade la traducción `C:/Users/YOUR-USER/dev`; compara normalizando con **`cd … && pwd -P`** | Git imprime `C:/…` y Git Bash `/c/…` — un repo bien ubicado mostraría un falso `WRONG LOCATION` |
 | 17 | `.gitignore` del STEP 7 | `.DS_Store` | añade `Thumbs.db`, `desktop.ini` | Equivalentes de Windows |
-| 18 | Fusión de ajustes del STEP 3 + 3.5 | `python3 ~/.claude/aiac-merge-settings.py` | **`py`** (alternativa `python`, nunca `python3`); el plan alterno 3 de la statusline fija la ruta absoluta con `--replace statusLine.command` | Mina #4 — el script de fusión en sí es idéntico byte por byte |
+| 18 | Fusión de ajustes del STEP 3 + 3.5 | `python3 ~/.claude/aiac-merge-settings.py` | **`py`** (alternativa `python`, nunca `python3`); el plan alterno 3 de la statusline fija la ruta absoluta con `--replace statusLine` y el bloque `statusLine` completo | Mina #4 — el script de fusión en sí es idéntico byte por byte |
 
 ## Documento 03W — 10 cambios frente a `03 — Skills & Config Setup Prompt (Participant)`
 
