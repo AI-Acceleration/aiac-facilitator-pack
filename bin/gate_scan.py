@@ -97,7 +97,7 @@ COAUTHOR_LINE_RE = re.compile(
 
 
 def die(msg):
-    print(f"GATE ERROR: {msg}", file=sys.stderr)
+    print(f"GATE ERROR: {log_safe(msg)}", file=sys.stderr)
     print("Refusing to certify this commit as clean.", file=sys.stderr)
     sys.exit(3)
 
@@ -151,10 +151,50 @@ def fingerprint(addr):
     return f"address#{h(addr)[:8]}"
 
 
+# Categories whose characters must never reach a log line as themselves:
+# controls (newline, CR, ESC, ...), format characters (bidi overrides,
+# zero-width), lone surrogates (undecodable bytes carried by
+# surrogateescape) and line/paragraph separators.
+UNSAFE_CATEGORIES = {"Cc", "Cf", "Cs", "Zl", "Zp"}
+
+
+def _escape_char(ch):
+    o = ord(ch)
+    if 0xDC80 <= o <= 0xDCFF:  # a raw byte carried by surrogateescape
+        return "\\x%02x" % (o - 0xDC00)
+    if o < 0x100:
+        return "\\x%02x" % o
+    if o < 0x10000:
+        return "\\u%04x" % o
+    return "\\U%08x" % o
+
+
+def log_safe(text):
+    """Text from a pull request (paths, ref names, git's stderr) printed to a
+    CI log. GitHub Actions reads any output line that starts, after leading
+    whitespace, with `::` or `##[` as a workflow command, so a file named
+    `x<newline>::error::...` could forge annotations or stop command parsing.
+    Every unsafe character is printed as a visible escape (newline -> `\\x0a`),
+    so the text can never start a new line; leading whitespace and a leading
+    `:` or `#` are escaped too, so it cannot start a command even when
+    printed at the start of a line."""
+    out = [_escape_char(ch) if unicodedata.category(ch) in UNSAFE_CATEGORIES
+           else ch for ch in text]
+    i = 0
+    while i < len(out) and len(out[i]) == 1 and out[i].isspace():
+        out[i] = _escape_char(out[i])
+        i += 1
+    if i < len(out) and out[i] in (":", "#"):
+        out[i] = _escape_char(out[i])
+    return "".join(out)
+
+
 def redact(label):
     """A path or ref name can carry an address. Replace every '/'-separated
     component that holds one (raw, entity-encoded or obfuscated) before it is
-    printed, keeping the rest of the path so the file can still be found."""
+    printed, keeping the rest of the path so the file can still be found.
+    The result is also log-safe (see log_safe): pull-request text never
+    starts a line or a workflow command in the CI log."""
     suffix = " (file name)" if label.endswith(" (file name)") else ""
     body = label[:len(label) - len(suffix)]
     parts = []
@@ -164,7 +204,7 @@ def redact(label):
                for _ in address_matches(v)):
             part = f"[redacted#{h(part)[:8]}]"
         parts.append(part)
-    return "/".join(parts) + suffix
+    return log_safe("/".join(parts)) + suffix
 
 
 def git(*args):
@@ -195,6 +235,11 @@ def self_test(deny_hashes):
     for leaky in (f"notes/{CANARY}.md", CANARY.replace("@", "\uff20")):
         if "@" in redact(leaky) or "\uff20" in redact(leaky):
             die("self-test FAILED — path redaction left an address visible")
+    for spoof in ("a\n::error::x", "::error::x", "  ##[error]x", "a\rb\x1b"):
+        safe = redact(spoof)
+        if (any(unicodedata.category(c) in UNSAFE_CATEGORIES for c in safe) or
+                safe.lstrip().startswith(("::", "##["))):
+            die("self-test FAILED — path text can still start a log command")
     if "canary" in fingerprint(CANARY):
         die("self-test FAILED — address fingerprint echoes the address")
 

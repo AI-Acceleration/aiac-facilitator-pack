@@ -731,6 +731,51 @@ class GateSandbox(unittest.TestCase):
         self.assertNotIn(UNKNOWN.replace("@", "\uff20"), r.stderr)
         self.assertRedacted(r, UNKNOWN)
 
+    # --- PR-controlled path text cannot forge CI log commands -------------
+    def stage_blob(self, path, text):
+        """Index a path the filesystem may refuse (newline, CR, leading ':')."""
+        blob = self.git("hash-object", "-w", "--stdin",
+                        input=text.encode("utf-8")).stdout.strip().decode()
+        self.git("update-index", "--add", "--cacheinfo",
+                 "100644,%s,%s" % (blob, path))
+
+    def assertNoLogCommand(self, r):
+        """GitHub Actions reads a line starting (after whitespace) with `::`
+        or `##[` as a workflow command."""
+        for line in (r.stdout + r.stderr).splitlines():
+            self.assertFalse(line.lstrip().startswith(("::", "##[")),
+                             "output line could be a workflow command: %r" % line)
+        self.assertNotIn("\r", r.stdout + r.stderr)
+
+    def test_newline_in_path_cannot_start_a_workflow_command_tree(self):
+        self.stage_blob("notes/a\n::error title=x::spoofed.md",
+                        "route to %s\n" % UNKNOWN)
+        r = run_gate(self.tmp, "--tree")
+        self.assertBlocked(r, "UNALLOWLISTED")
+        self.assertNoLogCommand(r)
+        # The escape is visible, so the file can still be found.
+        self.assertIn("notes/a\\x0a::error title=x::spoofed.md:1", r.stderr)
+        self.assertRedacted(r, UNKNOWN)
+
+    def test_path_starting_with_command_prefix_is_escaped(self):
+        self.stage_blob("::error::spoofed.md", "route to %s\n" % UNKNOWN)
+        self.stage_blob("##[error]spoofed.md", "route to %s\n" % UNKNOWN)
+        r = run_gate(self.tmp, "--tree")
+        self.assertBlocked(r, "UNALLOWLISTED")
+        self.assertNoLogCommand(r)
+        self.assertIn("\\x3a:error::spoofed.md:1", r.stderr)
+        self.assertIn("\\x23#[error]spoofed.md:1", r.stderr)
+
+    def test_control_characters_in_historical_path_are_escaped(self):
+        self.stage_blob("a\r::warning::b ::notice::c.md",
+                        "route to %s\n" % UNKNOWN)
+        self.git("commit", "-q", "--no-verify", "-m", "odd path")
+        r = run_gate(self.tmp, "--history")
+        self.assertBlocked(r, "UNALLOWLISTED")
+        self.assertNoLogCommand(r)
+        self.assertIn("a\\x0d::warning::b\\u2028::notice::c.md", r.stderr)
+        self.assertRedacted(r, UNKNOWN)
+
     # --- tree mode reads tracked blobs by mode ----------------------------
     def test_tree_mode_does_not_follow_symlinks(self):
         outside = Path(tempfile.mkdtemp(prefix="gateoutside-"))

@@ -112,15 +112,18 @@ Other verdicts you may see:
 The gate never prints an address it caught: CI logs are public. It shows
 `address#<8 hex>` (the start of the address's SHA-256) and the line number,
 and replaces any part of a file path that holds an address with
-`[redacted#<8 hex>]`. Run `python3 bin/gate_scan.py --tree` locally to see
-which file and line.
+`[redacted#<8 hex>]`. Control characters in a path (a newline, for example)
+are printed as escapes such as `\x0a`, so a file name cannot fake a line of
+the CI log. Run `python3 bin/gate_scan.py --tree` locally to see which file
+and line.
 
 Commit **messages** are scanned too, by `.githooks/commit-msg` locally and by
 `--history` in CI. Git history is permanent; don't paste an address into one.
 
 ## How CI judges a pull request
 
-The `gate` check runs from `main`, not from your PR. It is a
+The `gate` check runs from `main`, not from your PR, and only for PRs into
+`main`. It is a
 `pull_request_target` workflow, so GitHub runs the copy of
 `.github/workflows/gate.yml` that is on `main`, with `main`'s scanner and
 pattern lists. Your PR's commits are fetched as data and read by that
@@ -140,13 +143,14 @@ The `tests` check runs your PR's own unit tests with a read-only token.
 
 ## Changing the gate itself
 
-**Changes under `.githooks/`, `bin/` or `.github/` are a security review, not
-a docs review.** They alter what the gate can see. Raise them in a PR of
-their own, with the reason in the description, so they are not read past
-inside a larger content change.
+**Changes under `.githooks/`, `bin/` or `.github/`, and changes to
+`CODEOWNERS`, are a security review, not a docs review.** The folders alter
+what the gate can see; `CODEOWNERS` decides who must review them. Raise them
+in a PR of their own, with the reason in the description, so they are not
+read past inside a larger content change.
 
 Such a PR fails the `gate` check **by design**: the surface pin blocks any
-PR that edits those folders, and the rest of the check still runs `main`'s
+PR that edits those paths, and the rest of the check still runs `main`'s
 scanner, not your new one. A failing check is how the PR is flagged for this
 review, not a request to rework it. It lands like this:
 
@@ -159,6 +163,11 @@ review, not a request to rework it. It lands like this:
    red, the change is reverted.
 
 From then on, every PR is judged by the new gate.
+
+The gate's tests (`tests/test_gate*.py`, `tests/fixtures/`) have the same
+code owner but are not pinned: they never run in the `gate` check, so editing
+them cannot change what the gate sees. A PR that only adds gate tests lands
+with a normal review.
 
 ## License of contributions
 
