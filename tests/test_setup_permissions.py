@@ -413,8 +413,14 @@ class TestSetupPermissions(unittest.TestCase):
                     self.has("git remote get-url --push --all origin", step12[:push_at])
                     self.has("git log --oneline", step12[:push_at])
                     self.has('"visibility": "PRIVATE"', step12[:push_at])
-                    # Server-side confirmation afterwards.
-                    self.has("git ls-remote origin refs/heads/main", step12[push_at:])
+                    self.has("gh repo view github.com/<owner>/<repo-name> --json nameWithOwner,visibility",
+                             step12[:push_at])
+                    # Server-side confirmation afterwards, from the confirmed push
+                    # address (origin's fetch address can differ) and host.
+                    self.has("git ls-remote <push-url> refs/heads/main", step12[push_at:])
+                    self.lacks("ls-remote origin", step12)
+                    self.has("gh repo view github.com/<owner>/<repo-name>", step12[push_at:])
+                    self.assertIsNone(re.search(r"gh repo view <owner>", step12))
 
     # Every starter-pack install path: Docs 03/03W (fresh install and any
     # retry) and the Doc 04 reinstall prompt, in both editions.
@@ -514,20 +520,38 @@ class TestSetupPermissions(unittest.TestCase):
         self.assertTrue(self.rule_matches("Bash(git -C *)", "git -C ../x push origin main"))
         self.assertFalse(self.rule_matches("Bash(git -C *)", "git log --oneline"))
 
+    # Inline `git ...` spans Step 12 may carry: names of commands it talks
+    # about (or forbids), never a command to run. Anything to run is a block.
+    STEP12_MENTIONS = {"git -C <path> …", "git -C <ruta> …", "git -C", "git -c", "git commit",
+                       "git log --oneline", "git push", "git remote add", "git remote set-url",
+                       "git restore --staged"}
+
     def test_step_12_runs_every_repo_command_from_the_repo(self):
         heads = {"EN": ("## STEP 12:", "## STEP 12.5"), "ES": ("## PASO 12:", "## PASO 12.5")}
+        fence = re.compile(r"^( *)```bash\n(.*?)\n\1```$", re.DOTALL | re.MULTILINE)
         for edition in EDITIONS:
             for name in MAIN_DOCS:
                 text = kit_doc(edition, name).read_text(encoding="utf-8")
                 a, b = heads[edition]
                 step = text[text.index(a):text.index(b)]
-                blocks = re.findall(r"^```bash\n(.*?)\n```$", step, re.DOTALL | re.MULTILINE)
+                blocks = [body.strip() for _, body in fence.findall(step)]
+                prose = fence.sub("", step)
                 with self.subTest(doc="%s/%s" % (edition, name)):
-                    self.assertGreaterEqual(len(blocks), 8)
+                    # 8 git blocks + owner, visibility, setup-git, ls-remote, re-check.
+                    self.assertGreaterEqual(len(blocks), 11)
                     for block in blocks:
                         self.assertEqual(block.count("\n"), 0, "one line per block")
                         self.assertTrue(block.startswith("cd ~/dev/<repo-name> && "), block[:40])
                     self.lacks("git -C", "\n".join(blocks))
+                    # Every gh command (and every retry) sits in a repo-scoped block.
+                    for span in re.findall(r"`([^`\n]+)`", prose):
+                        self.assertFalse(span.startswith(("gh ", "GH_")), span)
+                        if span.startswith("git "):
+                            self.assertIn(span, self.STEP12_MENTIONS)
+                    self.has("cd ~/dev/<repo-name> && gh auth setup-git --hostname github.com",
+                             "\n".join(blocks))
+                    self.has("cd ~/dev/<repo-name> && gh api --hostname github.com user --jq .login",
+                             "\n".join(blocks))
 
     def test_backups_are_never_overwritten_on_a_rerun(self):
         for edition in EDITIONS:

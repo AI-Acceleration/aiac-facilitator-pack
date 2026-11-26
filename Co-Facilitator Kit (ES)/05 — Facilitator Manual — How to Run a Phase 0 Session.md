@@ -549,17 +549,17 @@ GitHub es el paso que sigue pasando en la sala y fallando en el disco. `git remo
 
 **Con `gh` (lo normal).** En la sesión del repo, el participante le da a Claude este prompt (reemplaza dueño y repo):
 
-> «Corre `gh repo view <dueño>/<repo> --json nameWithOwner,visibility`, después `gh api repos/<dueño>/<repo>/commits --jq '.[0].sha[0:7]'` y `git log --oneline -1`. Muéstrame la salida tal cual de los tres.»
+> «Corre `gh repo view github.com/<dueño>/<repo> --json nameWithOwner,visibility`, después `gh api --hostname github.com repos/<dueño>/<repo>/commits --jq '.[0].sha[0:7]'` y `git log --oneline -1`. Muéstrame la salida tal cual de los tres.»
 
 **PASA** = `nameWithOwner` es su repo, `visibility` es **`PRIVATE`**, y el SHA del commit que da GitHub coincide con los primeros 7 caracteres de la línea local de `git log`. Un error de `gh`, una respuesta vacía, un repo público o un SHA distinto es **FALLA**, sin importar lo que mostraba la terminal diez minutos antes.
 
-**Sin `gh`.** El participante le pide a Claude que corra `git remote get-url --push --all origin`, `git ls-remote origin HEAD` y `git rev-parse --short HEAD`. El primero tiene que imprimir exactamente una línea, `https://github.com/<dueño>/<repo>.git` (o la misma dirección en la forma SSH de GitHub), con su dueño y su nombre de repo; el segundo le pregunta a GitHub por su último commit, y sus primeros 7 caracteres tienen que coincidir con el tercero. Después abre la página del repo en el navegador mientras comparte pantalla, y tú confirmas la etiqueta **Private** junto al nombre del repositorio.
+**Sin `gh`.** El participante le pide a Claude que corra `git remote get-url --push --all origin`, luego `git ls-remote <esa dirección> HEAD` y `git rev-parse --short HEAD`. El primero tiene que imprimir exactamente una línea, `https://github.com/<dueño>/<repo>.git` (o la misma dirección en la forma SSH de GitHub), con su dueño y su nombre de repo; el segundo le pregunta a esa dirección exacta (no a `origin`, cuya dirección de lectura puede ser otra) por su último commit, y sus primeros 7 caracteres tienen que coincidir con el tercero. Después abre la página del repo en el navegador mientras comparte pantalla, y tú confirmas la etiqueta **Private** junto al nombre del repositorio.
 
 **Variante con repo del facilitador.** Ser colaborador no prueba nada sobre la privacidad ni sobre el push, así que corres tú las tres comprobaciones en tu máquina:
 
 1. `gh api repos/<dueño>/<repo>/collaborators --jq '.[].login'` — aparece su usuario. Una **invitación pendiente es FALLA**: que la acepte ya en `https://github.com/<dueño>/<repo>/invitations`.
-2. `gh repo view <dueño>/<repo> --json nameWithOwner,visibility` — `visibility` es **`PRIVATE`**.
-3. `gh api repos/<dueño>/<repo>/commits --jq '.[0].sha[0:7]'` — coincide con los primeros 7 caracteres de la línea de `git log --oneline -1` que el Claude del participante muestra en su pantalla.
+2. `gh repo view github.com/<dueño>/<repo> --json nameWithOwner,visibility` — `visibility` es **`PRIVATE`**.
+3. `gh api --hostname github.com repos/<dueño>/<repo>/commits --jq '.[0].sha[0:7]'` — coincide con los primeros 7 caracteres de la línea de `git log --oneline -1` que el Claude del participante muestra en su pantalla.
 
 PASA = las tres. Si falta cualquiera, es **FALLA**.
 

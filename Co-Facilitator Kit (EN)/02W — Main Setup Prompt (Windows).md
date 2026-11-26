@@ -1318,7 +1318,12 @@ cd ~/dev/<repo-name> && git commit -m "Initial project setup: CLAUDE.md, folder 
 **Now put it on GitHub — as a Private repo under the right account.** Before creating anything,
 confirm three things with me and wait for my "yes":
 
-1. **Owner:** the account it will be created under (`gh api user --jq .login`, or my username from Step 5).
+1. **Owner:** the account it will be created under — my username from Step 5, or, with `gh`:
+
+   ```bash
+   cd ~/dev/<repo-name> && gh api --hostname github.com user --jq .login
+   ```
+
 2. **Visibility: Private.**
 3. **Name:** `<repo-name>`.
 
@@ -1355,8 +1360,13 @@ cd ~/dev/<repo-name> && git remote get-url --push --all origin && git log --onel
    `https://github.com/<owner>/<repo-name>.git` (or, if I use SSH, GitHub's SSH form of that
    address) with the owner and name I confirmed. A different owner, a different name, another host or more than one line
    means **STOP** — don't push.
-2. **Visibility.** With `gh`, run `gh repo view <owner>/<repo-name> --json nameWithOwner,visibility`:
-   it must print my `nameWithOwner` **and `"visibility": "PRIVATE"`**. Without `gh`, I confirm the
+2. **Visibility.** With `gh`, ask GitHub itself about the exact host, owner and name from check 1:
+
+   ```bash
+   cd ~/dev/<repo-name> && gh repo view github.com/<owner>/<repo-name> --json nameWithOwner,visibility
+   ```
+
+   It must print my `nameWithOwner` **and `"visibility": "PRIVATE"`**. Without `gh`, I confirm the
    **Private** label on the repo page. If it isn't private, **STOP** and help me fix it first (repo
    **Settings → General → Danger Zone → Change visibility**).
 3. **What will be sent.** A first push sends the **whole history**, not just today's files.
@@ -1371,20 +1381,31 @@ forms), which is one more reason not to rewrite the command:
 cd ~/dev/<repo-name> && git push -u origin main
 ```
 
-**If the push asks for credentials or fails auth:** with `gh`, run `gh auth setup-git` and push again.
+**If the push asks for credentials or fails auth:** with `gh`, connect git to `gh`'s GitHub sign-in, then
+run the exact push block above again (same command, same approval):
+
+```bash
+cd ~/dev/<repo-name> && gh auth setup-git --hostname github.com
+```
+
 Without `gh`, Git Credential Manager (included with Git for Windows) opens a browser sign-in — sign in
 and authorize there. **Do not create a classic personal access token.** If it still fails, **STOP** and
 show me the error so I can share it with my facilitator.
 
-**Then verify the push really arrived** — ask GitHub, don't assume:
+**Then verify the push really arrived** — ask GitHub, don't assume. Ask the exact address confirmed in
+check 1 (write `<push-url>` as that one line, for example `https://github.com/<owner>/<repo-name>.git`),
+not `origin`: a remote's fetch address can differ from the address git pushes to.
 
 ```bash
-cd ~/dev/<repo-name> && git rev-parse HEAD && git ls-remote origin refs/heads/main
+cd ~/dev/<repo-name> && git rev-parse HEAD && git ls-remote <push-url> refs/heads/main
 ```
 
-Both must show the same commit ID: the second one comes from GitHub itself. With `gh`,
-`gh repo view <owner>/<repo-name> --json nameWithOwner,visibility` again confirms the repo is still
-`PRIVATE`.
+Both must show the same commit ID: the second one comes from GitHub itself. With `gh`, confirm again
+that the repo is still `PRIVATE`:
+
+```bash
+cd ~/dev/<repo-name> && gh repo view github.com/<owner>/<repo-name> --json nameWithOwner,visibility
+```
 
 If we can't connect to GitHub right now, a local-only commit is fine for today — say so clearly in the
 summary, and we connect later.

@@ -1282,7 +1282,12 @@ cd ~/dev/<repo-name> && git commit -m "Initial project setup: CLAUDE.md, folder 
 **Ahora ponlo en GitHub — como repositorio Private y bajo la cuenta correcta.** Antes de crear nada,
 confirma tres cosas conmigo y espera mi "sí":
 
-1. **Dueño:** la cuenta bajo la que se va a crear (`gh api user --jq .login`, o mi nombre de usuario del Paso 5).
+1. **Dueño:** la cuenta bajo la que se va a crear — mi nombre de usuario del Paso 5 o, con `gh`:
+
+   ```bash
+   cd ~/dev/<repo-name> && gh api --hostname github.com user --jq .login
+   ```
+
 2. **Visibilidad: Private.**
 3. **Nombre:** `<repo-name>`.
 
@@ -1320,8 +1325,14 @@ cd ~/dev/<repo-name> && git remote get-url --push --all origin && git log --onel
    línea**, y esa línea tiene que ser `https://github.com/<owner>/<repo-name>.git` (o, si uso
    SSH, la forma SSH de GitHub de esa dirección) con el dueño y el nombre que confirmé. Otro dueño, otro
    nombre, otro servidor o más de una línea significa **PARA** — no hagas push.
-2. **Visibilidad.** Con `gh`, ejecuta `gh repo view <owner>/<repo-name> --json nameWithOwner,visibility`:
-   tiene que imprimir mi `nameWithOwner` **y `"visibility": "PRIVATE"`**. Sin `gh`, yo confirmo la
+2. **Visibilidad.** Con `gh`, pregúntale al propio GitHub por el servidor, el dueño y el nombre exactos del
+   punto 1:
+
+   ```bash
+   cd ~/dev/<repo-name> && gh repo view github.com/<owner>/<repo-name> --json nameWithOwner,visibility
+   ```
+
+   Tiene que imprimir mi `nameWithOwner` **y `"visibility": "PRIVATE"`**. Sin `gh`, yo confirmo la
    etiqueta **Private** en la página del repositorio. Si no es privado, **PARA** y ayúdame primero a
    arreglarlo (en el repositorio: **Settings → General → Danger Zone → Change visibility**).
 3. **Qué se va a enviar.** El primer push envía **todo el historial**, no solo los archivos de hoy.
@@ -1336,20 +1347,33 @@ otra razón para no reescribir el comando:
 cd ~/dev/<repo-name> && git push -u origin main
 ```
 
-**Si el push pide credenciales o falla la autenticación:** con `gh`, ejecuta `gh auth setup-git` y vuelve
-a hacer push. Sin `gh`, Git Credential Manager (incluido con Git for Windows) abre un inicio de sesión en
+**Si el push pide credenciales o falla la autenticación:** con `gh`, conecta git con el inicio de sesión
+de GitHub de `gh` y luego vuelve a correr exactamente el bloque de push de arriba (mismo comando, misma
+aprobación):
+
+```bash
+cd ~/dev/<repo-name> && gh auth setup-git --hostname github.com
+```
+
+Sin `gh`, Git Credential Manager (incluido con Git for Windows) abre un inicio de sesión en
 el navegador — inicia sesión y autoriza ahí. **No crees un *personal access token* clásico.** Si sigue
 fallando, **PARA** y muéstrame el error para que se lo pueda pasar a mi facilitador.
 
-**Luego verifica que el push de verdad llegó** — pregúntale a GitHub, no lo des por hecho:
+**Luego verifica que el push de verdad llegó** — pregúntale a GitHub, no lo des por hecho. Pregunta a la
+dirección exacta que confirmamos en el punto 1 (escribe `<push-url>` como esa única línea, por ejemplo
+`https://github.com/<owner>/<repo-name>.git`), no a `origin`: la dirección de lectura de un remoto puede
+ser distinta de la dirección a la que git hace push.
 
 ```bash
-cd ~/dev/<repo-name> && git rev-parse HEAD && git ls-remote origin refs/heads/main
+cd ~/dev/<repo-name> && git rev-parse HEAD && git ls-remote <push-url> refs/heads/main
 ```
 
-Los dos tienen que mostrar el mismo identificador de commit: el segundo viene del propio GitHub. Con
-`gh`, `gh repo view <owner>/<repo-name> --json nameWithOwner,visibility` otra vez confirma que el
-repositorio sigue siendo `PRIVATE`.
+Los dos tienen que mostrar el mismo identificador de commit: el segundo viene del propio GitHub. Con `gh`,
+confirma otra vez que el repositorio sigue siendo `PRIVATE`:
+
+```bash
+cd ~/dev/<repo-name> && gh repo view github.com/<owner>/<repo-name> --json nameWithOwner,visibility
+```
 
 Si no podemos conectarnos a GitHub ahora mismo, un commit solo local está bien por hoy — dilo claramente
 en el resumen, y nos conectamos después.

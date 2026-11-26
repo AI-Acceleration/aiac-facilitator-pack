@@ -547,17 +547,17 @@ GitHub is the step that keeps passing in the room and failing on disk. `git remo
 
 **With `gh` (default).** In the repo session, the participant gives Claude this prompt (replace owner and repo):
 
-> "Run `gh repo view <owner>/<repo> --json nameWithOwner,visibility`, then `gh api repos/<owner>/<repo>/commits --jq '.[0].sha[0:7]'` and `git log --oneline -1`. Show me the raw output of all three."
+> "Run `gh repo view github.com/<owner>/<repo> --json nameWithOwner,visibility`, then `gh api --hostname github.com repos/<owner>/<repo>/commits --jq '.[0].sha[0:7]'` and `git log --oneline -1`. Show me the raw output of all three."
 
 **PASS** = `nameWithOwner` is their repo, `visibility` is **`PRIVATE`**, and the commit SHA from GitHub matches the first 7 characters of the local `git log` line. A `gh` error, an empty answer, a public repo or a mismatched SHA is a **FAIL**, whatever the terminal showed ten minutes ago.
 
-**Without `gh`.** The participant asks Claude to run `git remote get-url --push --all origin`, `git ls-remote origin HEAD` and `git rev-parse --short HEAD`. The first must print exactly one line, `https://github.com/<owner>/<repo>.git` (or the same address in GitHub's SSH form), with their owner and repo name; the second asks GitHub for its latest commit, and its first 7 characters must match the third. Then they open the repo page in the browser while sharing their screen, and you confirm the **Private** label next to the repository name.
+**Without `gh`.** The participant asks Claude to run `git remote get-url --push --all origin`, then `git ls-remote <that address> HEAD` and `git rev-parse --short HEAD`. The first must print exactly one line, `https://github.com/<owner>/<repo>.git` (or the same address in GitHub's SSH form), with their owner and repo name; the second asks that exact address (not `origin`, whose fetch address can differ) for its latest commit, and its first 7 characters must match the third. Then they open the repo page in the browser while sharing their screen, and you confirm the **Private** label next to the repository name.
 
 **Facilitator-owned variant.** Membership alone proves nothing about privacy or the push, so you run all three checks on your own machine:
 
 1. `gh api repos/<owner>/<repo>/collaborators --jq '.[].login'` — their username is listed. A **pending invitation is a FAIL**: have them accept it now at `https://github.com/<owner>/<repo>/invitations`.
-2. `gh repo view <owner>/<repo> --json nameWithOwner,visibility` — `visibility` is **`PRIVATE`**.
-3. `gh api repos/<owner>/<repo>/commits --jq '.[0].sha[0:7]'` — matches the first 7 characters of the `git log --oneline -1` line that the participant's Claude shows on their screen.
+2. `gh repo view github.com/<owner>/<repo> --json nameWithOwner,visibility` — `visibility` is **`PRIVATE`**.
+3. `gh api --hostname github.com repos/<owner>/<repo>/commits --jq '.[0].sha[0:7]'` — matches the first 7 characters of the `git log --oneline -1` line that the participant's Claude shows on their screen.
 
 PASS = all three. Any one missing is a **FAIL**.
 
