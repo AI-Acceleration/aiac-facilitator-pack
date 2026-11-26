@@ -7,7 +7,11 @@ on:
   # objects and read by main's scanner. Never check out the pull request's
   # head into the workspace, run its scripts or tests, or add secrets here.
   # The pull request's own tests run in tests.yml, unprivileged.
+  # Only pull requests into main: on pull_request_target the "trusted" code
+  # is the tip of the BASE branch, and only main is protected. A pull request
+  # into any other branch would be judged by that branch's copy of the gate.
   pull_request_target:
+    branches: [main]
   push:
     branches: [main]
 

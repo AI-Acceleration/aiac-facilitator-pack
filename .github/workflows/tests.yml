@@ -4,6 +4,8 @@ on:
   # read-only token and, for forks, no secrets. A pull request can edit this
   # file, which only changes its own test run; the required privacy check is
   # gate.yml, which a pull request cannot edit.
+  # No branch filter on purpose: this job is unprivileged, so it may test a
+  # pull request into any branch (a stacked change, for example).
   pull_request:
   push:
     branches: [main]
