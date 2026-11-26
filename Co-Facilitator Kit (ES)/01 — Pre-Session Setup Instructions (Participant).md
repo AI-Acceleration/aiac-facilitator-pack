@@ -2,316 +2,499 @@
 title: "Instrucciones de Configuración Pre-Sesión (Participante) — AI Acceleration Club Fase 0"
 created: 2026-07-14
 category: reference
-status: draft
 tags: [aiac, phase0, co-facilitator-kit, participant, pre-session, setup]
 lang: es
 translated_from: "01 — Pre-Session Setup Instructions (Participant).md"
 ---
 
-**Aplica a:** Antes de la sesión — lee esto unos días antes de tu sesión en vivo de Fase 0, y completa cada paso antes de llegar.
+**Aplica a:** Antes de la sesión. Lo recibes más o menos una semana antes: empieza lo antes que puedas, no la noche anterior, y termina cada paso, incluido el **pre-vuelo** del final, antes de la fecha límite que te dé tu facilitador.
 
 # Configuración Pre-Sesión — AI Acceleration Club Fase 0
 
-Bienvenido a la Fase 0 del AI Acceleration Club. Antes de tu sesión en vivo, vas a necesitar instalar unas cuantas herramientas. Cada una cumple un rol específico en el sistema que vamos a construir juntos — para cada punto de abajo vas a encontrar una explicación de una línea de *por qué* la necesitas, más un prompt listo para pegar que le puedes entregar a Claude (en claude.ai) y que te va a guiar por la instalación y a resolver cualquier cosa que salga mal.
+Bienvenido a la Fase 0 del AI Acceleration Club. Antes de tu sesión en vivo vas a instalar unas cuantas herramientas. Cada una cumple un papel en el sistema que vamos a montar juntos. En cada paso tienes una explicación de una línea de *para qué* la necesitas y un prompt listo para pegar en Claude (claude.ai), que te guía en la instalación y te ayuda si algo falla.
 
-Vas a instalar 6 cosas si estás en Mac, o 5 si estás en Windows (en Windows te saltas la aplicación de terminal dedicada — la terminal que ya trae funciona bien).
+El último paso es el **pre-vuelo**. Claude Code crea tu vault, comprueba cada herramienta y termina con una línea que le mandas a tu facilitador. Esa línea es la forma en que tu facilitador sabe que estás listo. **El pre-vuelo es obligatorio.**
 
-> **Cuando estés ejecutando comandos en una terminal:** si te trancas en cualquier punto — un comando no funciona, ves un error, no sabes qué responder — copia **todo** lo que está en tu terminal (el comando que escribiste, la respuesta, el error completo) y pégalo de vuelta en la misma conversación de Claude. Claude lee la salida de tu terminal y te guía hasta el siguiente comando hasta que el paso funcione. Así es como avanzas sin quedarte trancado: tú eres los ojos y las manos, Claude es el cerebro.
+**Dónde mandar las cosas:** [SET: your support channel]
 
-> **Otra cosa que es normal:** cuando instales Granola, Obsidian o una aplicación de terminal, tu sistema operativo o tu navegador te puede advertir que la descarga viene de un "desarrollador no verificado" o marcarla como posible riesgo de seguridad. Esto es completamente normal y esperado con estas aplicaciones — no te alarmes. Simplemente sigue adelante: en Mac, clic derecho → Abrir sobre la aplicación, o permítela en Configuración del Sistema → Privacidad y Seguridad. Si tienes dudas, pega el mensaje de advertencia en Claude y él te confirma qué hacer.
+**¿Palabras nuevas?** Tu facilitador te manda el **Doc 07 — Vocabulario** junto con este documento: todos los términos del kit (vault, skill, plugin, brief, router…) en una página. Tenlo a mano.
 
-## ¿Tu Computadora de Trabajo la Administra tu Empresa?
+> **Si te trabas en un comando:** copia el comando que escribiste y el mensaje de error, y pégalos en la misma conversación de Claude. Claude los lee y te da el siguiente paso hasta que funcione. Tú eres los ojos y las manos; Claude es el cerebro.
+> **Antes de pegar, échale un vistazo.** Nunca pegues en un chat una contraseña, un token (cadenas largas al azar, que muchas veces empiezan con `ghp_`, `gho_` o `sk-`), una llave privada o un código de recuperación. Si un mensaje de error trae uno, bórralo primero.
 
-Si tu laptop de trabajo la administra el departamento de IT de tu empresa, por favor confirma con IT **antes de la sesión** que:
+> **Descarga sólo de los sitios oficiales que nombra cada paso.** Con esas descargas oficiales es normal y esperado un aviso como «desarrollador no identificado» (Gatekeeper en macOS) o «Windows protegió tu PC» (SmartScreen). En Mac: clic derecho sobre la app → **Abrir**, o permítela en **Ajustes del Sistema → Privacidad y seguridad**. En Windows: **Más información → Ejecutar de todas formas**. Si el aviso sale con algo que **no** bajaste del sitio oficial, o menciona un virus, detente y pregúntale a tu facilitador.
 
-1. **Se puede instalar el CLI de Claude Code** — que `npm i -g @anthropic-ai/claude-code` no esté bloqueado.
-2. **Se permite `git push` a github.com** — algunos firewalls corporativos bloquean el push por HTTPS a github.com.
-3. **No hay bloqueo de DLP saliente** — que ninguna política de prevención de pérdida de datos esté bloqueando el HTTPS saliente hacia `api.anthropic.com`.
+## Antes de Empezar — Tu Computadora
 
-Si algo de esto está bloqueado, usa tu laptop personal para la Fase 0. Tu *vault* y tus proyectos son personales de todos modos — no es buena idea construir tu segundo cerebro en una computadora corporativa que IT puede borrar o a la que te puede revocar el acceso sin avisar.
+**Usa un equipo que tengas permitido usar para este trabajo.** Si es una laptop de la empresa, pídele a IT **antes de la sesión**:
 
-## Solo Windows — Antes de Empezar
+1. **Permiso y derechos de administrador.** Instalar Git, Claude Code y las demás herramientas necesita permisos de administrador. Casi todos los equipos de IT pueden darlos por un rato para instalar. Pídelos ya, no el día de la sesión.
+2. **Que Claude Code esté permitido.** Los instaladores oficiales (`claude.ai/install.sh` en Mac/Linux, `claude.ai/install.ps1` en Windows) no pueden estar bloqueados, y nada (un firewall o una política de prevención de pérdida de datos) puede bloquear `claude.ai` ni `api.anthropic.com`.
+3. **Que GitHub esté permitido.** `github.com`, incluido `git push` por HTTPS, no puede estar bloqueado.
 
-Si estás en Mac, salta al Paso 1. Si estás en Windows, trabaja **todos** estos puntos primero —
-cada uno le ha costado tiempo real a un participante real.
+Si tu empresa no permite esto en sus equipos, háblalo con tu facilitador. No pases datos de trabajo a una computadora personal si la política de tu empresa no lo permite. El primer ejercicio se hace con **datos de muestra**, así que una computadora personal sirve, siempre que no le pongas datos confidenciales.
 
-> **Esta sección es prosa, no comandos.** Léela; no la pegues en una terminal. (Pegar prosa
-> en PowerShell produce un `ParserError` y te puede dejar trancado en un prompt de continuación `>>` —
-> un apóstrofe en una palabra abre una comilla que nunca cierra. Si eso pasa, presiona
-> **Ctrl+C** y sigue adelante.)
+**¿Tu computadora está lista?** Una máquina vieja o muy lenta hace la sesión muy cuesta arriba. Revísalo ahora: un sistema operativo que todavía recibe actualizaciones, al menos 8 GB de memoria y unos cuantos GB libres en disco. Si dudas, pregúntale a tu facilitador. Puede darte una **fecha límite** para tener lista la máquina y el pre-vuelo.
 
-**0. Claude Code no corre en el plan gratuito de Claude.** Esta es la compuerta cero y bloquea todo
-lo demás. La documentación de Anthropic es explícita: *"El plan gratuito de Claude.ai no incluye acceso a Claude Code."*
-Haz el Paso 1 (Pro o Max) **antes** de intentar instalar cualquier cosa. Se resuelve solo — si `claude` abre
-y estás con sesión iniciada, la mejora del plan funcionó. Un participante de otra cohorte estuvo trancado semanas por
-exactamente esto.
+**Dónde estás importa.** Claude solo está disponible en los [países y regiones admitidos](https://www.anthropic.com/legal/supported-regions), y lo que cuenta es dónde estás físicamente cuando lo usas. Revisa esa lista **antes** de la sesión; si vas a estar en un lugar que no aparece ahí, avísale a tu facilitador y elijan una fecha en la que estés en una región admitida. **Red de la empresa:** si la red o la VPN de tu empresa bloquea `claude.ai`, `github.com` u `obsidian.md`, pídele a IT que habilite esos tres dominios. No apagues una VPN de la empresa en contra de la política.
 
-**0.5. Ten claro en cuál ventana estás escribiendo — esta es la confusión #1 en Windows.** Windows te da
-tres, y no son intercambiables:
+## Sólo Windows — Léelo Antes de Empezar
 
-| Ventana | Para qué la usas |
+Si estás en Mac o Linux, salta a la tabla de abajo. En Windows, lee **todo** esto primero. Cada punto le costó tiempo de verdad a un participante de verdad.
+
+> **Esta sección es prosa, no comandos.** Léela; no la pegues en una terminal. (Pegar prosa en
+> PowerShell produce un `ParserError` y te puede dejar atascado en un prompt de continuación `>>`:
+> un apóstrofo abre una comilla que nunca se cierra. Si te pasa, presiona **Ctrl+C** y sigue.)
+
+**0. Claude Code no funciona con el plan gratuito de Claude.** Es la compuerta cero y bloquea todo lo demás.
+La documentación de Anthropic es explícita: *"The free Claude.ai plan does not include Claude Code access."*
+Haz el Paso 1 **antes** de intentar instalar cualquier cosa. Se resuelve solo: si `claude` abre y tienes
+la sesión iniciada, el cambio de plan funcionó. Un participante de otra cohorte se quedó semanas trabado justo en esto.
+
+**0.5. Ten claro en qué ventana escribes. Es la confusión número uno en Windows.** Windows te da tres,
+y no son intercambiables:
+
+| Ventana | Para qué |
 |---|---|
-| **PowerShell** | Instalar Claude Code (el comando `irm ... \| iex`) |
-| **Git Bash** | **Todo lo demás en este kit.** Todos los bloques `bash` de los Docs 02/03 la necesitan. Viene con Git for Windows (Paso 3). |
-| **CMD** (la caja negra `C:\>`) | Nada de aquí. Si tus mensajes de error empiezan con `C:\>`, estás en la ventana equivocada. |
+| **PowerShell** | Sólo para instalar Claude Code (el comando `irm ... \| iex` del Paso 4) |
+| **Git Bash** | **Todo lo demás de este kit.** Viene con Git para Windows (Paso 2). Ábrela desde el menú Inicio. |
+| **CMD** (la ventana negra `C:\>`) | Nada de esto. Si tus mensajes de error empiezan con `C:\>`, estás en la ventana equivocada. |
 
-También es normal y **no** es una instalación fallida: que `where bash` no devuelva nada. Git for Windows instala
+También es normal y **no** es una instalación fallida: `where bash` no devuelve nada. Git para Windows instala
 Git Bash pero no pone `bash.exe` en tu PATH. Abre Git Bash desde el menú Inicio.
 
-**1. GitHub CLI (`gh`) — opcional, no es requisito para la Fase 0.** `gh` es solo una comodidad para autenticarte con GitHub. Intenta instalarlo desde https://cli.github.com y verifícalo con `gh --version`. **Si la instalación falla** (Windows corporativo, sin permisos de administrador, DLP), eso no te bloquea — usa la vía de abajo, que no necesita permisos de administrador:
-   - **Personal Access Token (PAT), 5 min:** github.com → Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token (classic) → alcances `repo` + `workflow` → Generate. **Guarda el token** — no se muestra de nuevo.
-   - **Git Credential Manager** (viene con Git for Windows): tu primer `git push` abre una ventana del navegador para iniciar sesión en GitHub y autorizar. Alternativa manual: cuando git te pida usuario/contraseña, usa tu nombre de usuario de GitHub y pega el PAT como contraseña.
-   Si `gh` instala bien, perfecto. Si no, el PAT + el Credential Manager cubren todo — de cualquier forma no quedas bloqueado para la sesión.
+**1. Pega con clic derecho.** En Git Bash, PowerShell y Windows Terminal, Ctrl+V muchas veces no funciona. Usa **clic derecho** (o el clic de la rueda del mouse, o `Shift+Insert`).
 
-**2. Permisos de administrador.** Asegúrate de que tu cuenta de Windows tenga permisos de administrador — los vas a necesitar para instalar Git, Claude Code y otros paquetes. Si no estás seguro, haz clic derecho en PowerShell → "Ejecutar como administrador". Si te pide una contraseña de administrador que no tienes, avísalo antes de la sesión.
+**2. Los textos largos se cortan al pegarlos.** La terminal de Windows puede recortar en silencio lo que pegas si es largo. Por eso, desde el pre-vuelo en adelante, los prompts largos nunca se pegan: le das a Claude la **ruta** del archivo y le dices que lo lea. El pre-vuelo lo practica contigo.
 
-**3. VPN — desactívala para estas URLs durante la instalación:**
-   - claude.ai
-   - github.com
-   - obsidian.md
+**3. En las rutas usa siempre barras `/`, nunca barras invertidas `\`.**
+Escribe `C:/Users/YOUR-USER/AIAC-Vault`, no `C:\Users\YOUR-USER\AIAC-Vault`. Esto importa más de lo
+que parece: en Git Bash una `\` sin comillas desaparece en silencio y **el comando falla sin ningún error
+visible**. La falla que resulta se ve idéntica a otro problema que no tiene nada que ver, y te pasas la
+sesión depurando lo que no es. Para ver una ruta en la forma correcta, Claude usa `pwd -W` (que
+imprime `C:/Users/...`), no `pwd` a secas (que imprime `/c/Users/...`).
 
-   Muchas VPNs corporativas bloquean estas URLs durante los inicios de sesión OAuth y las descargas de paquetes. Si tienes una VPN activa por defecto, desactívala temporalmente para los Pasos 2–5 de abajo, o pídele a IT que agregue estos tres dominios a la lista de permisos.
+**4. El paso del PATH después de instalar Claude Code.** El instalador de Claude Code puede terminar bien y aun así decir, en su propia salida, que **no** agregó `C:\Users\YOUR-USER\.local\bin` a tu PATH. Entonces `claude` «no se reconoce». La solución: Inicio → «Editar las variables de entorno del sistema» → **Variables de entorno** → selecciona **Path** en **Variables del sistema** (o en Variables de usuario si no tienes permisos de administrador) → **Nuevo** → pega esa carpeta → Aceptar, y abre una ventana **nueva**. El prompt del Paso 4 te guía.
 
-**4. Cómo pegar texto en la terminal de Windows.** En PowerShell y en Windows Terminal, Ctrl+V
-muchas veces no funciona con bloques largos. Usa **clic derecho** (o el clic de la rueda del mouse).
-Vas a necesitar esto en cada paso de abajo.
-
-**5. Usa siempre barras hacia adelante `/` en las rutas de archivos — nunca barras invertidas `\`.**
-Escribe `C:/Users/tu/Documents/Vault`, no `C:\Users\tu\Documents\Vault`. Esto importa más
-de lo que parece: en Git Bash una `\` sin comillas se elimina en silencio y **el comando falla sin ningún
-error visible** — y la falla resultante se ve idéntica a un problema que no tiene nada que ver, así que pasarías
-la sesión depurando lo que no es. Cuando un documento te pida la ruta de tu *vault*, obténla con `pwd -W` (que
-imprime `C:/Users/...`), no con `pwd` a secas (que imprime `/c/Users/...`).
+**5. «¿Confías en los archivos de esta carpeta?»** La primera vez que corres `claude` en una carpeta, Claude Code te lo pregunta (en inglés: *Do you trust the files in this folder?*). Para tu propia carpeta de usuario y, más adelante, tu vault, elige **Sí** (*Yes*). La respuesta por defecto es No, y No simplemente cierra.
 
 ---
 
-## Paso 1 — Claude Pro ($20/mes mínimo; Max recomendado)
+## Para Qué Sirve Cada Cosa
 
-Claude es el asistente de IA que vas a usar para todo: piensa, escribe, analiza y te guía paso a paso. **Para qué sirve:** es el cerebro detrás de todo lo demás — cada paso que sigue depende de él, por eso va de primero.
+| Herramienta | Para qué la necesitas |
+|---|---|
+| **Claude** (plan de pago) | El asistente de IA. Es el cerebro de todo lo demás. El plan gratuito no incluye Claude Code. |
+| **Git** | Registra cada cambio de los archivos de tu proyecto, para que nunca pierdas trabajo y puedas volver atrás. |
+| **Cuenta de GitHub** | El respaldo en la nube de ese trabajo. El repositorio de tu proyecto vive ahí, **privado**. |
+| **Ghostty** (Mac, opcional) | Una terminal moderna. La Terminal que trae la Mac también sirve. |
+| **Claude Code** | Claude en tu terminal: lee tus archivos, escribe código, arma reportes y automatiza tareas. |
+| **`gh`** (GitHub CLI) | La herramienta de GitHub para la terminal. Con ella Claude crea tu repositorio privado durante la sesión. Inicias sesión una vez, desde el navegador. |
+| **Python 3** | Varias skills lo usan por dentro para procesar archivos. Tú no vas a programar en Python. |
+| **`jq`** | Una herramienta chiquita para leer JSON. La barra de contexto que montas en la sesión depende de ella: sin `jq` la barra nunca aparece y no hay mensaje de error. |
+| **Obsidian** | Tu «segundo cerebro»: la app donde viven tus notas, tus proyectos y todo lo que generes con IA, conectado entre sí. |
+| **Herramienta de transcripción** (opcional) | Convierte reuniones en texto para que Claude arme la minuta. Sirve cualquiera, o ninguna. |
 
-El mínimo para empezar es el **plan Pro ($20/mes)**. Si esperas usarlo intensamente, se recomienda **Max ($100/mes)** — te da límites de uso más altos en el modelo más capaz, para que no te quedes corto a mitad de sesión. Puedes empezar en Pro y pasarte a Max después si lo necesitas.
+---
+
+## Paso 1 — Tu Plan de Claude (Pro alcanza para empezar)
+
+Claude es el asistente de IA que vas a usar para todo. **Claude Code necesita un plan de pago.** Lo estándar es **Claude Pro** (unos $20 al mes), que incluye Claude Code y alcanza para empezar. Sube a Max sólo si chocas una y otra vez con los límites de uso. Precios y límites actuales: [claude.com/pricing](https://claude.com/pricing). Todos los planes tienen límites de uso que se reinician cada pocas horas y cada semana. El **Doc 06 — Kit de Supervivencia del Plan Pro** explica cómo hacer que Pro te rinda.
 
 Este paso es manual:
 
-1. Ve a claude.ai
-2. Settings → Billing → escoge "Pro" (mínimo) o "Max" (recomendado)
-3. Completa el pago
+1. Entra a claude.ai e inicia sesión (o crea tu cuenta).
+2. **Settings → Billing** → elige **Pro**.
+3. Completa el pago.
 
-> Si estás detrás de un firewall corporativo o una VPN que bloquea claude.ai, desactívala temporalmente para este paso, o pídele a tu equipo de IT que agregue el dominio a la lista de permisos.
+> Si tu empresa te da Claude con una cuenta **Team o Enterprise**, usa esa cuenta y sáltate el pago. Avísale a tu facilitador. El pre-vuelo también lo detecta.
 
-## Paso 2 — Obsidian
+## Paso 2 — Tu Cuenta de GitHub y Git
 
-Obsidian es una aplicación de notas que se convierte en tu "segundo cerebro". **Para qué sirve:** es donde tus proyectos, ideas y todo lo que generes con IA va a vivir y conectarse entre sí — todo en un solo lugar, siempre a la mano.
+Dos cosas que van juntas pero no son lo mismo:
 
-Una vez que tu plan de Claude esté activo, abre claude.ai y pega este prompt:
+- **Git** es un programa en tu computadora. Registra cada cambio de los archivos de tu proyecto.
+- **GitHub** es una cuenta gratuita en la nube (github.com). Ahí se respalda tu proyecto, en un repositorio **privado** que sólo tú ves.
 
-```
-I need to install Obsidian on my computer. Ask me what OS I'm on if you need to.
-Walk me through it step by step:
-1. Tell me which URL to go to for the download
-2. Explain how to install it for my OS
-3. Once it's installed, just verify that it opens correctly
-4. Don't create any vault yet — I'll do that with my facilitator during the session
+**PRIMERO, crea tu cuenta de GitHub** (manual, 2 minutos):
 
-If anything fails, help me troubleshoot it.
-```
+1. Entra a https://github.com
+2. Haz clic en **Sign up** y crea tu cuenta (es gratis).
+3. Confirma tu correo y anota tu **nombre de usuario** de GitHub. Se lo vas a mandar a tu facilitador.
 
-## Paso 3 — Git + Tu Cuenta de GitHub
+**DESPUÉS, instala Git.** Pega en claude.ai el prompt de tu sistema.
 
-Son dos cosas que van juntas pero no son lo mismo — vale la pena tener clara la distinción:
-
-- **Git** es un programa que instalas en tu computadora. **Para qué sirve:** lleva el registro de cada cambio que haces en tus archivos, para que nunca pierdas trabajo y puedas devolverte si algo se rompe.
-- **GitHub** es una cuenta gratuita en la nube (github.com). **Para qué sirve:** es donde ese trabajo se respalda y vive en línea — el lugar al que Claude Code sube tus proyectos para mantenerlos seguros y poder compartirlos. La vas a necesitar de todas formas, así que créala ahora aunque nunca la hayas usado.
-
-**PRIMERO — crea tu cuenta de GitHub** (manual, 2 minutos):
-
-1. Ve a https://github.com
-2. Haz clic en "Sign up" y crea tu cuenta (es gratis)
-3. Confirma tu correo y anota tu nombre de usuario de GitHub — se lo vas a compartir a tu facilitador antes de la sesión
-
-**DESPUÉS — instala Git.** Pega este prompt en claude.ai:
+**Mac:**
 
 ```
-I need to install Git on my computer.
-Walk me through it step by step:
-1. First check whether I already have it installed (tell me what command to run in the terminal)
-2. If it's not installed, walk me through installing it for my OS
-3. Verify the install was successful
-
-If anything fails or you see an error, help me resolve it.
+Necesito instalar Git en mi Mac. Guíame paso a paso:
+1. Primero dime cómo verificar si ya lo tengo (git --version en la Terminal).
+2. Si no lo tengo, el comando es: xcode-select --install
+   (las herramientas de línea de comandos de Apple: traen Git y también Python 3).
+3. Verifica con git --version.
+Si algo falla, ayúdame a resolverlo.
 ```
 
-*(Los usuarios de Mac siguen al Paso 4. Los usuarios de Windows: salten al Paso 5.)*
-
-## Paso 4 — Ghostty (solo Mac)
-
-La terminal es la ventana donde vas a trabajar con Claude Code: tú escribes, él ejecuta. **Para qué sirve Ghostty:** es una aplicación de terminal moderna, rápida y limpia — mucho mejor que la que viene por defecto con tu Mac, y es donde va a correr todo lo de abajo.
-
-Pega este prompt en claude.ai:
+**Windows:**
 
 ```
-I need to install Ghostty on my Mac. It's a modern terminal application.
-Walk me through it step by step:
-1. Tell me how to download it (ghostty.org)
-2. Install it like any other Mac app
-3. Open it and verify that it works
-
-If anything fails, help me troubleshoot it.
+Necesito instalar Git en mi PC con Windows. Guíame paso a paso:
+1. Primero dime cómo verificar si ya lo tengo (git --version).
+2. Si no lo tengo, el comando es: winget install --id Git.Git -e
+   Si winget no funciona, dime cómo usar el instalador de https://git-scm.com/download/win
+   Deja las opciones por defecto: instalan Git Bash, que voy a usar para todo.
+3. Abre una ventana NUEVA de Git Bash desde el menú Inicio y verifica con git --version.
+Si algo falla, ayúdame a resolverlo.
 ```
 
-**Usuarios de Windows:** sáltense este paso — Windows Terminal o PowerShell funcionan bien para todo lo de abajo.
+**Linux:** instala `git` con tu gestor de paquetes (por ejemplo `sudo apt install git`) y verifica con `git --version`.
 
-## Paso 5 — Claude Code
+## Paso 3 — Tu Terminal
 
-Claude Code es la versión de Claude que corre en tu terminal. **Para qué sirve:** lee tus archivos, escribe código, genera reportes y automatiza tareas — todo desde texto. Es el motor que hace el trabajo pesado; aquí es donde pasa el trabajo de verdad.
+La terminal es la ventana donde vas a trabajar con Claude Code.
 
-**Si estás en Mac** — abre Ghostty y pega este prompt en claude.ai:
+- **Mac:** la app **Terminal** que viene con la Mac sirve. Si quieres una más cómoda, instala **Ghostty** (opcional) pegando esto en claude.ai:
 
-```
-I need to install Claude Code (Anthropic's CLI tool for the terminal).
+  ```
+  Quiero instalar Ghostty, una aplicación de terminal, en mi Mac. Guíame:
+  1. Descárgala de ghostty.org.
+  2. Instálala como cualquier app de Mac.
+  3. Ábrela y verifica que funciona.
+  Si algo falla, ayúdame a resolverlo.
+  ```
 
-Walk me through it step by step:
-1. On Mac, use Anthropic's native installer: curl -fsSL https://claude.ai/install.sh | bash
-   (No Homebrew, no sudo, and it auto-updates itself in the background.)
-2. If that fails and I already have Homebrew, the fallback is: brew install --cask claude-code
-   Tell me first that Homebrew installs do NOT auto-update, so I'd have to run
-   `brew upgrade --cask claude-code` myself from time to time.
-3. After installing, verify with: claude --version
-   If the command isn't found, help me confirm ~/.local/bin is on my PATH.
-4. If it asks for authentication, walk me through the login process
+  Desde aquí, «terminal» es Terminal o Ghostty, la que hayas elegido.
+- **Windows:** tu terminal es **Git Bash** (del Paso 2). PowerShell se usa sólo en el Paso 4.
+- **Linux:** tu terminal de siempre.
 
-If anything fails, help me diagnose and resolve it.
-```
+## Paso 4 — Claude Code
 
-> **Por qué el instalador nativo:** es lo que recomienda la propia documentación de configuración de Anthropic. Las
-> instalaciones por Homebrew **no** se auto-actualizan, lo que significa que te irías quedando en silencio en una versión vieja.
-> La instalación nativa se mantiene al día sola y no requiere Homebrew para nada.
+Claude Code es la versión de Claude que corre en tu terminal. Lee tus archivos, escribe código, arma reportes y automatiza tareas. Aquí pasa el trabajo de verdad.
 
-**Si estás en Windows** — abre tu terminal y pega este prompt en claude.ai:
+**Mac o Linux:** abre tu terminal y pega esto en claude.ai:
 
 ```
-I need to install Claude Code (Anthropic's CLI tool for the terminal).
-
-Walk me through it step by step:
-1. On Windows the command is: irm https://claude.ai/install.ps1 | iex
-   Run it in PowerShell (not CMD, not Git Bash).
-2. Walk me through the process in PowerShell
-3. IMPORTANT - read the installer's own output before closing the window. It can finish
-   successfully and still tell you it did NOT add C:\Users\<me>\.local\bin to my PATH.
-   If it says that, walk me through adding it (setx PATH) and then open a NEW window.
-4. Open a NEW terminal window and verify with: claude --version
-   If I get "'claude' is not recognized", it is almost certainly the PATH step above - fix that
-   before anything else.
-5. If it asks for authentication, walk me through the login process
-
-If anything fails, help me diagnose and resolve it.
+Necesito instalar Claude Code (la herramienta de Anthropic para la terminal). Guíame paso a paso:
+1. Usa el instalador nativo de Anthropic: curl -fsSL https://claude.ai/install.sh | bash
+   (No necesita Homebrew ni sudo, y se actualiza solo.)
+2. Verifica con: claude --version
+   Si no encuentra el comando, ayúdame a confirmar que ~/.local/bin está en mi PATH.
+3. Guíame para iniciar sesión con mi cuenta de Claude.
+Si algo falla, ayúdame a diagnosticarlo.
 ```
 
-## Paso 5.5 — jq (pequeño, pero la sesión depende de él)
+> **Por qué el instalador nativo:** es lo que recomienda la documentación de Anthropic, y se
+> mantiene al día solo. Una instalación con Homebrew **no** se actualiza sola, así que te quedarías
+> sin darte cuenta en una versión vieja.
 
-`jq` es una herramienta diminuta de línea de comandos para leer JSON. **Para qué sirve:** la barra de
-estado del monitor de contexto que vas a construir durante la sesión está montada sobre él. No es opcional —
-sin `jq` la barra simplemente nunca aparece, y la falla no te da ningún mensaje de error.
-Ni macOS ni Windows lo traen, así que hay que instalarlo ahora.
-
-**Si estás en Mac** — pega este prompt en claude.ai:
+**Windows:** Claude Code se instala desde **PowerShell** (no desde Git Bash ni desde CMD). Git para Windows (Paso 2) ya tiene que estar instalado. Pega esto en claude.ai:
 
 ```
-I need to install jq (a small command-line JSON tool) on my Mac, without Homebrew.
-
-Walk me through it step by step:
-1. First tell me which chip I have — Apple Silicon or Intel:
-   run `uname -m` (arm64 = Apple Silicon, x86_64 = Intel)
-2. Make the folder if it doesn't exist: mkdir -p ~/.local/bin
-3. Download the matching binary:
-   - Apple Silicon: curl -fsSL -o ~/.local/bin/jq https://github.com/jqlang/jq/releases/latest/download/jq-macos-arm64
-   - Intel:         curl -fsSL -o ~/.local/bin/jq https://github.com/jqlang/jq/releases/latest/download/jq-macos-amd64
-4. Make it executable: chmod +x ~/.local/bin/jq
-5. Make sure ~/.local/bin is on my PATH, and help me add it permanently if it isn't
-6. Verify with: jq --version
-
-If anything fails, help me diagnose and resolve it.
+Necesito instalar Claude Code (la herramienta de Anthropic para la terminal) en Windows. Guíame paso a paso:
+1. En PowerShell, el comando es: irm https://claude.ai/install.ps1 | iex
+2. IMPORTANTE: lee conmigo la salida del instalador antes de cerrar la ventana. Puede terminar
+   bien y aun así decir que NO agregó C:\Users\YOUR-USER\.local\bin a mi PATH.
+   Si lo dice, guíame para agregar esa carpeta a Path en Variables de entorno
+   (Variables del sistema, o Variables de usuario si no tengo permisos de administrador). No uses setx.
+   Después abro una ventana NUEVA.
+3. Abre una ventana NUEVA de Git Bash y verifica con: claude --version
+   Si sale "'claude' no se reconoce", casi seguro es el PATH del punto anterior: arréglalo primero.
+4. Guíame para iniciar sesión con mi cuenta de Claude.
+Si algo falla, ayúdame a diagnosticarlo.
 ```
 
-**Si estás en Windows** — pega este prompt en claude.ai:
+**Verifica con Claude.** Desde ahora Claude Code puede comprobar su propio trabajo. En tu terminal (Git Bash en Windows), escribe `claude`, responde **Sí** si te pregunta si confías en la carpeta, y pega:
 
 ```
-I need to install jq (a small command-line JSON tool) on Windows.
-
-Walk me through it step by step:
-1. The command is: winget install jqlang.jq
-2. Open a NEW terminal window afterward so the PATH refreshes
-3. Verify with: jq --version
-
-If anything fails, help me diagnose and resolve it.
+Corre git --version y claude --version. Dime LISTO o FALTA para cada uno, nada más.
 ```
 
-## Paso 6 — Granola
+> **Desde aquí puedes elegir dónde pegar los prompts de instalación:** en claude.ai (tú corres los
+> comandos) o en Claude Code (Claude los corre y te pide permiso antes de cada uno). Una excepción:
+> los **inicios de sesión** (`gh auth login`, el de Claude) hacen preguntas en pantalla que Claude no puede
+> contestar, así que esos los corres tú, en otra ventana de terminal.
 
-Granola es un grabador de reuniones con IA que se conecta a tu calendario y genera transcripción + resumen automáticamente. **Para qué sirve:** para que tu sesión de Fase 0 — y cada reunión después de esa — quede capturada y lista para procesar con Claude Code, sin que tengas que tomar notas a mano.
+## Paso 5 — `gh` y tu Sesión en GitHub
 
-**Importante:** instala Granola antes de la sesión y déjalo abierto durante el tiempo que estén juntos para que grabe. Después vas a conectar la integración de Granola con Claude Code y a procesar esa grabación.
+**Obligatorio.** Durante la sesión Claude usa `gh` para crear tu repositorio **privado** en GitHub. Inicias sesión desde el navegador. No hay ningún token que copiar ni guardar.
 
-Sirve cualquier correo — Gmail personal, Google Workspace o una cuenta de Microsoft. (Había una restricción vieja sobre proveedores de correo gratuitos que ya fue eliminada; si lees lo contrario en algún lado, está desactualizado.) En la pantalla de inicio de sesión usa **"Continue with Google"** — el botón de **SSO** es una vía solo para empresas y termina en callejón sin salida para la mayoría.
-
-Pega este prompt en claude.ai:
-
-```
-I need to install Granola.ai on my computer.
-It's an AI meeting recorder.
-Walk me through it step by step:
-1. Tell me which URL to go to (granola.ai)
-2. Download and install it for my OS
-3. Create an account for me — any email works (personal Gmail, Google Workspace, or Microsoft). Use "Continue with Google", not the SSO button
-4. Connect my calendar (Google Workspace or similar)
-5. Verify that my calendar meetings show up
-6. Test recording 30 seconds of me talking and confirm it generates a transcript and summary automatically
-
-If anything fails, help me diagnose it.
-```
-
-## Paso 7 — Verificación Final
-
-Una vez que todo lo de arriba esté instalado, abre tu terminal (Ghostty en Mac, o Windows Terminal / PowerShell en Windows), escribe `claude` y pega este prompt:
+**Mac:**
 
 ```
-Verify that I have everything installed correctly for the AI Acceleration Club:
-1. Git installed and working (git --version)
-2. Obsidian installed
-3. Claude Code working (you're already running here)
-4. jq installed and working (jq --version)
-Tell me what happened with each check, and give me a short summary I can send
-to my facilitator listing each item as DONE or NOT DONE.
+Necesito instalar GitHub CLI (gh) en mi Mac e iniciar sesión. Guíame paso a paso:
+1. Si tengo Homebrew (brew --version responde), el comando es: brew install gh
+   Si no lo tengo, dime cómo usar el instalador para macOS (.pkg) de https://cli.github.com
+2. Verifica con: gh --version
+3. Inicia sesión con: gh auth login --hostname github.com --git-protocol https --web
+   Me muestra un código de un solo uso y abre el navegador: dime dónde pego el código y qué estoy autorizando.
+4. Verifica con: gh auth status
+   Tiene que decir que tengo sesión iniciada en github.com con mi usuario.
+Si algo falla, ayúdame a resolverlo.
 ```
 
-**Envíale ese resumen a tu facilitador.** Esta es la compuerta — sin ella no tenemos forma de saber
-hasta dónde llegaste, y ha habido sesiones que empezaron a ciegas porque nunca llegó.
+**Windows:**
 
-**¿Trancado, con dudas, o simplemente quieres verificar?** Pídele a tu facilitador
-`aiac-status-check.sh` — un script pequeño de solo lectura que reporta exactamente hasta dónde llegó tu configuración.
-No escribe nada, no instala nada y no envía nada; solo mira archivos que ya existen
-e imprime un resumen. Ejecútalo en tu **terminal** (no dentro de Claude Code):
-
-```bash
-bash ~/Downloads/aiac-status-check.sh
+```
+Necesito instalar GitHub CLI (gh) en Windows e iniciar sesión. Guíame paso a paso:
+1. El comando es: winget install --id GitHub.cli -e
+   Si winget no funciona, dime cómo usar el instalador .msi de https://cli.github.com
+2. Abre una ventana NUEVA de Git Bash y verifica con: gh --version
+3. Inicia sesión con: gh auth login --hostname github.com --git-protocol https --web
+   Me muestra un código de un solo uso y abre el navegador: dime dónde pego el código y qué estoy autorizando.
+4. Verifica con: gh auth status
+   Tiene que decir que tengo sesión iniciada en github.com con mi usuario.
+Si algo falla, ayúdame a resolverlo.
 ```
 
-Copia toda la salida de vuelta a tu facilitador. El primer `NOT DONE` es donde retomas.
+**Linux:** instala `gh` (https://github.com/cli/cli/blob/trunk/docs/install_linux.md), después `gh auth login --hostname github.com --git-protocol https --web` y verifica con `gh auth status`.
 
-Si tropiezas en algún paso, guarda la salida de la terminal — puedes retomar la resolución
-del problema con Claude, o llevársela a tu facilitador.
+Si en tu computadora no se puede instalar `gh` (por ejemplo, una laptop de la empresa bloqueada), avísale a tu facilitador **antes** de la sesión. Hay un camino sólo con el navegador, pero toma más tiempo y tu facilitador tiene que saberlo con anticipación. **No** crees un «personal access token» para salir del paso.
+
+**Verifica con Claude:**
+
+```
+Corre gh --version y gh auth status. Dime LISTO si tengo sesión iniciada en github.com, FALTA si no.
+No corras tú el inicio de sesión.
+```
+
+## Paso 6 — Python 3
+
+**Mac:** casi siempre quedó instalado con el Paso 2. Pega esto en claude.ai (o en Claude Code):
+
+```
+Necesito comprobar que tengo Python 3 en mi Mac. Guíame:
+1. En la terminal: python3 --version
+2. Si responde con una versión 3.x, listo.
+3. Si no responde, o me ofrece instalar las herramientas de desarrollo, acepto. Si aun así no aparece,
+   instálalo con brew install python (si tengo Homebrew) o con el instalador de https://www.python.org/downloads/
+4. Vuelve a verificar con python3 --version
+Si algo falla, ayúdame a resolverlo.
+```
+
+**Windows:**
+
+```
+Necesito instalar Python 3 en Windows. Guíame paso a paso:
+1. Primero verifica si ya lo tengo: en Git Bash, py --version
+2. Si no lo tengo, el comando es: winget install --id Python.Python.3.12 -e
+3. Abre una ventana NUEVA y verifica con: py --version
+   En Windows Python se llama con py. Si python3 abre la Microsoft Store, ignóralo: es un atajo de Windows, no Python.
+Si algo falla, ayúdame a resolverlo.
+```
+
+**Linux:** `sudo apt install python3` (o tu gestor de paquetes), y después `python3 --version`.
+
+**Verifica con Claude:**
+
+```
+Corre python3 --version (en Windows: py --version). Dime LISTO si es la versión 3.x, FALTA si no.
+```
+
+## Paso 7 — jq (chiquito, pero la sesión depende de él)
+
+macOS 15 y posteriores ya traen `jq`; los macOS más viejos y Windows no, y Git para Windows tampoco lo incluye. Revisa con `jq --version` e instálalo ahora si falta.
+
+**Mac:**
+
+```
+Necesito instalar jq (una herramienta chiquita de línea de comandos para JSON) en mi Mac. Guíame paso a paso:
+1. Si tengo Homebrew (brew --version responde), el comando es: brew install jq
+2. Si no lo tengo: dime qué chip tengo (uname -m: arm64 = Apple Silicon, x86_64 = Intel),
+   crea ~/.local/bin si no existe, descarga el archivo que corresponde de
+   https://github.com/jqlang/jq/releases/latest (jq-macos-arm64 o jq-macos-amd64) a ~/.local/bin/jq,
+   hazlo ejecutable (chmod +x) y asegúrate de que ~/.local/bin quede en mi PATH para siempre.
+3. Verifica con: jq --version
+Si algo falla, ayúdame a resolverlo.
+```
+
+**Windows:**
+
+```
+Necesito instalar jq (una herramienta chiquita de línea de comandos para JSON) en Windows. Guíame paso a paso:
+1. El comando es: winget install --id jqlang.jq -e
+2. Abre una ventana NUEVA de Git Bash para que se actualice el PATH.
+3. Verifica con: jq --version
+Si algo falla, ayúdame a resolverlo.
+```
+
+**Linux:** `sudo apt install jq`, y después `jq --version`.
+
+**Verifica con Claude:**
+
+```
+Corre jq --version. Dime LISTO o FALTA.
+```
+
+## Paso 8 — Obsidian
+
+Obsidian es una app de notas que se convierte en tu «segundo cerebro»: el lugar donde tus proyectos, tus ideas y todo lo que creas con IA viven y se conectan entre sí.
+
+Pega esto en claude.ai:
+
+```
+Necesito instalar Obsidian en mi computadora. Pregúntame qué sistema operativo uso si te hace falta.
+Guíame paso a paso:
+1. Dime de qué página descargarlo (obsidian.md).
+2. Explícame cómo instalarlo en mi sistema.
+3. Cuando esté instalado, sólo verifica que abre.
+4. NO crees ningún vault: lo crea el pre-vuelo, en el último paso.
+Si algo falla, ayúdame a resolverlo.
+```
+
+**Verifica:** Obsidian abre. Si te muestra una pantalla de bienvenida que ofrece crear una bóveda, ciérrala. **No crees tú ningún vault.**
+
+## Paso 9 — Transcripción de Reuniones (opcional, cualquier herramienta)
+
+Después de la sesión puedes convertir reuniones en minutas con Claude. Necesitas la reunión en texto, y sirve cualquiera de estas opciones:
+
+- **Granola** (granola.ai), un grabador de reuniones con IA. Sirve cualquier correo. En la pantalla de entrada usa **Continue with Google** (o Microsoft), no el botón de **SSO**, que es sólo para cuentas empresariales.
+- **Otra herramienta de transcripción** que ya uses (Zoom, Teams, Meet, Otter y otras).
+- **Ninguna herramienta.** Le pegas la transcripción a Claude a mano.
+
+Dile a tu facilitador cuál vas a usar. Nada de esto bloquea la sesión.
+
+> **Grabar necesita consentimiento.** Graba una reunión sólo cuando todos los presentes estén de acuerdo. Tu facilitador te va a preguntar antes de grabar tu sesión, y puedes decir que no.
+
+Si eliges Granola, este prompt te guía (pégalo en claude.ai):
+
+```
+Necesito instalar Granola (granola.ai), un grabador de reuniones con IA. Guíame paso a paso:
+1. Dime a qué página ir y cómo instalarlo en mi computadora.
+2. Ayúdame a crear la cuenta con "Continue with Google" o Microsoft (no con SSO).
+3. Conecta mi calendario y verifica que aparecen mis reuniones.
+4. Grabemos 30 segundos de mí hablando y confirma que genera una transcripción y un resumen.
+Si algo falla, ayúdame a diagnosticarlo.
+```
 
 ---
 
-## Ven Preparado Con Tus Problemas
+## Paso 10 — El Pre-Vuelo (obligatorio)
 
-No necesitas llenar ningún formulario ni enviar nada por adelantado. En vez de eso, ven a tu sesión con **1 a 3 problemas reales de tu trabajo** en los que te gustaría que Claude te ayude — problemas donde mejor automatización, mejor análisis o más velocidad harían una diferencia real.
+El pre-vuelo deja tu computadora lista para la sesión en unos 10 minutos. Claude Code:
+
+- crea tu vault en un lugar seguro (nunca dentro de una carpeta sincronizada con la nube como OneDrive, Dropbox, Google Drive o iCloud),
+- te pide abrirlo en Obsidian y comprueba que Obsidian abrió **esa misma carpeta**,
+- mueve tus archivos del kit al vault y practica cargar un prompt **por archivo**,
+- comprueba cada herramienta y tu sesión de GitHub,
+- termina con **una línea** que le mandas a tu facilitador.
+
+**Antes de empezar:** terminaste los Pasos 1 a 8. Tu facilitador te mandó estos archivos del kit: este documento, el **Main Setup Prompt** y el **Skills & Config Setup Prompt** (en Windows, sus ediciones para Windows `02W` y `03W`), y el Doc 07 — Vocabulario. Guárdalos todos en tu carpeta de **Descargas** y no les cambies el nombre, no los abras ni los muevas. El pre-vuelo los mueve.
+
+**Cómo se corre.** El prompt largo de abajo no lo pegas. Le dices a Claude que lo lea de este archivo:
+
+1. Abre tu terminal (en Windows: **Git Bash**) y escribe `claude`. Si te pregunta si confías en la carpeta, elige **Sí**.
+2. Pega este prompt corto (en Windows: clic derecho para pegar) y presiona Enter:
+
+   ```
+   Lee el archivo de mi carpeta de Descargas cuyo nombre contiene "Pre-Session Setup Instructions". Busca la sección "PROMPT DE PRE-VUELO" y sigue sólo las instrucciones de su bloque de código.
+   ```
+
+3. Contesta lo que Claude te pregunte. La **última línea** de Claude dice `PREFLIGHT: READY …` o `PREFLIGHT: MISSING …`.
+
+Si Claude no encuentra el archivo (por ejemplo, lo guardaste en otro lado), arrastra el archivo a la ventana de la terminal: eso pega su ruta. Después escribe `Lee este archivo, busca la sección "PROMPT DE PRE-VUELO" y sigue sólo las instrucciones de su bloque de código.` Como último recurso en Mac o Linux, copia el bloque de abajo y pégalo.
+
+> **La última línea va en inglés a propósito** (`PREFLIGHT: READY` = listo, `PREFLIGHT: MISSING` = falta, `ACCOUNT: personal/team` = cuenta personal o de equipo). Así tu facilitador la lee igual en cualquier idioma del kit, como el chequeo de estado.
+
+### PROMPT DE PRE-VUELO
+
+```
+PRE-VUELO — AI Acceleration Club Fase 0
+
+Hola, Claude. Me estoy preparando para mi sesión de inicio con Claude Code. Vamos a hacer un pre-vuelo: dejar listo mi vault de Obsidian y comprobar mis herramientas. Háblame en español. Ve en orden, un punto a la vez, y espérame cuando un punto me necesite. No instales nada ni cambies ninguna configuración sin preguntarme antes. Nunca leas, muestres ni me pidas una contraseña, un token o una llave.
+
+0. MI COMPUTADORA
+   - Dime qué sistema detectas: macOS, Windows (Git Bash), WSL o Linux.
+   - En Windows: corre los comandos en Git Bash, escribe las rutas con barras / (C:/Users/...), nunca con \, y muéstrame las rutas con pwd -W en vez de pwd.
+
+1. MI VAULT (la carpeta que se convierte en mi segundo cerebro)
+   - Pregúntame si ya tengo un vault de Obsidian que quiera usar. Si sí, pídeme su ruta completa y usa esa carpeta: no crees otra.
+   - Si no, créalo como AIAC-Vault directamente dentro de mi carpeta de usuario: $HOME/AIAC-Vault (en Windows es C:/Users/YOUR-USER/AIAC-Vault). Pregúntame sólo si quiero otro nombre; uno sin espacios es lo más fácil.
+   - REGLA DURA: el vault nunca puede vivir dentro de una carpeta sincronizada con la nube. Si la ruta completa contiene OneDrive, Dropbox, Google Drive, GoogleDrive, My Drive, iCloud o Mobile Documents, no la uses: dime por qué y propón $HOME/AIAC-Vault. Tampoco lo pongas en Documentos ni en el Escritorio: en Windows muchas veces están redirigidos a OneDrive, y en Mac pueden estar sincronizados con iCloud.
+   - Crea sólo la carpeta del vault y, dentro, "00 HUB/00 INBOX". Nada más: el Main Setup Prompt arma el resto durante la sesión. Si alguna carpeta ya existe, déjala como está.
+       mkdir -p "$HOME/AIAC-Vault/00 HUB/00 INBOX" && cd "$HOME/AIAC-Vault" && pwd
+     (En Windows usa pwd -W. Si elegí otra ruta u otro nombre, usa ésos.)
+   - Muéstrame la ruta completa del vault. La voy a necesitar en la sesión.
+
+2. OBSIDIAN ABRE LA MISMA CARPETA
+   - Dime que abra Obsidian y elija «Abrir carpeta como bóveda» (en inglés, «Open folder as vault»), y que seleccione la carpeta del punto 1. Si Obsidian ya tiene una bóveda abierta, se llega por el ícono de bóvedas abajo a la izquierda: «Administrar bóvedas» y después «Abrir carpeta como bóveda». NUNCA «Crear nueva bóveda»: eso hace un segundo vault en otro lugar.
+   - Espera a que te diga «listo». Después comprueba que dentro de la carpeta del vault apareció la carpeta oculta .obsidian (ls -a). Si no aparece, Obsidian abrió otra carpeta: repitamos el punto 2.
+
+3. MIS ARCHIVOS DEL KIT Y CARGAR UN PROMPT POR ARCHIVO
+   - Busca en mi carpeta de Descargas los archivos del kit que me mandó mi facilitador: los que tienen en el nombre "Pre-Session Setup Instructions", "Main Setup Prompt", "Skills & Config Setup Prompt" o "Vocabulario". Si hay más de una copia de un archivo (por ejemplo con «(1)» en el nombre), toma la más reciente y dime cuál tomaste.
+   - Muévelos a "00 HUB/00 INBOX" del vault, quitando cualquier «(1)» del nombre. Si no está el Main Setup Prompt o el Skills & Config Setup Prompt, sigue y anota «archivos del setup» como falta.
+   - Muéstrame lo que quedó en "00 HUB/00 INBOX".
+   - Ahora practiquemos cómo se cargan los prompts largos en la sesión. Dime que en Obsidian abra "00 HUB/00 INBOX", haga clic derecho sobre el archivo del Main Setup Prompt (o sobre este archivo Pre-Session si falta el del setup), elija «Copiar ruta» y después la ruta completa del sistema (no la «URL de Obsidian»), y que la pegue aquí. Comprueba que esa ruta es la del archivo (test -f). En Windows, cambia las \ por / antes de probarla. NO ejecutes ese archivo ahora: sólo comprobamos que la ruta sirve.
+
+4. MIS HERRAMIENTAS
+   Corre esto y muéstrame qué salió en cada línea:
+     git --version
+     gh --version
+     gh auth status
+     python3 --version     (en Windows: py --version)
+     jq --version
+     claude --version
+   - gh auth status tiene que decir que tengo sesión iniciada en github.com. Si no lo dice, NO corras tú el inicio de sesión: hace preguntas en pantalla que desde aquí no puedes contestar. Dime que corra esto en OTRA ventana de terminal, que siga lo que pide el navegador y que te avise cuando termine:
+       gh auth login --hostname github.com --git-protocol https --web
+     Después vuelve a correr gh auth status.
+   - Cuando tenga la sesión iniciada, corre gh api user --jq .login y muéstrame mi nombre de usuario de GitHub. Se lo voy a mandar a mi facilitador.
+   - En Windows Python se llama con py. Si python3 abre la Microsoft Store, ignóralo: es un atajo de Windows, no Python.
+   - Si algo no está instalado, dime qué paso de mis Instrucciones de Configuración Pre-Sesión lo instala y espera. Cuando te diga que terminé, vuelve a comprobarlo; lo recién instalado a veces necesita una ventana de terminal nueva. Si sigue sin aparecer, anótalo como falta.
+   - El tipo de mi cuenta de Claude. Corre esto; muestra sólo el tipo de cuenta, nada más:
+       grep -o '"organizationType": *"[^"]*"' "$HOME/.claude.json"
+     claude_team o claude_enterprise significa una cuenta de equipo: el administrador de mi organización decide qué conectores veo y puede repartir plugins. Cualquier otra cosa, o nada, significa una cuenta personal. Ninguna de las dos es un problema.
+
+5. TRANSCRIPCIÓN DE REUNIONES (nunca es una falta)
+   - Pregúntame cómo voy a capturar mis reuniones después de la sesión: Granola, otra herramienta de transcripción, o pegando la transcripción a mano. Cualquier respuesta sirve. Sólo anótala.
+
+6. RESUMEN
+   - Dame una tabla con cada punto y LISTO o FALTA: vault (no está en una carpeta sincronizada), Obsidian abrió la misma carpeta (.obsidian encontrada), archivos del setup en el INBOX, «Copiar ruta» funciona, git, gh, gh con sesión iniciada, Python 3, jq, Claude Code. Agrega una fila «cuenta de Claude» (personal o de equipo), una fila «usuario de GitHub» y una fila «transcripción» con mi respuesta.
+   - Debajo de la tabla, la línea que voy a usar en la sesión para entrar a mi vault: cd "<ruta completa del vault>"
+   - Termina con UNA línea exacta, en inglés, sin nada después:
+       PREFLIGHT: READY · ACCOUNT: personal
+     si todo está listo, o
+       PREFLIGHT: MISSING <lo que falta, separado por comas> · ACCOUNT: personal
+     por ejemplo: PREFLIGHT: MISSING jq, gh login · ACCOUNT: team
+     Escribe team en vez de personal si la cuenta es Team o Enterprise.
+```
+
+### Después del Pre-Vuelo
+
+- **Manda la última línea** (`PREFLIGHT: READY …` o `PREFLIGHT: MISSING …`) y tu **usuario de GitHub** a tu facilitador por [SET: your support channel]. Si dice `MISSING`, pide ayuda de una vez, **antes** de la sesión. Lo que falta se arregla en minutos ahora y en media hora en vivo.
+- **Guarda la línea `cd "…"`** que te dio Claude. En la sesión la usas para entrar a tu vault.
+- **No crees otro vault.** Si Obsidian no muestra el tuyo, ábrelo otra vez con **Abrir carpeta como bóveda**.
+- En la sesión, los prompts largos se **cargan por archivo**, igual que acabas de practicar: en Obsidian, clic derecho sobre el archivo → **Copiar ruta**; en Claude Code, `Lee el archivo <ruta> y sigue sus instrucciones.`
+
+### Si tu Facilitador te Pide el Chequeo de Estado
+
+Tu facilitador también te puede mandar `aiac-status-check.sh` (muchas veces como `aiac-status-check.sh.txt`, porque las apps de chat y el correo bloquean los archivos `.sh`). Es un script chiquito de **sólo lectura**: no instala nada, no cambia nada y no envía nada. Sólo mira e imprime un reporte. Guárdalo en Descargas y dile a Claude, con el **nombre exacto del archivo que recibiste**:
+
+```
+Corre `bash ~/Downloads/aiac-status-check.sh.txt --share` y muéstrame su salida tal cual como se imprime.
+```
+
+(Si tu archivo se llama `aiac-status-check.sh`, usa ese nombre; los dos funcionan.) **`--share` importa:** con esa opción el script imprime sólo el bloque que empieza con `----- AIAC STATUS (safe to share) -----` y termina con `----- END -----`, así que nada más sobre tu máquina entra en la conversación con Claude. Ese bloque trae nombres de chequeos y `DONE` (hecho) / `NOT DONE` (falta) / `SKIPPED (optional)` (opcional, omitido) más una línea de veredicto, nada personal, y es lo único que compartes. El script imprime en inglés a propósito. El primer `NOT DONE` es donde retomas.
+
+¿Quieres el reporte completo, con el detalle de cada línea? Córrelo **tú en una ventana de terminal** (Git Bash en Windows), no a través de Claude: `bash ~/Downloads/aiac-status-check.sh.txt`. Ese detalle es sólo para tus ojos; nunca se lo pegues a Claude ni a nadie, y nunca compartas la salida de `--details`. Si Claude Code todavía no funciona, corre ese mismo comando en tu terminal y copia sólo el bloque entre las dos líneas `-----`.
+
+---
+
+## Llega con un Proyecto Concreto
+
+No llenas ningún formulario. En cambio, llega a la sesión con **un proyecto concreto de tu trabajo real** en el que quieras que Claude te ayude. Si dudas, trae dos o tres candidatos y elegimos uno juntos.
+
+«Concreto» quiere decir que puedes nombrar tres cosas:
+
+- **La entrada:** un archivo, una exportación o un reporte que ya tienes (una hoja de cálculo, PDFs, una exportación de un sistema).
+- **La salida que quieres:** un reporte, un resumen, una tabla limpia, un borrador, un análisis.
+- **Por qué importa:** el tiempo que te cuesta hoy, o la decisión que te ayudaría a tomar.
 
 Ejemplos del tipo de cosa que funciona bien:
 
-- "Armo el mismo reporte a mano todos los meses y me toma horas."
-- "Tengo datos en un sistema que no puedo cruzar fácilmente con otro."
-- "Necesito analizar algo pero no tengo las herramientas adecuadas."
-- "Mi equipo y yo coordinamos un proceso, y la información se sigue perdiendo por el camino."
+- «Armo el mismo reporte a mano todos los meses y me toma horas.»
+- «Tengo datos en un sistema que no puedo cruzar fácilmente con otro.»
+- «Necesito analizar algo pero no tengo las herramientas adecuadas.»
+- «Mi equipo coordina un proceso y la información se pierde por el camino.»
 
-No hace falta que sea técnico — solo describe el problema y por qué te importa. Durante la sesión, tú y tu facilitador van a escoger el que mejor encaje y lo van a construir juntos, en vivo, como tu primer proyecto real.
+«Aprender IA» o «ser más productivo» todavía no es un proyecto. Bájalo a una tarea concreta que de verdad vayas a repetir.
+
+**Trae datos de muestra, no datos confidenciales.** Para el primer ejercicio, usa una copia sin nombres ni montos, un pedacito, o filas inventadas que se parezcan a las reales. Usa datos reales del negocio sólo cuando tu empresa haya aprobado usar Claude con ellos.

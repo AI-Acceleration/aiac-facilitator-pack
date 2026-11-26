@@ -10,20 +10,20 @@ lang: es
 
 > # 🚨 NO SE LO ENVÍES A UN PARTICIPANTE
 >
-> Igual que `00W`: los documentos del participante le dicen que *"abra el archivo, seleccione todo, copie,
-> pegue"*, así que cualquier cosa añadida a un documento termina pegada dentro de Claude Code junto con él.
-> Este archivo existe **por separado** para que la variante rioplatense quede auditable sin viajar de
-> contrabando en el portapapeles de alguien.
+> Igual que `00W`: el participante le entrega los documentos de setup a Claude Code por su ruta (*"Lee el
+> archivo … y sigue sus instrucciones"*), y Claude lee el archivo **completo**: cualquier cosa añadida a un
+> documento la leería como instrucciones. Este archivo existe **por separado** para que la variante
+> rioplatense quede auditable sin viajar de contrabando en el setup de alguien.
 
 # Voseo rioplatense — qué cambia y por qué
 
 **Principio: variante, no bifurcación.** Exactamente el mismo patrón que la Edición Windows. **No existe un
-"Kit ES-AR".** Existe el Kit ES — en tuteo venezolano — más esta lista de sustituciones. Cada desviación se
+"Kit ES-AR".** Existe el Kit ES — en español latinoamericano neutro con tuteo — más esta lista de sustituciones. Cada desviación se
 puede revisar, cuestionar o revertir, y la edición nunca se desvía en silencio del kit.
 
 > [!important] **El registro se elige por PARTICIPANTE, nunca por facilitador.**
 > Un facilitador rioplatense con alumnos argentinos usará esta tabla casi siempre. Pero un facilitador
-> venezolano de tuteo puede tener su círculo más cercano **en inglés**: un mismo facilitador abarca dos
+> que trabaja en tuteo puede tener su círculo más cercano **en inglés**: un mismo facilitador abarca dos
 > registros *y* dos idiomas. Antes de cada sesión, decide el registro mirando
 > **a quién tienes enfrente**, no de quién es la cuenta.
 
@@ -31,8 +31,8 @@ puede revisar, cuestionar o revertir, y la edición nunca se desvía en silencio
 
 | Superficie | ¿Aplica el voseo? |
 |---|---|
-| Prosa de los documentos del participante (`01`, `02`, `02W`, `02-S`, `03`, `03W`, `04`) | ✅ Sí |
-| Texto **dentro de bloques de código** (``` ```), comandos, rutas, JSON, `{{PLACEHOLDERS}}` | ⛔ **NUNCA.** Byte por byte idéntico al Kit ES. Los Documentos 02 y 03 se pegan en una terminal viva. |
+| Prosa de los documentos del participante (`01`, `02`, `02W`, `02-S`, `03`, `03W`, `04`, `06`, `07`) | ✅ Sí |
+| Texto **dentro de bloques de código** (``` ```), comandos, rutas, JSON, `{{PLACEHOLDERS}}` | ⛔ **NUNCA.** Byte por byte idéntico al Kit ES. Claude ejecuta esos comandos tal cual están escritos. |
 | Comentarios dentro de bloques de código | ⛔ No. Van en inglés en las tres ediciones. |
 | Manual del Facilitador (`05`) y specs (`00`, `00W`, `00V`) | ➖ Opcional — los lee el facilitador, no el alumno. Si el facilitador es rioplatense, que los lea como están; no vale la pena mantener una segunda copia. |
 | Títulos de las preguntas del formulario de admisión | ⛔ **NUNCA.** Son claves de unión del Apps Script. Renombrarlas rompe el manejador en silencio. |
@@ -43,70 +43,108 @@ puede revisar, cuestionar o revertir, y la edición nunca se desvía en silencio
 demás — `te`, `tu`, `tus`, `tuyo`, el imperativo **negativo**, y todos los tiempos que no sean presente —
 es idéntico en ambos registros. Por eso la sustitución es corta y mecánica.
 
-## Imperativos — las 25 formas que aparecen de verdad en el Kit ES
+## Imperativos — las formas que aparecen de verdad en el Kit ES
 
-Conteo medido sobre la prosa del Kit ES el 2026-08-28, excluyendo bloques de código.
+Conteo medido sobre la prosa de `01`, `02`, `02W`, `02-S`, `03`, `03W` y `04` el 2026-11-25, excluyendo
+bloques de código y código en línea. **Los conteos son aproximados:** varias formas también son
+sustantivo o 3ª persona (`prueba`, `muestra`, `sigue`, `lee`, `corre`, `usa`, `crea`) — convierte sólo
+cuando es imperativo dirigido al lector. En **negrita**, las que no salen de mover el acento.
 
 | # | Tuteo (Kit ES) | Voseo (AR) | Apariciones |
 |---|---|---|---|
-| 1 | `crea` | `creá` | 89 |
-| 2 | `confirma` | `confirmá` | 82 |
-| 3 | `usa` | `usá` | 66 |
-| 4 | `pega` | `pegá` | 49 |
-| 5 | `abre` | `abrí` | 47 |
-| 6 | `escribe` | `escribí` | 39 |
-| 7 | `haz` | **`hacé`** | 39 |
-| 8 | `instala` | `instalá` | 38 |
-| 9 | `verifica` | `verificá` | 38 |
-| 10 | `revisa` | `revisá` | 36 |
-| 11 | `ejecuta` | `ejecutá` | 33 |
-| 12 | `reemplaza` | `reemplazá` | 25 |
-| 13 | `ve` (de *ir*) | **`andá`** | 21 |
-| 14 | `agrega` | `agregá` | 20 |
-| 15 | `guarda` | `guardá` | 16 |
-| 16 | `copia` | `copiá` | 14 |
-| 17 | `cierra` | `cerrá` | 10 |
-| 18 | `borra` | `borrá` | 6 |
-| 19 | `asegúrate` | **`asegurate`** | 6 |
-| 20 | `busca` | `buscá` | 6 |
-| 21 | `añade` | `añadí` | 5 |
-| 22 | `pon` | **`poné`** | 4 |
-| 23 | `espera` | `esperá` | 3 |
-| 24 | `recuerda` | `recordá` | 2 |
-| 25 | `continúa` | `continuá` | 1 |
-| 26 | `selecciona` | `seleccioná` | 1 |
+| 1 | `crea` | `creá` | ~66 |
+| 2 | `confirma` | `confirmá` | ~71 |
+| 3 | `usa` | `usá` | ~59 |
+| 4 | `escribe` | `escribí` | ~46 |
+| 5 | `ejecuta` | `ejecutá` | ~44 |
+| 6 | `prueba` | **`probá`** | ~44 |
+| 7 | `abre` | `abrí` | ~41 |
+| 8 | `lee` | `leé` | ~41 |
+| 9 | `revisa` | `revisá` | ~41 |
+| 10 | `sigue` | **`seguí`** | ~41 |
+| 11 | `instala` | `instalá` | ~38 |
+| 12 | `haz` | **`hacé`** | ~35 |
+| 13 | `dime` | **`decime`** | ~29 |
+| 14 | `muéstrame` | **`mostrame`** | ~27 |
+| 15 | `copia` | `copiá` | ~26 |
+| 16 | `corre` | `corré` | ~26 |
+| 17 | `pega` | `pegá` | ~25 |
+| 18 | `muestra` | **`mostrá`** | ~24 |
+| 19 | `verifica` | `verificá` | ~23 |
+| 20 | `ve` (de *ir*) | **`andá`** | ~20 |
+| 21 | `agrega` | `agregá` | ~18 |
+| 22 | `vuelve` | **`volvé`** | ~18 |
+| 23 | `arranca` | `arrancá` | ~14 |
+| 24 | `pregúntame` | **`preguntame`** | ~14 |
+| 25 | `espera` | `esperá` | ~12 |
+| 26 | `guarda` | `guardá` | ~12 |
+| 27 | `cierra` | `cerrá` | ~11 |
+| 28 | `pide` | **`pedí`** | ~9 |
+| 29 | `reemplaza` | `reemplazá` | ~9 |
+| 30 | `presiona` | `presioná` | ~8 |
+| 31 | `busca` | `buscá` | ~7 |
+| 32 | `cambia` | `cambiá` | ~6 |
+| 33 | `di` | **`decí`** | ~6 |
+| 34 | `mantén` | **`mantené`** | ~6 |
+| 35 | `anota` | `anotá` | ~5 |
+| 36 | `borra` | `borrá` | ~5 |
+| 37 | `dile` | **`decile`** | ~5 |
+| 38 | `elige` | **`elegí`** | ~5 |
+| 39 | `entra` | `entrá` | ~5 |
+| 40 | `marca` | `marcá` | ~5 |
+| 41 | `asegúrate` | **`asegurate`** | ~4 |
+| 42 | `pon` | **`poné`** | ~4 |
+| 43 | `añade` | `añadí` | ~2 |
+| 44 | `avísame` | **`avisame`** | ~2 |
+| 45 | `quita` | `quitá` | ~2 |
+| 46 | `responde` | `respondé` | ~2 |
+| 47 | `selecciona` | `seleccioná` | ~2 |
+| 48 | `ten` | **`tené`** | ~2 |
+| 49 | `ábrelo` | **`abrilo`** | ~1 |
+| 50 | `descarga` | `descargá` | ~1 |
+| 51 | `trabaja` | `trabajá` | ~2 |
+| 52 | `empieza` | **`empezá`** | ~2 |
+| 53 | `apruébala` | **`aprobala`** | ~2 |
+| 54 | `muéstramela` | **`mostrámela`** | ~2 |
 
-### Las cuatro irregulares — las únicas que no salen de mover el acento
+### Las irregulares — las que no salen de mover el acento
 
 La regla general del imperativo voseo es *quitar la `-r` del infinitivo y acentuar la última sílaba*
-(`pegar → pegá`). Estas cuatro no siguen el patrón visualmente y son donde se cometen los errores:
+(`pegar → pegá`). Éstas no siguen el patrón visualmente y son donde se cometen los errores:
 
 | Tuteo | Voseo | Trampa |
 |---|---|---|
 | `haz` | `hacé` | No es `hacé` ← `haz`; sale de `hacer`. `hazlo` → **`hacelo`** (sin tilde: la sílaba tónica ya cae bien). |
 | `ve` | `andá` | **Supletiva.** El voseo usa *andar*, no *ir*. `ve a la carpeta` → `andá a la carpeta`. |
 | `pon` | `poné` | De `poner`. `ponlo` → **`ponelo`**. |
+| `sigue` · `vuelve` · `muestra` · `prueba` · `pide` · `elige` · `empieza` · `aprueba` | `seguí` · `volvé` · `mostrá` · `probá` · `pedí` · `elegí` · `empezá` · `aprobá` | **Verbos con cambio de raíz:** el voseo usa la raíz del infinitivo, sin diptongo ni cambio de vocal (`seguir`, `volver`, `mostrar`, `probar`, `pedir`, `elegir`, `empezar`, `aprobar`). `vuelve a hacer push` → `volvé a hacer push`. |
+| `di` · `dime` · `dile` | `decí` · `decime` · `decile` | De `decir`. `dímelo` → **`decímelo`** (aquí la tilde se queda: la palabra queda esdrújula). |
+| `ten` · `ven` · `mantén` | `tené` · `vení` · `mantené` | De `tener`, `venir`, `mantener`. `mantén presionada` → `mantené presionada`. |
 | `asegúrate` | `asegurate` | ⚠ **La tilde DESAPARECE.** El acento se corre a la última sílaba, que ya no necesita tilde escrita. Escribir `asegurate` con tilde es el error más común. |
 
 > [!caution] **Los enclíticos pierden la tilde, no la ganan.**
-> `hazlo → hacelo` · `pégalo → pegalo` · `créalo → crealo` · `revísalo → revisalo`.
+> `hazlo → hacelo` · `pégalo → pegalo` · `créalo → crealo` · `revísalo → revisalo` ·
+> `muéstrame → mostrame` · `pregúntame → preguntame` · `avísame → avisame` · `ábrelo → abrilo`.
 > En tuteo la tilde aparece al pegar el pronombre; en voseo **no**, porque la sílaba tónica ya es la última
 > de la raíz. Si tu buscar-y-reemplazar produce `pegálo`, está mal.
 
-## Presente de indicativo — 11 formas
+## Presente de indicativo — las formas del Kit ES
 
 | Tuteo (Kit ES) | Voseo (AR) | Apariciones | Nota |
 |---|---|---|---|
-| `puedes` | `podés` | 24 | |
-| `necesitas` | `necesitás` | 18 | |
-| `haces` | `hacés` | 18 | |
-| `tienes` | `tenés` | 14 | |
-| `quieres` | `querés` | 14 | |
-| `eres` | **`sos`** | 6 | Supletiva |
-| `sabes` | `sabés` | 3 | |
-| `sientes` | `sentís` | 2 | |
-| `dices` | `decís` | 1 | |
-| `debes` | `debés` | 1 | |
+| `puedes` | `podés` | ~20 | |
+| `tienes` | `tenés` | ~18 | |
+| `necesitas` | `necesitás` | ~14 | |
+| `quieres` | `querés` | ~13 | |
+| `eres` | **`sos`** | ~4 | Supletiva |
+| `haces` | `hacés` | ~3 | |
+| `apruebas` | **`aprobás`** | ~1 | Cambio de raíz, como `aprueba` → `aprobá` |
+| `sabes` | `sabés` | ~3 | |
+| `debes` | `debés` | ~2 | |
+| `sientes` | `sentís` | ~2 | |
+| `prefieres` | `preferís` | ~1 | |
+| `vuelves` | `volvés` | ~1 | |
+| `dices` | `decís` | 0 | Incluida por si aparece al editar |
 | `eliges` | `elegís` | 0 | Incluida por si aparece al editar |
 
 ### ✅ Idénticas en ambos registros — NO las toques
@@ -117,6 +155,7 @@ La regla general del imperativo voseo es *quitar la `-r` del infinitivo y acentu
 |---|---|
 | `estás` | El presente de *estar* ya es agudo en las dos variantes. |
 | `vas` | Igual en tuteo y voseo. |
+| `ves` | Igual en tuteo y voseo (`vos ves`). |
 | `te`, `tu`, `tus`, `tuyo`, `ti` → `vos` sólo tras preposición | Los clíticos y posesivos son idénticos. Sólo el pronombre sujeto `tú` → `vos`, y `para ti` → `para vos`. |
 | Imperativo **negativo** (`no borres`, `no cierres`, `no pegues`) | El subjuntivo negativo es el mismo. **Sólo cambia el afirmativo.** |
 | Pasado, futuro, condicional, infinitivos | Sin cambios. |
@@ -131,7 +170,7 @@ La regla general del imperativo voseo es *quitar la `-r` del infinitivo y acentu
 Ninguna es obligatoria; el Kit ES se entiende perfectamente en Argentina tal cual. Úsalas sólo si quieres
 que el documento suene local.
 
-| Kit ES (VE) | AR | Comentario |
+| Kit ES (neutro) | AR | Comentario |
 |---|---|---|
 | `computadora` | `computadora` | Igual. **No uses `ordenador`** (España) en ninguna edición. |
 | `carpeta` / `archivo` | `carpeta` / `archivo` | Igual. **Nunca `fichero`.** |
@@ -147,7 +186,7 @@ que el documento suene local.
 
 > [!danger] **Un buscar-y-reemplazar global sobre el archivo entero rompe los Documentos 02 y 03.**
 > `usa` aparece dentro de comandos y de JSON. Reemplazar a ciegas mete `usá` dentro de un bloque de código
-> y el pegado falla **en vivo, a mitad de sesión**. Aparta los bloques primero. Esto no es teórico: es la
+> y el comando falla **en vivo, a mitad de sesión**. Aparta los bloques primero. Esto no es teórico: es la
 > misma clase de falla que la mina de la barra invertida de `00W`.
 
 ## Compuertas de verificación
@@ -158,20 +197,21 @@ Corre las cuatro. Las cuatro deben dar el resultado indicado.
 |---|---|---|
 | 1 | Paridad de bloques de código contra el Kit ES (conteo Y contenido byte por byte) | Idéntico — **0 diferencias** |
 | 2 | Comillas tipográficas (`’ ‘ “ ”`) en todo el archivo | **0** |
-| 3 | Tuteo residual en prosa: buscar las 37 formas de las tablas de arriba | **0** |
-| 4 | Enclíticos mal acentuados: buscar `pegálo`, `hacélo`, `creálo`, `revisálo`, `asegúrate` | **0** |
+| 3 | Tuteo residual en prosa: buscar todas las formas de las tablas de arriba (imperativos y presente) | **0** usos dirigidos al lector |
+| 4 | Enclíticos mal acentuados: buscar `pegálo`, `hacélo`, `creálo`, `revisálo`, `asegúrate`, `mostráme`, `preguntáme` | **0** |
 
 ## Estado
 
 | Documento | Estado de la variante voseo |
 |---|---|
 | `01 — Pre-Session Setup Instructions` | ⬜ Pendiente — conversión mecánica según esta tabla |
-| `02 — Main Setup Prompt` | ⬜ Pendiente — ⚠ el de mayor riesgo (33 bloques de código) |
+| `02 — Main Setup Prompt` | ⬜ Pendiente — ⚠ el de mayor riesgo (46 bloques de código) |
 | `02-S — Sandbox Setup` | ⬜ Pendiente |
 | `02W — Main Setup Prompt (Windows)` | ⬜ Pendiente |
-| `03 — Skills & Config Setup Prompt` | ⬜ Pendiente — ⚠ 22 bloques de código |
+| `03 — Skills & Config Setup Prompt` | ⬜ Pendiente — ⚠ 14 bloques de código |
 | `03W — Skills & Config Setup Prompt (Windows)` | ⬜ Pendiente |
 | `04 — Next Steps Brief` | ⬜ Pendiente |
+| `06` y `07` (plan Pro y vocabulario, nuevos en v0.2) | ⬜ Pendiente |
 | `05 — Facilitator Manual` | ➖ No aplica — documento del facilitador |
 
 > [!note] **Por qué se despacha la tabla y no los archivos convertidos.**

@@ -9,9 +9,10 @@ related: ["[[README — Kit Index & How to Use]]"]
 
 > # 🚨 DO NOT SEND TO A PARTICIPANT
 >
-> The participant docs tell them to *"open the file, select all, copy, paste"* — anything appended
-> to a doc gets pasted into Claude Code along with it. This file exists **separately** so the
-> Windows variants stay auditable without riding along into someone's paste buffer.
+> Participants hand the setup docs to Claude Code by file path (*"Read the file … and follow its
+> instructions"*) — Claude reads the **whole** file, so anything appended to a doc would be read as
+> instructions. This file exists **separately** so the Windows variants stay auditable without riding
+> along into someone's setup.
 >
 > Pattern borrowed from Mangan, who nearly lost his own diff tables into a student's copy-paste.
 
@@ -24,10 +25,10 @@ silently drifts from the kit.
 | Document | Status |
 |---|---|
 | `01 — Pre-Session Setup Instructions` | **Shared** — no Windows variant. It was already OS-branched; the Windows section was strengthened in place (5 additions below). |
-| `02W — Main Setup Prompt (Windows)` | Variant — **12 changes** |
-| `03W — Skills & Config Setup Prompt (Windows)` | Variant — **11 changes** |
+| `02W — Main Setup Prompt (Windows)` | Variant — **18 changes** |
+| `03W — Skills & Config Setup Prompt (Windows)` | Variant — **10 changes** |
 | `04 — Next Steps Brief` | **Shared, unchanged.** Reading material; nothing OS-specific executes. |
-| `02-S — Sandbox Setup` | **Not available on Windows.** Native Windows has no sandbox; WSL2 required. |
+| `02-S — Sandbox Setup` | **Shared, WSL2 only on Windows.** Native Windows has no sandbox; it works with Claude Code running inside a WSL2 distribution (02-S Part 2), where the Linux instructions apply. |
 
 ## The four landmines this edition exists to defuse
 
@@ -47,8 +48,9 @@ Verified against Anthropic's live docs, then against a real Windows machine.
    **the bar is only the display — the 75% override and the two hooks are the actual guardrail**,
    and none of them depend on it.
 4. **`python3` usually isn't a command on Windows** (it's `python` or `py`; bare `python3` opens the
-   Microsoft Store) — **and Doc 03's STEP 7, the kit's final verification, writes and runs a Python
-   script.** As shipped, the kit's last check fails on Windows for a reason unrelated to the setup.
+   Microsoft Store) — **and Doc 02's STEP 3 settings merge and Doc 03's STEP 7, the kit's final
+   verification, both run Python.** Written with `python3`, both fail on Windows for a reason unrelated
+   to the setup.
 
 ## Doc 01 — strengthened in place (5 additions)
 
@@ -60,50 +62,63 @@ Verified against Anthropic's live docs, then against a real Windows machine.
 | 4 | **PATH verification after the installer** | The official installer finished and reported in its own output that it had NOT added `.local/bin` to PATH → `'claude' is not recognized`, twice, across a week |
 | 5 | **"This is prose, not commands" banner** | Prose pasted into PowerShell produced a `ParserError` and a stuck `>>` prompt — an unclosed quote from the apostrophe in *"you're"* |
 
-## Doc 02W — 12 changes vs `02 — Main Setup Prompt (Participant)`
+## Doc 02W — 18 changes vs `02 — Main Setup Prompt (Participant)`
 
 | # | Where | Kit says | 02W says | Why |
 |---|---|---|---|---|
 | 1 | Frontmatter | generic | title/tags marked Windows | Discoverability |
-| 2 | Header | (none) | Three Windows rules above the paste line | Right-click paste · Git Bash · forward slashes |
-| 3 | Preamble | (none) | A one-line environment declaration to paste first | Removes ~6 "detect my OS" round-trips from a live session |
-| 4 | Vault path | `pwd` | **`pwd -W`** | `pwd` prints `/c/Users/…`; the router needs `C:/Users/…` |
-| 5 | Router verify | `head -20` | `head -25` + **`grep -c '\\'` must be 0** | Catches a backslash path before it breaks the router silently |
-| 6 | STEP 3 Stop hook | `afplay …` | **Windows beep baked in** + a "did you hear it / delete it" check | Fires every turn; a wrong line = an error every turn for 90 min |
-| 7 | STEP 3 callout | pick-by-OS list | Rewritten: don't swap in `afplay`; delete the block if no beep | Removes the choice that produces the failure |
-| 8 | STEP 4 | `xcode-select --install` | git-scm.com/download/win, accept Git Bash | macOS command in a Windows session |
-| 9 | STEP 7 `.gitignore` | `.DS_Store` | adds `Thumbs.db`, `desktop.ini` | Windows equivalents |
-| 10 | `~/dev` | Mac-only phrasing | adds the `C:\Users\…\dev` translation | So they can find it in File Explorer later |
-| 11 | STEP 3.5 statusline | one Windows note | **Known bug documented + 3-step fallback + 3-min stop-loss + the "bar is only display" reframe** | Landmine #3 |
-| 12 | STEP 3.5 sound | `afplay` in `statusline.sh` | **Windows beep baked into the script**; note rewritten | The one genuinely executable `afplay` in the doc |
+| 2 | Header | load-by-file steps for all OSes | **Three Windows rules** (give the file by path, right-click for short pastes · Git Bash · forward slashes) | The three things that break Windows sessions |
+| 3 | Header, how to load | Finder / File Explorer / Linux copy-path | File Explorer **Copy as path** only, plus **Open Git Bash here** + `pwd -W` | Starts Claude in the right folder from the right shell |
+| 4 | Header, trust prompt | "choose Yes" | adds: **the highlighted default on Windows is "No, exit"** | People press Enter and Claude Code quits |
+| 5 | Start of the Claude section | (none) | **Environment declaration** (Windows, Git Bash, forward slashes, no macOS commands) inside the file | Removes ~6 "detect my OS" round-trips; no separate paste needed |
+| 6 | Vault location check | `pwd`; Windows + macOS cloud-sync branches | **`pwd -W`**; Windows OneDrive branch only (`Documents`/`Desktop` redirection), default `C:/Users/YOUR-USER/AIAC-Vault` | OneDrive redirection is the Windows trap; the macOS iCloud branch doesn't apply |
+| 7 | Router, vault path | `pwd` | **`pwd -W`** | `pwd` prints `/c/Users/…`; the router needs `C:/Users/…` |
+| 8 | Router verify | read back 20 lines | 25 lines + **`grep -c '\\'` must be 0** | Catches a backslash path before it breaks the router silently |
+| 9 | STEP 3 Stop hook | `afplay …` | **Windows beep baked in** + a "did you hear it / delete it" check | Fires every turn; a wrong line = an error every turn for 90 min |
+| 10 | STEP 3 callout | pick-by-OS list | Rewritten: don't swap in `afplay`; delete the block if no beep | Removes the choice that produces the failure |
+| 11 | STEP 3.5 OS detection + `jq` | `uname`, per-OS `jq` install lines | OS already declared; **`winget install jqlang.jq`** (not bundled with Git for Windows) | `jq` missing is the common Windows failure in Layers 2–3 |
+| 12 | STEP 3.5 statusline | one Windows note | **Known bug documented + 3-step fallback + 3-min stop-loss + the "bar is only display" reframe** | Landmine #3 |
+| 13 | STEP 3.5 sound | `afplay` in `statusline.sh` | **Windows beep baked into the script**; note rewritten | The one genuinely executable `afplay` in the doc |
+| 14 | STEP 4 | `xcode-select --install` | `winget install --id Git.Git -e` or git-scm.com/download/win, keep Git Bash | macOS command in a Windows session |
+| 15 | STEP 5 | `gh` check | adds **`winget install --id GitHub.cli -e`** if missing | Same install route as the prerequisites |
+| 16 | STEP 6 `~/dev` + location check | Mac-only phrasing; plain path compare | adds the `C:/Users/YOUR-USER/dev` translation; compare normalised with **`cd … && pwd -P`** | Git prints `C:/…`, Git Bash `/c/…` — a correct repo would show a false `WRONG LOCATION` |
+| 17 | STEP 7 `.gitignore` | `.DS_Store` | adds `Thumbs.db`, `desktop.ini` | Windows equivalents |
+| 18 | STEP 3 + 3.5 settings merge | `python3 ~/.claude/aiac-merge-settings.py` | **`py`** (fallback `python`, never `python3`); the statusline fallback 3 sets the absolute path with `--replace statusLine` and the full `statusLine` block | Landmine #4 — the merge script itself is byte-identical |
 
-## Doc 03W — 11 changes vs `03 — Skills & Config Setup Prompt (Participant)`
+## Doc 03W — 10 changes vs `03 — Skills & Config Setup Prompt (Participant)`
 
 | # | Where | Kit says | 03W says | Why |
 |---|---|---|---|---|
-| 1–2 | Frontmatter + header | generic | Windows title/tags; three rules restated; environment declaration | A new session loses Doc 02's context |
-| 3 | STEP 1 | `head -20`, 2 checks | `head -25` + **3rd check: zero backslashes** | The check that catches landmine #2 |
-| 4 | STEP 2.6b Granola | `~/Library/Application Support/Granola/` + launchd/cron | `%APPDATA%\Granola\` (`~/AppData/Roaming/…`) + **Windows Task Scheduler**, and "confirm the real filenames, don't assume the Mac layout" | Optional/deferred, but the Mac paths simply do not exist |
-| 5 | STEP 2.5b `gws` | `~/bin/gws`, `chmod +x`, zsh profile | `~/bin/gws.exe`, windows-amd64, `~/.bashrc` PATH line | The Mac instructions were unrunnable |
-| 6 | STEP 3 `lessons.md` | empty | seeded with the forward-slash rule | Puts the Windows rule where Claude re-reads it every session |
-| 7 | ⭐ **STEP 7** | "Create a Python script … and run it" | **Detect `python`/`py`/`python3` first**; missing Python explicitly NOT a blocker; add the real command to `allow` | ⭐ Landmine #4 — the kit's final check otherwise fails on Windows for an unrelated reason |
-| 8 | STEP 7 | 8 checks | adds `jq .` JSON-validity check on `settings.json` | Cheap; catches a corrupted merge from Doc 02 |
-| 9 | STEP 7 | (none) | adds `claude doctor` | First thing to run when something breaks later |
-| 10–11 | STEP 6 cheat sheet | Mac-neutral | Windows notes block (window · paths · paste · `claude doctor`) | The four things they'll forget by next week |
+| 1–2 | Frontmatter + header | generic | Windows title/tags; three rules restated; File Explorer copy-path + Open Git Bash here; environment declaration inside the file | A new session loses Doc 02W's context |
+| 3 | STEP 1 router check | read back 20 lines, 2 checks | 25 lines + **3rd check: zero backslashes** | The check that catches landmine #2 |
+| 4 | STEP 1 routing test | second window, trust `~/dev` | second window **as Git Bash**; trust default is "No, exit" | Same two Windows traps as Doc 02W |
+| 5 | STEP 3 `lessons.md` | empty | seeded with the forward-slash rule | Puts the Windows rule where Claude re-reads it every session |
+| 6 | ⭐ **STEP 7** | "Create a Python script … run it once" | **Detect `py`/`python`/`python3` first**; missing Python is a prerequisite gap (Doc 01 install line, note it for the facilitator), not a reason to stop the list; run once with normal approval, never added to `allow` | ⭐ Landmine #4 — the kit's final check otherwise fails on Windows for an unrelated reason |
+| 7 | STEP 7 | (none) | silent `jq .` JSON-validity check on `settings.json`; without `jq`, rely on item 3's check, which already parsed it — never read the file back | Cheap; catches a corrupted merge from Doc 02W without displaying keys |
+| 8 | STEP 7 | (none) | adds `claude doctor` | First thing to run when something breaks later |
+| 9–10 | STEP 6 cheat sheet | OS-neutral | Windows notes block (window · paths · paste · `claude doctor`) | The four things they'll forget by next week |
 
-## Verification run (2026-08-19)
+Removed from the kit in v0.2 (so no longer Windows rows): the Granola cached-token helper (old STEP 2.6b) and the `gws` CLI install (old STEP 2.5b, now "not today").
+
+## Verification run (2026-11-25)
 
 | Check | 02W | 03W |
 |---|---|---|
-| Code-fence balance (a select-all paste won't truncate) | ✅ 68, balanced | ✅ 44, balanced |
-| macOS commands inside code blocks | ✅ 0 executable (1 textual, inside the "do not offer me these" instruction) | ✅ 0 |
+| Code-fence balance | ✅ 94 fence lines, balanced | ✅ 34 fence lines, balanced |
+| macOS commands inside code blocks | ✅ 0 | ✅ 0 |
 | `~/Library` paths inside code blocks | ✅ 0 | ✅ 0 |
-| `bash -n` on every bash block | ✅ 10 clean / 5 placeholder-only — **identical to the EN baseline**, no regressions | ✅ 15 clean, 0 failing |
+| `bash -n` on every bash block | ✅ 17 clean / 11 placeholder-only (`<repo-name>`, `<file>`) — same 11 as the EN baseline | ✅ 11 clean, 0 failing |
 | `settings.json` block parses, Stop hook de-escapes correctly | ✅ `powershell.exe -c "[console]::beep(1000,400)"` | n/a |
 | Smart quotes inside code blocks | ✅ 0 | ✅ 0 |
 
-**Note on defect #12:** unlike the pack Mangan built for one of his participants — which deliberately shipped the original
-permissions block — these variants inherit the **hardened** block (`Bash(python3 *)`,
-`Bash(pip install *)`, bare `Read`/`Write`/`Edit` removed), per the maintainer's decision of 2026-08-19.
-The Windows STEP 7 change above is what keeps that hardening from costing anything: it has Claude
-add the *real* Python command to `allow` only if Python actually exists.
+**Note on permissions:** like the rest of the kit, these variants use the **narrow** permissions
+block. `allow` holds only read-only commands: exact git commands (`git status`, `git status --short`,
+`git diff`, `git log --oneline`, `git remote -v`) plus `ls` and `wc` — no lasting write grant, no
+`mkdir`. `ask` makes `cat`, `head`, `tail`, `grep`, `diff`, `sed`, `sort`, `git show`, `git -C`,
+`git -c`, `git add`, `git commit`, `git push` and `gh repo create` ask every time (Claude Code runs
+built-in read-only commands such as `cat` without a prompt unless an `ask` or `deny` rule covers them).
+Step 12 starts every block with `cd ~/dev/<repo-name> &&`, same as the EN baseline. No git wildcard in `allow`, no interpreter
+(`python`, `py`, `python3`, `node`), no `pip install`, no bare `Read`/`Write`/`Edit`/`Glob`/`Grep` —
+and the block is merged locally by `aiac-merge-settings.py`, which never prints existing values. The Windows STEP 7 change above keeps
+that hardening: it runs the greeting once with normal approval using the Python command that actually
+exists, without adding it to `allow`.
