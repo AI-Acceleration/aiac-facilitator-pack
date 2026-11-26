@@ -89,7 +89,7 @@ bash bin/install-hooks.sh
 ```
 
 `git clone` no copia `.git/hooks`, así que este comando activa la compuerta de
-datos privados en tus commits. CI corre la misma compuerta en cada PR.
+datos privados en tus commits. CI corre la misma compuerta en cada pull request hacia main.
 
 **Qué detecta la compuerta y qué no:** bloquea las direcciones de correo que
 no están en la lista permitida y los archivos internos que se dejan fuera del

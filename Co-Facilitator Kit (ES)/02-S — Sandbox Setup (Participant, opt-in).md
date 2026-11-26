@@ -164,7 +164,7 @@ verificado) y reporta `NOT DONE`. No puede ver ajustes pasados con `--settings` 
 
 Dos cosas que obtienes gratis y vale la pena saber: el sandbox **auto-deniega las escrituras al propio `settings.json` de Claude Code en todos los ámbitos**, así que un comando confinado no puede reescribir su propia política. Y **los subagentes heredan la configuración de sandbox de la sesión padre** — corren en el mismo proceso, así que no hay bypass ahí.
 
-> **`sandbox.credentials` (opcional, necesita Claude Code v2.1.187+).** Verifica con `claude --version`. Este bloque deniega explícitamente los archivos de credenciales y desactiva las variables de entorno secretas para los comandos confinados. Nuestro `denyRead: ["~/"]` ya cubre los archivos bajo `$HOME`, y esto agrega la mitad de las variables de entorno:
+> **`sandbox.credentials` (opcional; mira la [documentación de sandboxing](https://code.claude.com/docs/en/sandboxing) para los detalles vigentes).** Este bloque deniega explícitamente los archivos de credenciales y desactiva las variables de entorno secretas para los comandos confinados. Nuestro `denyRead: ["~/"]` ya cubre los archivos bajo `$HOME`, y esto agrega la mitad de las variables de entorno:
 > ```json
 > "credentials": {
 >   "files": [

@@ -1276,6 +1276,20 @@ class TestBroadRules(StatusCheckCase):
         self.assertEqual(statuses(output)[self.LABEL], "NOT DONE")
         self.assertIn("1 settings file(s) could not be read", output)
 
+    def test_broad_rule_line_also_counts_unreadable_files(self):
+        write(self.vault / ".claude" / "settings.local.json", '{"permissions": {"allow": [')
+        write(self.repo / ".claude" / "settings.local.json",
+              json.dumps({"permissions": {"allow": ["Bash(rm *)"]}}))
+        output = self.run_script()
+        self.assertEqual(statuses(output)[self.LABEL], "NOT DONE")
+        self.assertIn("1 broad rule(s) in 1 settings file(s) - remove them "
+                      "(--details lists them); 1 file(s) unreadable", output)
+        # Without an unreadable file the line carries no such suffix.
+        (self.vault / ".claude" / "settings.local.json").unlink()
+        output = self.run_script()
+        self.assertIn("1 broad rule(s) in 1 settings file(s)", output)
+        self.assertNotIn("unreadable", output)
+
 @unittest.skipUnless(BASH and shutil.which("git"), "bash and git required")
 class TestPlatforms(StatusCheckCase):
     def test_windows_git_bash_simulation(self):

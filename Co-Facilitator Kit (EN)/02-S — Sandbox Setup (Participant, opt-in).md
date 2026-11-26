@@ -161,7 +161,7 @@ step 1) shows the resolved result and is the final word.
 
 Two things you get for free, worth knowing: the sandbox **automatically denies writes to Claude Code's own `settings.json` at every scope**, so a sandboxed command cannot rewrite its own policy. And **subagents inherit the parent session's sandbox config** — they run in the same process, so there's no bypass there.
 
-> **`sandbox.credentials` (optional, needs Claude Code v2.1.187+).** Check with `claude --version`. This block explicitly denies credential files and unsets secret env vars for sandboxed commands. Our `denyRead: ["~/"]` already covers files under `$HOME`, and this adds the environment-variable half:
+> **`sandbox.credentials` (optional; see the [sandboxing docs](https://code.claude.com/docs/en/sandboxing) for the current details).** This block explicitly denies credential files and unsets secret env vars for sandboxed commands. Our `denyRead: ["~/"]` already covers files under `$HOME`, and this adds the environment-variable half:
 > ```json
 > "credentials": {
 >   "files": [

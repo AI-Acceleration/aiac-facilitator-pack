@@ -16,8 +16,11 @@ English and the Spanish kit.
   Participants send only that block. The rest of the report never shows an
   email address, a token or a settings value; folder paths are hidden, and
   the repository's remote is shown only as a kind ("GitHub", "other host").
-  With `--details` it adds `~/…` paths and the remote's host name for the
-  participant's own eyes, under a do-not-share warning. A tool's version is
+  With `--details` it adds, for the participant's own eyes and under a
+  do-not-share warning: `~/…` paths (vault and repository), the remote's
+  host name, the domain of the git email address, where each tool is
+  installed, the list of vaults registered in Obsidian, and which settings
+  file each finding is in (by a fixed label, never the rule's text). A tool's version is
   shown only when its version command succeeds and prints exactly a version
   line; anything else reads "installed (version not read)", so a tool's own
   output is never echoed. With `--share` the script prints nothing but the
