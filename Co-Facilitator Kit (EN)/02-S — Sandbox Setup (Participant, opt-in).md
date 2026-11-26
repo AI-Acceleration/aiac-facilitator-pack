@@ -13,6 +13,10 @@ This document is for a participant who wants a **verifiable** boundary around Cl
 
 Read Part 1 before you run anything. It tells you what you are actually getting — including what you are **not** getting. If Part 1's guarantees aren't strong enough for you, Part 6 tells you what to do instead.
 
+> **On every permission prompt, choose plain "Yes" (or "No") — never "Yes, and don't ask again".**
+> The "don't ask again" option saves a lasting rule in your settings that lets that command run
+> without asking from then on, and the status check will then report it.
+
 ---
 
 ## Part 1 — What this actually guarantees
@@ -157,7 +161,7 @@ step 1) shows the resolved result and is the final word.
 
 Two things you get for free, worth knowing: the sandbox **automatically denies writes to Claude Code's own `settings.json` at every scope**, so a sandboxed command cannot rewrite its own policy. And **subagents inherit the parent session's sandbox config** — they run in the same process, so there's no bypass there.
 
-> **`sandbox.credentials` (optional, needs Claude Code v2.1.187+).** Check with `claude --version`. This block explicitly denies credential files and unsets secret env vars for sandboxed commands. Our `denyRead: ["~/"]` already covers files under `$HOME`, and this adds the environment-variable half:
+> **`sandbox.credentials` (optional; see the [sandboxing docs](https://code.claude.com/docs/en/sandboxing) for the current details).** This block explicitly denies credential files and unsets secret env vars for sandboxed commands. Our `denyRead: ["~/"]` already covers files under `$HOME`, and this adds the environment-variable half:
 > ```json
 > "credentials": {
 >   "files": [
@@ -265,9 +269,10 @@ Then save the JSON block above as `~/.claude/aiac-02s-block.json` (edit the `Sto
 below), save the script below as `~/.claude/aiac-merge-settings.py` (it is the same script Doc 02 Step 3
 uses), and run `python3 ~/.claude/aiac-merge-settings.py ~/.claude/aiac-02s-block.json`. It adds each
 missing entry, keeps every key and rule you already had, prints only the kit's entries and the *names*
-of keys it left alone, and its last line must start with `Verified:`. Before its first change it saves a
-private backup of your current file as `~/.claude/settings.json.bak` (of the real file, if
-`settings.json` is a symlink; an earlier backup is never overwritten).
+of keys it left alone, and its last line must start with `Verified:`. Before it changes anything it saves a
+private backup of your current file (of the real file, if `settings.json` is a symlink) and prints its
+name: `~/.claude/settings.json.bak` the first time, the next free `settings.json.bak.1`, `.bak.2`, … if
+an earlier backup exists (an earlier backup is never overwritten). Use the backup file the script names.
 
 ```python
 # aiac-merge-settings.py - merges the AIAC kit's entries into ~/.claude/settings.json.
@@ -377,10 +382,9 @@ def replace(dst, new, dotted):
 
 def backup(real):
     """A private copy (0600) of the file's current bytes - the file a symlink
-    points at, never the link - made before the first change. An earlier
-    backup is never overwritten: if one exists, it is kept as it is."""
-    if os.path.isfile(BACKUP) and not os.path.islink(BACKUP):
-        return None
+    points at, never the link - made once per run, before the change. An
+    earlier backup is never overwritten: the copy goes to the first free name
+    (settings.json.bak, then settings.json.bak.1, .bak.2, ...), printed below."""
     name, n = BACKUP, 0
     while os.path.lexists(name):
         n += 1
@@ -513,7 +517,7 @@ Under this sandbox, Bash can read `~/.claude` but **cannot write to it**. A few 
 | Doc 03 Step 2 and 2.7b — `claude plugin install …` | writes to `~/.claude/plugins/` |
 | Doc 03 Step 2.7a — the starter-pack install | writes to `~/.claude/skills/` |
 
-Do those steps from a Claude Code session started **outside the vault** — for example from `~/dev` — where the vault's sandbox config doesn't apply. That is a deliberate, short step outside the boundary for reviewed installs: read each command before you approve it, then go back to your vault session. The skills come from a pinned, public version (`AI-Acceleration/cc-starter-pack` `v1.0.0`), so you can read every file before installing.
+Do those steps from a Claude Code session started **outside the vault** — for example from `~/dev` — where the vault's sandbox config doesn't apply. That is a deliberate, short step outside the boundary for reviewed installs: read each command before you approve it, then go back to your vault session. The skills come from a pinned, public version (`AI-Acceleration/cc-starter-pack` `v1.0.1`), so you can read every file before installing.
 
 ---
 

@@ -14,7 +14,7 @@ You (the facilitator) send the participant **Docs 01, 02, 03 and 07** (Doc 07
 is the vocabulary) about a week before. They install everything on their own
 and finish with a short pre-flight check whose one-line result
 (`PREFLIGHT: READY · ACCOUNT: personal|team`) they send you. On session
-day you run the 8-block flow in **Doc 05 (the manual)**. The participant gives
+day you run the 11-block flow in **Doc 05 (the manual)**. The participant gives
 **Doc 02** to Claude Code **by file**: they save it, then tell Claude "Read
 the file <path> and follow its instructions". Claude interviews them, picks
 their first real case, and builds their own vault and project. Then they
@@ -139,11 +139,11 @@ subfolder that is the only place you ever share from.
 
 Docs 03/03W and 04 install the starter skills from the public
 [`AI-Acceleration/cc-starter-pack`](https://github.com/AI-Acceleration/cc-starter-pack)
-repo, **pinned to tag `v1.0.0`**, so every fresh install gets the same reviewed
+repo, **pinned to tag `v1.0.1`**, so every fresh install gets the same reviewed
 files (a skill the participant already has under the same name is skipped and
 keeps their version). Every install path clones into a new temporary folder and
 runs the installer only if the clone succeeded and sits on the reviewed commit
-(`711372c`), because a tag can be moved. A new version means a new tag, a new
+(`a85d906`), because a tag can be moved. A new version means a new tag, a new
 reviewed commit and an update to the docs.
 
 ## Not locked to one AI tool

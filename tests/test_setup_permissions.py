@@ -67,9 +67,15 @@ CANONICAL_DENY = [
     "Read(~/**/*.pem)",
     "Read(~/**/*.key)",
 ]
-# The commit tag v1.0.0 of AI-Acceleration/cc-starter-pack pointed at when the
+# The commit tag v1.0.1 of AI-Acceleration/cc-starter-pack pointed at when the
 # kit was reviewed. Doc 03 refuses to install from any other commit.
-STARTER_PACK_COMMIT = "711372c99e27700e70389a09b9a40b1911be8ca4"
+STARTER_PACK_COMMIT = "a85d906849f1fbd200d0e44a59b0d1f24b450135"
+# The skills tag v1.0.1 ships (install.sh's SKILLS list), and the ones it
+# removed or renamed. Every skill list in the kit names exactly these nine.
+STARTER_PACK_SKILLS = {
+    "session-close", "load-context", "retro", "skill-create", "project-create",
+    "deep-research", "deep-planning", "fermi-decomposition", "inbox-clear"}
+RETIRED_PACK_SKILLS = ("context", "permissions", "extract")
 # Rules that must never sit in an allow list.
 NEVER_ALLOWED = set(EXPECTED_ASK) | {
     "Bash", "Bash(*)", "Read", "Write", "Edit", "Glob", "Grep", "Bash(mkdir *)"}
@@ -255,7 +261,7 @@ class TestSetupPermissions(unittest.TestCase):
                          "03W — Skills & Config Setup Prompt (Windows).md"):
                 text = kit_doc(edition, name).read_text(encoding="utf-8")
                 with self.subTest(doc="%s/%s" % (edition, name)):
-                    self.has("git clone --depth 1 --branch v1.0.0 "
+                    self.has("git clone --depth 1 --branch v1.0.1 "
                                   "https://github.com/AI-Acceleration/cc-starter-pack.git",
                                   text)
 
@@ -448,7 +454,7 @@ class TestSetupPermissions(unittest.TestCase):
                     self.lacks("git status --porcelain", text)
         self.assertEqual(len(blocks), 1, "install block differs between docs")
         block = blocks.pop()
-        self.assertIn('git clone --depth 1 --branch v1.0.0 '
+        self.assertIn('git clone --depth 1 --branch v1.0.1 '
                       'https://github.com/AI-Acceleration/cc-starter-pack.git "$PACK_TMP/cc-starter-pack"',
                       block)
         self.assertIn('!= "%s" ]' % STARTER_PACK_COMMIT, block)
@@ -477,8 +483,8 @@ class TestSetupPermissions(unittest.TestCase):
             env = {"PATH": str(fakebin) + os.pathsep + os.defpath, "HOME": str(base),
                    "TMPDIR": str(tmp)}
             cases = (("fail", STARTER_PACK_COMMIT, False, "STOP: the clone failed"),
-                     ("ok", "0" * 40, False, "STOP: v1.0.0 is not the reviewed commit"),
-                     ("ok", "", False, "STOP: v1.0.0 is not the reviewed commit"),
+                     ("ok", "0" * 40, False, "STOP: v1.0.1 is not the reviewed commit"),
+                     ("ok", "", False, "STOP: v1.0.1 is not the reviewed commit"),
                      ("ok", STARTER_PACK_COMMIT, True, None))
             for clone, head, runs, message in cases:
                 with self.subTest(clone=clone, head=head[:7]):
@@ -807,12 +813,23 @@ class TestSetupPermissions(unittest.TestCase):
             self.assertTrue(link.is_symlink())
             self.assertEqual(real.stat().st_mode & 0o777, 0o644)
             self.assertIn("ask", json.loads(real.read_text(encoding="utf-8"))["permissions"])
-            # A later change never overwrites the earlier backup.
+            # A later change never overwrites the earlier backup: the file as it
+            # was before this run goes to the next free name, which is printed.
+            before = real.read_text(encoding="utf-8")
             run = self.run_merge(home, {"env": {"CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "75"}})
             self.assertEqual(run.returncode, 0, run.stderr[-300:])
             self.assertEqual(bak.read_text(encoding="utf-8"), original)
             self.assertEqual(sorted(p.name for p in bak.parent.iterdir() if ".bak" in p.name),
-                             ["settings.json.bak"])
+                             ["settings.json.bak", "settings.json.bak.1"])
+            self.assertEqual((bak.parent / "settings.json.bak.1").read_text(encoding="utf-8"), before)
+            self.assertIn("backup of your previous settings (private): ~/.claude/settings.json.bak.1",
+                          run.stdout)
+            self.assertNotIn("SYNTHETIC-4444", run.stdout + run.stderr)
+            # A run that changes nothing makes no backup.
+            run = self.run_merge(home, {"env": {"CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "75"}})
+            self.assertEqual(run.returncode, 0, run.stderr[-300:])
+            self.assertNotIn("backup of your previous settings", run.stdout)
+            self.assertFalse((bak.parent / "settings.json.bak.2").exists())
         with tempfile.TemporaryDirectory() as home:
             # An old "backup" that is only a link (cp -a of a symlink) is kept,
             # and the real bytes go to the next free name.
@@ -826,6 +843,144 @@ class TestSetupPermissions(unittest.TestCase):
             self.assertTrue((claude / "settings.json.bak").is_symlink())
             self.assertEqual((claude / "settings.json.bak.1").read_text(encoding="utf-8"), original)
             self.assertEqual((claude / "settings.json.bak.1").stat().st_mode & 0o777, 0o600)
+
+    def test_merge_script_never_skips_the_backup_when_a_stale_one_exists(self):
+        # A .bak left by an earlier setup holds old settings. The run still
+        # backs up the file as it is now, under a new name it prints, and
+        # leaves the stale backup untouched.
+        block = settings_blocks(kit_doc("EN", SETTINGS_DOCS[0]).read_text(encoding="utf-8"))[0]
+        with tempfile.TemporaryDirectory() as home:
+            claude = Path(home) / ".claude"
+            claude.mkdir()
+            stale = '{"model": "stale-SYNTHETIC-6666"}'
+            current = '{"env": {"API_KEY": "sk-test-SYNTHETIC-6666"}}'
+            (claude / "settings.json.bak").write_text(stale, encoding="utf-8")
+            (claude / "settings.json").write_text(current, encoding="utf-8")
+            run = self.run_merge(home, block)
+            self.assertEqual(run.returncode, 0, run.stderr[-300:])
+            self.assertEqual((claude / "settings.json.bak").read_text(encoding="utf-8"), stale)
+            self.assertEqual((claude / "settings.json.bak.1").read_text(encoding="utf-8"), current)
+            if os.name == "posix":
+                self.assertEqual((claude / "settings.json.bak.1").stat().st_mode & 0o777, 0o600)
+            self.assertIn("backup of your previous settings (private): ~/.claude/settings.json.bak.1",
+                          run.stdout)
+            self.assertNotIn("SYNTHETIC-6666", run.stdout + run.stderr)
+        # The docs point at the backup the script names, not only a fixed name.
+        for edition in EDITIONS:
+            for name in SETTINGS_DOCS:
+                text = kit_doc(edition, name).read_text(encoding="utf-8")
+                prose = PYTHON_BLOCK.sub("", text)
+                with self.subTest(doc="%s/%s" % (edition, name)):
+                    self.has("settings.json.bak.1", prose)
+                    if name in MAIN_DOCS:
+                        self.has("backup of your previous settings", prose)
+
+    # -- round 5 -------------------------------------------------------------
+    REPLACE_EXAMPLE = re.compile(r"`--replace ([A-Za-z][A-Za-z0-9_.]*)`")
+    INLINE_BLOCK = re.compile(r"`(\{.*?\})`", re.DOTALL)
+
+    @staticmethod
+    def dotted_get(data, dotted):
+        for key in dotted.split("."):
+            data = data[key]
+        return data
+
+    @classmethod
+    def older_value(cls, value):
+        """A different value of the same shape, as an earlier setup left it."""
+        if isinstance(value, str):
+            return value + "-old-SYNTHETIC-5555"
+        if isinstance(value, dict):
+            return {k: cls.older_value(v) for k, v in value.items()}
+        return value
+
+    def replace_examples(self, text):
+        """(key, block) for every `--replace KEY` example in a doc's prose. The
+        block is the JSON written right after it in the same paragraph, or else
+        the nearest merge block above it that carries the key."""
+        heredocs = [(m.start(), json.loads(m.group(1))) for m in
+                    re.finditer(r"<<'JSON'\n(.*?)\n[ \t]*JSON$", text, re.DOTALL | re.MULTILINE)
+                    if m.group(1).lstrip().startswith("{")]
+        examples = []
+        for m in self.REPLACE_EXAMPLE.finditer(text):
+            key = m.group(1)
+            paragraph = text[m.end():].split("\n\n", 1)[0]
+            inline = self.INLINE_BLOCK.search(paragraph.replace("\n>    ", " "))
+            if inline:
+                block = json.loads(inline.group(1))
+            else:
+                above = [b for at, b in heredocs if at < m.start()]
+                block = None
+                for candidate in reversed(above):
+                    try:
+                        self.dotted_get(candidate, key)
+                    except (KeyError, TypeError):
+                        continue
+                    block = candidate
+                    break
+            examples.append((key, block))
+        return examples
+
+    def test_every_replace_example_merges_without_stopping(self):
+        seen = 0
+        for edition in EDITIONS:
+            for name in SETTINGS_DOCS:
+                text = kit_doc(edition, name).read_text(encoding="utf-8")
+                examples = self.replace_examples(text)
+                if name in MAIN_DOCS:
+                    with self.subTest(doc="%s/%s" % (edition, name)):
+                        self.assertGreaterEqual(len(examples), 2)
+                for key, block in examples:
+                    seen += 1
+                    with self.subTest(doc="%s/%s" % (edition, name), replace=key):
+                        self.assertIsNotNone(block, "no block found for --replace " + key)
+                        wanted = self.dotted_get(block, key)
+                        # Settings that already hold a different value there.
+                        existing = json.loads(json.dumps(block))
+                        holder = existing
+                        parts = key.split(".")
+                        for part in parts[:-1]:
+                            holder = holder[part]
+                        holder[parts[-1]] = self.older_value(wanted)
+                        with tempfile.TemporaryDirectory() as home:
+                            target = Path(home) / ".claude" / "settings.json"
+                            target.parent.mkdir()
+                            target.write_text(json.dumps(existing), encoding="utf-8")
+                            run = self.run_merge(home, block, extra=("--replace", key))
+                            out = run.stdout + run.stderr
+                            self.assertEqual(run.returncode, 0, out[-300:])
+                            self.assertNotIn("STOP", out)
+                            self.assertTrue(run.stdout.strip().splitlines()[-1].startswith("Verified:"))
+                            self.assertIn("added: %s (replaced, as you asked)" % key, run.stdout)
+                            self.assertNotIn("SYNTHETIC-5555", out)
+                            merged = json.loads(target.read_text(encoding="utf-8"))
+                            self.assertEqual(self.dotted_get(merged, key), wanted)
+        self.assertGreaterEqual(seen, 6)
+
+    def test_starter_skill_lists_match_the_pinned_release(self):
+        starts = {"EN": "## STEP 2.7", "ES": "## PASO 2.7"}
+        tables = {"EN": "### Starter skills", "ES": "### Skills iniciales"}
+        counts = {"EN": "nine skills", "ES": "nueve *skills*"}
+        for edition in EDITIONS:
+            for name in SKILLS_DOCS:
+                text = kit_doc(edition, name).read_text(encoding="utf-8")
+                at = text.index(starts[edition])
+                section = text[at:text.index("### 2.7a", at)]
+                with self.subTest(doc="%s/%s" % (edition, name)):
+                    self.has(counts[edition], section)
+                    self.assertEqual(set(re.findall(r"`/([a-z-]+)`", section)), STARTER_PACK_SKILLS)
+            text = kit_doc(edition, "04 — Next Steps Brief (Participant).md").read_text(encoding="utf-8")
+            at = text.index(tables[edition])
+            table = text[at:text.index("\n\n", text.index("| Skill |", at))]
+            with self.subTest(doc="%s/04" % edition):
+                self.assertEqual(set(re.findall(r"^\| \*\*([a-z-]+)\*\* \|", table, re.MULTILINE)),
+                                 STARTER_PACK_SKILLS)
+        for path in tracked_markdown():
+            text = (ROOT / path).read_text(encoding="utf-8")
+            with self.subTest(path=path):
+                self.lacks("/extract", text)
+                for retired in RETIRED_PACK_SKILLS:
+                    self.lacks("| **%s** |" % retired, text)
 
 if __name__ == "__main__":
     unittest.main()

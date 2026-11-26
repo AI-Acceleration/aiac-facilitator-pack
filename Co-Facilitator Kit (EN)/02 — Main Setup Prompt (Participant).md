@@ -21,7 +21,8 @@ This is the prompt that builds your entire working environment: your Obsidian va
 Windows terminal is the worst offender). You hand Claude the file itself:
 
 1. **Save this file on your computer** — your facilitator sends it to you, or download it from GitHub
-   (open the file → **Download raw file**). Keep it somewhere you can find, such as `Downloads`.
+   (open the file → **Download raw file**). If you ran the pre-flight check in Doc 01, it is already in your vault's
+   `00 HUB/00 INBOX` folder; otherwise keep it somewhere you can find, such as `Downloads`.
 2. **Copy the file's full path.**
    - **macOS:** in Finder, right-click the file, hold the **Option** key, choose **Copy "…" as Pathname**.
    - **Windows:** in File Explorer, hold **Shift**, right-click the file, choose **Copy as path**.
@@ -40,6 +41,10 @@ Windows terminal is the worst offender). You hand Claude the file itself:
 6. **If you have to stop midway** (closing the terminal to install something, for example), start
    Claude again in your vault folder and type:
    `Read the file <path> and continue from Step N.`
+
+> **On every permission prompt, choose plain "Yes" (or "No") — never "Yes, and don't ask again".**
+> The "don't ask again" option saves a lasting rule in your settings that lets that command run
+> without asking from then on, and the status check will then report it.
 
 > **If Claude Code blocks an edit to `~/.claude/settings.json` and mentions "auto mode":** press
 > **Shift+Tab** (each press switches the mode shown in the bottom bar) until it shows the normal
@@ -319,7 +324,7 @@ Confirm the file was created. Then move to Step 3.
 
 Now set up the global Claude Code settings. These live in `~/.claude/settings.json` (outside the vault — this is the one exception because Claude Code requires it there).
 
-**First, back up what already exists.** The merge script below backs up `settings.json` itself, before its first change: a private copy (only you can read it) of the file's current contents — of the real file, if `settings.json` is a link to one — saved as `~/.claude/settings.json.bak`, and an earlier backup is never overwritten. For the router file, run this (on a brand-new machine it does nothing, which is fine; an existing backup is kept):
+**First, back up what already exists.** The merge script below backs up `settings.json` itself, before it changes anything: a private copy (only you can read it) of the file's current contents — of the real file, if `settings.json` is a link to one. An earlier backup is never overwritten: the first copy is `~/.claude/settings.json.bak`, later ones go to the next free name (`settings.json.bak.1`, `.bak.2`, …), and the script names the file it wrote on its `backup of your previous settings` line. For the router file, run this (on a brand-new machine it does nothing, which is fine; an existing backup is kept):
 
 ```bash
 mkdir -p ~/.claude
@@ -336,7 +341,7 @@ that prints only the kit's own entries and the *names* of the keys I already had
 2. Save the merge script further down as `~/.claude/aiac-merge-settings.py`, exactly as written.
 3. Run it with the block on standard input (running Python isn't pre-approved, so Claude Code should ask first — approve it, but never with "don't ask again"), and show
    me its output. Its last line must start with `Verified:`. If it starts with `STOP:`, nothing was
-   changed: show me the message and we fix it together (my backup is `~/.claude/settings.json.bak`).
+   changed: show me the message and we fix it together (if an earlier run printed a `backup of your previous settings` line, my backup is the file named there).
 
    ```bash
    python3 ~/.claude/aiac-merge-settings.py - <<'JSON'
@@ -519,10 +524,9 @@ def replace(dst, new, dotted):
 
 def backup(real):
     """A private copy (0600) of the file's current bytes - the file a symlink
-    points at, never the link - made before the first change. An earlier
-    backup is never overwritten: if one exists, it is kept as it is."""
-    if os.path.isfile(BACKUP) and not os.path.islink(BACKUP):
-        return None
+    points at, never the link - made once per run, before the change. An
+    earlier backup is never overwritten: the copy goes to the first free name
+    (settings.json.bak, then settings.json.bak.1, .bak.2, ...), printed below."""
     name, n = BACKUP, 0
     while os.path.lexists(name):
         n += 1
@@ -718,7 +722,7 @@ Confirm. Move to Step 3.5.
 
 ## STEP 3.5: CONTEXT MONITORING (STATUSLINE + AUTO-COMPACT GUARDRAILS)
 
-> **Why this step exists.** Claude Code has a limited context window. When it fills past its default threshold it **auto-compacts** — it summarizes and drops detail, and that is where sessions silently lose work. This step gives you a **visible bar** showing how full context is, an **audible warning at 50%**, and a **hard-stop before auto-compaction** so YOU decide when to compact (with `/session-close`, which preserves plans and tasks to disk before you `/clear`) instead of being surprised. Four small layers — install one at a time and pipe-test each before moving on.
+> **Why this step exists.** Claude Code has a limited context window. When it fills past its default threshold it **auto-compacts** — it summarizes and drops detail, and that is where sessions silently lose work. This step gives you a **visible bar** showing how full context is, an **audible warning at 50%**, and a hook that **turns automatic compaction off** so YOU decide when to compact (with `/session-close`, which preserves plans and tasks to disk before you `/clear`) instead of being surprised. When context reaches 75% the bar turns red and Claude Code skips the automatic compaction and carries on; if you keep going past the red bar, a later request can fail, and then you run `/compact` yourself. Four small layers — install one at a time and pipe-test each before moving on.
 
 **First, detect my OS.** Run `uname` (macOS/Linux). On Windows, ask me whether I'm in **PowerShell**, **Git Bash**, or **WSL** — the sound line and script execution depend on it (notes inline below).
 
@@ -824,7 +828,7 @@ STATE_FILE="/tmp/claude-ctx-warn-${SID}"
 
 if [ -f "$STATE_FILE" ]; then
   cat <<'EOF'
-{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "⚠ CONTEXT ≥50%. Auto-compact fires at 75%. Consider running /session-close then /clear to preserve plans/tasks before compaction strips context."}}
+{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "⚠ CONTEXT ≥50%. Automatic compaction is off, so nothing compacts for you. Consider running /session-close then /clear to preserve plans/tasks before context runs out."}}
 EOF
 fi
 ```
@@ -836,24 +840,25 @@ echo '{"session_id":"test"}' | bash ~/.claude/hooks/context-warn-prompt.sh | jq 
 rm -f /tmp/claude-ctx-warn-test
 ```
 
-### Layer 4 — Hard-stop before auto-compaction (PreCompact hook)
+### Layer 4 — Turn automatic compaction off (PreCompact hook)
 
 Write `~/.claude/hooks/context-warn-precompact.sh`:
 
 ```bash
 #!/bin/bash
 cat <<'EOF'
-{"decision": "block", "reason": "Auto-compact paused at 75%. Run /session-close to preserve plans/tasks to disk (then /clear), or run /compact to proceed with default compaction."}
+{"decision": "block", "reason": "Automatic compaction is off (your context monitor blocks it). Run /session-close to preserve plans/tasks to disk (then /clear), or run /compact yourself."}
 EOF
 ```
 
 `chmod +x ~/.claude/hooks/context-warn-precompact.sh`. **Pipe-test:** `echo '{}' | bash ~/.claude/hooks/context-warn-precompact.sh | jq -e '.decision == "block"'`
 
-> **How the pause works** ([hooks reference, PreCompact](https://code.claude.com/docs/en/hooks#precompact)): a PreCompact hook blocks compaction
-> by printing `"decision": "block"` (or by exiting with code 2). The `continue` field is ignored on this event, so
-> it can't pause anything. The hook is wired to the `auto` trigger only, so a `/compact` you type yourself still runs. If context is
-> already completely full, a blocked auto-compact makes the current request fail instead of pausing: run `/session-close`
-> or `/compact` yourself at that point.
+> **What the hook does** ([hooks reference, PreCompact](https://code.claude.com/docs/en/hooks#precompact)): a PreCompact hook blocks compaction
+> by printing `"decision": "block"` (or by exiting with code 2); the `continue` field is ignored on this event. The hook is
+> wired to the `auto` trigger only, so in practice it **turns automatic compaction off**: when Claude Code tries to compact
+> on its own (at 75%, from Layer 1), the attempt is skipped and the conversation continues. A `/compact` you type yourself
+> still runs. The red bar is your signal: if you ignore it and keep working until context is completely full, a request can
+> fail — run `/session-close` or `/compact` yourself at that point.
 
 ### Wire both hooks into settings.json + verify
 
@@ -1525,7 +1530,7 @@ Give me a final summary:
 **What was set up:**
 1. Obsidian vault with PARA structure + AI workspace — plus core Files-and-links settings (new notes → `00 HUB/00 INBOX`, wikilinks ON, all file types shown, auto-update internal links ON)
 2. Vault CLAUDE.md (Claude's behavioral rules)
-3. Claude Code global settings, merged into what was already there without displaying it (a short list of read-only permissions, and `ask` rules so printing files, committing and publishing always ask — nothing that writes, publishes or runs scripts is pre-approved — plus sound notification + **context monitoring** — visible statusline bar, yellow ⚠ at 50% with a sound, 75% auto-compact threshold, and a hard-stop before auto-compaction so you can `/session-close` first)
+3. Claude Code global settings, merged into what was already there without displaying it (a short list of read-only permissions, and `ask` rules so printing files, committing and publishing always ask — nothing that writes, publishes or runs scripts is pre-approved — plus sound notification + **context monitoring** — visible statusline bar, yellow ⚠ at 50% with a sound, 75% auto-compact threshold, and automatic compaction turned off so you decide when to `/session-close` or `/compact`)
 4. Git configured with my identity
 5. My case code repository at `~/dev/<repo-name>` — outside the vault — with CLAUDE.md (full project context + a pointer back to the vault brief), pushed to GitHub as a **Private** repo (or local-only for now, if we couldn't connect)
 6. Project Brief template for future projects

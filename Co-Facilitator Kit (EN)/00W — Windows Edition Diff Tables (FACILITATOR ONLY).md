@@ -83,7 +83,7 @@ Verified against Anthropic's live docs, then against a real Windows machine.
 | 15 | STEP 5 | `gh` check | adds **`winget install --id GitHub.cli -e`** if missing | Same install route as the prerequisites |
 | 16 | STEP 6 `~/dev` + location check | Mac-only phrasing; plain path compare | adds the `C:/Users/YOUR-USER/dev` translation; compare normalised with **`cd … && pwd -P`** | Git prints `C:/…`, Git Bash `/c/…` — a correct repo would show a false `WRONG LOCATION` |
 | 17 | STEP 7 `.gitignore` | `.DS_Store` | adds `Thumbs.db`, `desktop.ini` | Windows equivalents |
-| 18 | STEP 3 + 3.5 settings merge | `python3 ~/.claude/aiac-merge-settings.py` | **`py`** (fallback `python`, never `python3`); the statusline fallback 3 sets the absolute path with `--replace statusLine.command` | Landmine #4 — the merge script itself is byte-identical |
+| 18 | STEP 3 + 3.5 settings merge | `python3 ~/.claude/aiac-merge-settings.py` | **`py`** (fallback `python`, never `python3`); the statusline fallback 3 sets the absolute path with `--replace statusLine` and the full `statusLine` block | Landmine #4 — the merge script itself is byte-identical |
 
 ## Doc 03W — 10 changes vs `03 — Skills & Config Setup Prompt (Participant)`
 

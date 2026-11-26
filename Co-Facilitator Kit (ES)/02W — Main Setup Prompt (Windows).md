@@ -34,7 +34,8 @@ Este es el prompt que construye todo tu entorno de trabajo: tu vault de Obsidian
 terminal de Windows es la peor). Le entregas a Claude el archivo mismo:
 
 1. **Guarda este archivo en tu computadora** — te lo manda tu facilitador, o descárgalo de GitHub
-   (abre el archivo → **Download raw file**). Déjalo en un lugar que encuentres, como `Descargas`.
+   (abre el archivo → **Download raw file**). Si hiciste el pre-vuelo del Doc 01, ya está en la carpeta
+   `00 HUB/00 INBOX` de tu vault; si no, déjalo en un lugar que encuentres, como `Descargas`.
 2. **Copia la ruta completa del archivo.**
    En el Explorador de archivos, mantén presionada **Shift**, haz clic derecho sobre el archivo y elige
    **Copiar como ruta de acceso**. (Sale con comillas y barras invertidas — para esta única línea está
@@ -55,6 +56,10 @@ terminal de Windows es la peor). Le entregas a Claude el archivo mismo:
 6. **Si tienes que parar a mitad de camino** (por ejemplo, para cerrar la terminal e instalar algo),
    arranca Claude otra vez en la carpeta de tu vault y escribe:
    `Lee el archivo <ruta> y continúa desde el Paso N.`
+
+> **En cada pregunta de permiso, elige el "Yes" simple (o "No") — nunca "Yes, and don't ask again".**
+> La opción "don't ask again" guarda una regla duradera en tus ajustes que deja correr ese comando sin
+> preguntar desde entonces, y el chequeo de estado la va a reportar.
 
 > **Si Claude Code te bloquea una edición de `~/.claude/settings.json` y menciona "auto mode":**
 > presiona **Shift+Tab** (cada vez que lo presionas cambia el modo que se ve en la barra inferior)
@@ -342,7 +347,7 @@ Confirma que el archivo se creó. Luego pasa al Paso 3.
 
 Ahora configura los ajustes globales de Claude Code. Viven en `~/.claude/settings.json` (fuera del vault — esta es la única excepción, porque Claude Code los exige ahí).
 
-**Primero, respalda lo que ya exista.** El script de fusión de abajo respalda `settings.json` por su cuenta, antes de su primer cambio: una copia privada (solo tú puedes leerla) del contenido actual del archivo — del archivo real, si `settings.json` es un enlace a otro — guardada como `~/.claude/settings.json.bak`, y nunca sobrescribe un respaldo anterior. Para el archivo del router, corre esto (en una máquina nueva no hace nada, y eso está bien; un respaldo existente se conserva):
+**Primero, respalda lo que ya exista.** El script de fusión de abajo respalda `settings.json` por su cuenta, antes de cambiar nada: una copia privada (solo tú puedes leerla) del contenido actual del archivo — del archivo real, si `settings.json` es un enlace a otro. Nunca sobrescribe un respaldo anterior: la primera copia es `~/.claude/settings.json.bak`, las siguientes van al próximo nombre libre (`settings.json.bak.1`, `.bak.2`, …), y el script nombra el archivo que escribió en su línea `backup of your previous settings`. Para el archivo del router, corre esto (en una máquina nueva no hace nada, y eso está bien; un respaldo existente se conserva):
 
 ```bash
 mkdir -p ~/.claude
@@ -361,7 +366,7 @@ yo ya tenía:
    como está escrito.
 3. Ejecútalo con el bloque por la entrada estándar (correr Python no está preaprobado, así que Claude Code debería preguntar antes — apruébalo, pero nunca con "don't ask again") y
    muéstrame su salida. Su última línea tiene que empezar con `Verified:`. Si empieza con `STOP:`, no se
-   cambió nada: muéstrame el mensaje y lo arreglamos juntos (mi respaldo es `~/.claude/settings.json.bak`).
+   cambió nada: muéstrame el mensaje y lo arreglamos juntos (si una ejecución anterior imprimió una línea `backup of your previous settings`, mi respaldo es el archivo que nombra ahí).
 
    ```bash
    py ~/.claude/aiac-merge-settings.py - <<'JSON'
@@ -547,10 +552,9 @@ def replace(dst, new, dotted):
 
 def backup(real):
     """A private copy (0600) of the file's current bytes - the file a symlink
-    points at, never the link - made before the first change. An earlier
-    backup is never overwritten: if one exists, it is kept as it is."""
-    if os.path.isfile(BACKUP) and not os.path.islink(BACKUP):
-        return None
+    points at, never the link - made once per run, before the change. An
+    earlier backup is never overwritten: the copy goes to the first free name
+    (settings.json.bak, then settings.json.bak.1, .bak.2, ...), printed below."""
     name, n = BACKUP, 0
     while os.path.lexists(name):
         n += 1
@@ -758,7 +762,7 @@ Confirma. Pasa al Paso 3.5.
 
 ## PASO 3.5: MONITOREO DE CONTEXTO (STATUSLINE + PROTECCIONES DE AUTO-COMPACTACIÓN)
 
-> **Por qué existe este paso.** Claude Code tiene una ventana de contexto limitada. Cuando se llena por encima de su umbral por defecto hace **auto-compactación** — resume y bota detalle, y ahí es donde las sesiones pierden trabajo en silencio. Este paso te da una **barra visible** que muestra qué tan lleno está el contexto, una **alerta audible al 50%** y un **freno duro antes de la auto-compactación** para que TÚ decidas cuándo compactar (con `/session-close`, que preserva planes y tareas en disco antes de que hagas `/clear`) en vez de que te agarre por sorpresa. Cuatro capas pequeñas — instala una a la vez y prueba cada una con el pipe-test antes de seguir.
+> **Por qué existe este paso.** Claude Code tiene una ventana de contexto limitada. Cuando se llena por encima de su umbral por defecto hace **auto-compactación** — resume y bota detalle, y ahí es donde las sesiones pierden trabajo en silencio. Este paso te da una **barra visible** que muestra qué tan lleno está el contexto, una **alerta audible al 50%** y un *hook* que **apaga la compactación automática** para que TÚ decidas cuándo compactar (con `/session-close`, que preserva planes y tareas en disco antes de que hagas `/clear`) en vez de que te agarre por sorpresa. Cuando el contexto llega al 75% la barra se pone roja y Claude Code se salta la compactación automática y sigue; si sigues trabajando pasada la barra roja, un pedido posterior puede fallar, y entonces corres `/compact` tú mismo. Cuatro capas pequeñas — instala una a la vez y prueba cada una con el pipe-test antes de seguir.
 
 **Sistema operativo:** Windows, Git Bash (declarado arriba). Las líneas de sonido de abajo ya usan el beep de Windows.
 
@@ -854,9 +858,9 @@ echo "[$MODEL]$BRANCH | $BAR ${COLOR}${ICON}${PCT}%${RESET}"
 > 1. Cierra Claude Code por completo y vuelve a abrirlo (la línea de estado se carga al arrancar).
 > 2. Confirma que el script corre por su cuenta: pásale el JSON de prueba de abajo por *pipe*. Si eso
 >    imprime una barra, el script está bien y el bug está en el renderizado, no en tu archivo.
-> 3. Prueba con una ruta absoluta en `statusLine.command`: ejecuta el script de fusión con
->    `--replace statusLine.command` antes del `-`, y el bloque
->    `{ "statusLine": { "command": "/c/Users/YOUR-USER/.claude/statusline.sh" } }`.
+> 3. Prueba con una ruta absoluta para el script de la statusline: ejecuta el script de fusión con
+>    `--replace statusLine` antes del `-`, y el bloque completo
+>    `{ "statusLine": { "type": "command", "command": "/c/Users/YOUR-USER/.claude/statusline.sh", "padding": 2 } }`.
 >
 > **Y después sigue adelante de todas formas.** Este es el replanteamiento más importante en Windows:
 > **la barra es solo una pantalla. La protección de verdad es el override de auto-compactación al 75%
@@ -882,7 +886,7 @@ STATE_FILE="/tmp/claude-ctx-warn-${SID}"
 
 if [ -f "$STATE_FILE" ]; then
   cat <<'EOF'
-{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "⚠ CONTEXT ≥50%. Auto-compact fires at 75%. Consider running /session-close then /clear to preserve plans/tasks before compaction strips context."}}
+{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "⚠ CONTEXT ≥50%. Automatic compaction is off, so nothing compacts for you. Consider running /session-close then /clear to preserve plans/tasks before context runs out."}}
 EOF
 fi
 ```
@@ -894,24 +898,25 @@ echo '{"session_id":"test"}' | bash ~/.claude/hooks/context-warn-prompt.sh | jq 
 rm -f /tmp/claude-ctx-warn-test
 ```
 
-### Capa 4 — Freno duro antes de la auto-compactación (hook PreCompact)
+### Capa 4 — Apagar la compactación automática (hook PreCompact)
 
 Escribe `~/.claude/hooks/context-warn-precompact.sh`:
 
 ```bash
 #!/bin/bash
 cat <<'EOF'
-{"decision": "block", "reason": "Auto-compactación pausada al 75%. Corre /session-close para guardar planes y tareas en disco (luego /clear), o corre /compact para seguir con la compactación normal."}
+{"decision": "block", "reason": "La compactación automática está apagada (la bloquea tu monitor de contexto). Corre /session-close para guardar planes y tareas en disco (luego /clear), o corre /compact tú mismo."}
 EOF
 ```
 
 `chmod +x ~/.claude/hooks/context-warn-precompact.sh`. **Pipe-test:** `echo '{}' | bash ~/.claude/hooks/context-warn-precompact.sh | jq -e '.decision == "block"'`
 
-> **Cómo funciona la pausa** ([referencia de hooks, PreCompact](https://code.claude.com/docs/en/hooks#precompact)): un *hook* PreCompact frena
-> la compactación imprimiendo `"decision": "block"` (o saliendo con código 2). El campo `continue` se ignora en este evento,
-> así que no sirve para pausar. El *hook* está conectado solo al disparador `auto`, así que un `/compact` que escribas tú sigue funcionando. Si el
-> contexto ya está completamente lleno, una auto-compactación frenada hace fallar el pedido actual en vez de pausar: en ese punto corre
-> `/session-close` o `/compact` tú mismo.
+> **Qué hace el *hook*** ([referencia de hooks, PreCompact](https://code.claude.com/docs/en/hooks#precompact)): un *hook* PreCompact bloquea
+> la compactación imprimiendo `"decision": "block"` (o saliendo con código 2); el campo `continue` se ignora en este evento. El
+> *hook* está conectado solo al disparador `auto`, así que en la práctica **apaga la compactación automática**: cuando Claude Code
+> intenta compactar por su cuenta (al 75%, por la Capa 1), el intento se salta y la conversación sigue. Un `/compact` que
+> escribas tú sigue funcionando. La barra roja es tu señal: si la ignoras y sigues trabajando hasta llenar el contexto por
+> completo, un pedido puede fallar — en ese punto corre `/session-close` o `/compact` tú mismo.
 
 ### Conecta ambos *hooks* en settings.json + verifica
 
@@ -1597,7 +1602,7 @@ Dame un resumen final:
 **Qué se configuró:**
 1. Vault de Obsidian con estructura PARA + espacio de trabajo de IA — más los ajustes centrales de Files and links (notas nuevas → `00 HUB/00 INBOX`, wikilinks ON, todos los tipos de archivo visibles, actualización automática de enlaces internos ON)
 2. CLAUDE.md del vault (las reglas de comportamiento de Claude)
-3. Configuración global de Claude Code, fusionada con lo que ya había sin mostrarlo (una lista corta de permisos de solo lectura, y reglas `ask` para que imprimir archivos, hacer commit y publicar siempre pregunten — nada que escriba, publique o ejecute scripts queda preaprobado — más notificación de sonido + **monitoreo de contexto** — barra visible en la statusline, ⚠ amarillo al 50% con sonido, umbral de auto-compactación al 75% y un freno duro antes de la auto-compactación para que puedas hacer `/session-close` primero)
+3. Configuración global de Claude Code, fusionada con lo que ya había sin mostrarlo (una lista corta de permisos de solo lectura, y reglas `ask` para que imprimir archivos, hacer commit y publicar siempre pregunten — nada que escriba, publique o ejecute scripts queda preaprobado — más notificación de sonido + **monitoreo de contexto** — barra visible en la statusline, ⚠ amarillo al 50% con sonido, umbral de auto-compactación al 75% y la compactación automática apagada para que decidas tú cuándo hacer `/session-close` o `/compact`)
 4. Git configurado con mi identidad
 5. El repositorio de código de mi caso en `~/dev/<repo-name>` — fuera del vault — con CLAUDE.md (contexto completo del proyecto + un puntero de vuelta al brief del vault), subido a GitHub como repositorio **Private** (o solo local por ahora, si no pudimos conectarnos)
 6. Plantilla de Brief de Proyecto para proyectos futuros

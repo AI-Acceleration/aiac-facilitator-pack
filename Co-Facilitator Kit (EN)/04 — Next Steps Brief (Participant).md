@@ -109,7 +109,7 @@ Claude's context window is limited. As you work in a session, it fills with conv
 - Run `/session-close`, then `/clear` to start fresh (cleanest: state is saved in your project brief's Continuation Prompt, then reset).
 - Or run `/compact` to summarize in place and keep going mid-task (faster, but lossy: prefer the option above at a natural break point).
 
-**How to see your usage:** your context % shows as a live bar at the bottom of the terminal, the context monitor set up by your Main Setup Prompt. The bar turns **yellow ⚠ at 50%** (with a one-time warning), and auto-compaction is **stopped just before 75%** so you get a chance to run `/session-close` before context is compressed. If the bar isn't visible, open a new session; if it's still missing, type `/context` to see the current state and ask Claude to re-run STEP 3.5 of your Main Setup Prompt (don't use `/statusline-setup`: it replaces the custom bar and removes the 50% warning).
+**How to see your usage:** your context % shows as a live bar at the bottom of the terminal, the context monitor set up by your Main Setup Prompt. The bar turns **yellow ⚠ at 50%** (with a one-time warning), and **automatic compaction is turned off**, so nothing is compressed behind your back: at 75% the bar turns red and that is your cue to run `/session-close` (or `/compact`). If you ignore the red bar, a later request can fail; then run `/compact` yourself. If the bar isn't visible, open a new session; if it's still missing, type `/context` to see the current state and ask Claude to re-run STEP 3.5 of your Main Setup Prompt (don't use `/statusline-setup`: it replaces the custom bar and removes the 50% warning).
 
 #### 3. Skills — Reusable Procedures
 
@@ -211,7 +211,7 @@ Full inventory, in case you need to audit, replicate or troubleshoot later.
 |-------|------|--------------|
 | `Stop` | Sound | Audible notification when Claude finishes a task |
 | `UserPromptSubmit` | Context warning | A one-time reminder once you pass 50% |
-| `PreCompact` | Stop before auto-compact | Gives you the chance to `/session-close` first |
+| `PreCompact` | Turns automatic compaction off (the attempt is skipped, the conversation continues) | You decide when to `/session-close` or `/compact` |
 
 ### How to Troubleshoot When Something Feels Off
 
@@ -586,7 +586,7 @@ Help me create a skill that automates this.
 
 ### Starter skills (installed in your Skills & Config step)
 
-They come from the public **[AI-Acceleration/cc-starter-pack](https://github.com/AI-Acceleration/cc-starter-pack)** repository, pinned at release **`v1.0.0`** so everyone gets the same reviewed version.
+They come from the public **[AI-Acceleration/cc-starter-pack](https://github.com/AI-Acceleration/cc-starter-pack)** repository, pinned at release **`v1.0.1`** so everyone gets the same reviewed version.
 
 | Skill | What it does | How to use |
 |-------|-------------|-----------|
@@ -597,29 +597,29 @@ They come from the public **[AI-Acceleration/cc-starter-pack](https://github.com
 | **skill-create** | Create your own skills through a guided conversation | `/skill-create` |
 | **deep-research** | Multi-phase research: broad sweep → deep dive → synthesis, with sources | `/deep-research [topic]` |
 | **deep-planning** | Planning pipeline (brainstorm → plan) before you build | `/deep-planning` |
-| **extract** | Structured extraction from a note or a URL | `/extract [note or URL]` |
 | **fermi-decomposition** | Break "unmeasurable" numbers into estimable factors | `/fermi-decomposition` |
-| **context** | How much context you've used | `/context` |
-| **permissions** | Shows your current permission settings | `/permissions` |
+| **load-context** | An estimate of how much context you've used plus a summary of the session's topics (for the exact count, use the built-in `/context`) | `/load-context` |
 
 Plus **`/meeting-minutes`**, set up for your transcription tool (or for pasted transcripts).
 
-**Reinstalling or updating the starter skills.** Ask Claude to do it, pinned to the reviewed `v1.0.0` commit (it's the same block as the Skills & Config step). If your terminal cuts the paste short, save this document and tell Claude: `Read the file <path>, find "Reinstalling or updating the starter skills" and follow that prompt.`
+**Reinstalling or updating the starter skills.** Ask Claude to do it, pinned to the reviewed `v1.0.1` commit (it's the same block as the Skills & Config step). If your terminal cuts the paste short, save this document and tell Claude: `Read the file <path>, find "Reinstalling or updating the starter skills" and follow that prompt.`
 
 ```
-Reinstall my starter skills from AI-Acceleration/cc-starter-pack v1.0.0. Tell me what the command below
+Reinstall my starter skills from AI-Acceleration/cc-starter-pack v1.0.1. Tell me what the command below
 does, then, after I approve, run it exactly as written, as one command, and show me its output. It clones
 into a new temporary folder and runs install.sh only if the clone succeeded and sits on the reviewed commit.
 Any STOP line means nothing was installed: show me and don't work around it. If install.sh prints SKIP lines,
-show me the list and ask me what to do. Never run install.sh from any other folder.
+show me the list and ask me what to do. If it prints NOTE lines about skills left over from an older
+version of the pack, show me them and leave those folders in place unless I say otherwise. Never run
+install.sh from any other folder.
 
 PACK_TMP="$(mktemp -d)" || PACK_TMP=""
 if [ -z "$PACK_TMP" ]; then
   echo "STOP: could not create a temporary folder - not installed"
-elif ! git clone --depth 1 --branch v1.0.0 https://github.com/AI-Acceleration/cc-starter-pack.git "$PACK_TMP/cc-starter-pack"; then
+elif ! git clone --depth 1 --branch v1.0.1 https://github.com/AI-Acceleration/cc-starter-pack.git "$PACK_TMP/cc-starter-pack"; then
   echo "STOP: the clone failed - not installed"
-elif [ "$(cd "$PACK_TMP/cc-starter-pack" && git rev-parse HEAD)" != "711372c99e27700e70389a09b9a40b1911be8ca4" ]; then
-  echo "STOP: v1.0.0 is not the reviewed commit 711372c - not installed"
+elif [ "$(cd "$PACK_TMP/cc-starter-pack" && git rev-parse HEAD)" != "a85d906849f1fbd200d0e44a59b0d1f24b450135" ]; then
+  echo "STOP: v1.0.1 is not the reviewed commit a85d906 - not installed"
 else
   (cd "$PACK_TMP/cc-starter-pack" && bash ./install.sh)
 fi

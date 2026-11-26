@@ -111,7 +111,7 @@ La ventana de contexto de Claude es limitada. Mientras trabajas en una sesión, 
 - Corre `/session-close` y después `/clear` para empezar de cero (lo más limpio: el estado queda guardado en el Continuation Prompt del brief de tu proyecto, y después se reinicia).
 - O corre `/compact` para resumir en el sitio y seguir a mitad de tarea (más rápido, pero pierde detalle: prefiere la opción de arriba en una pausa natural).
 
-**Cómo ves tu uso:** tu % de contexto aparece como una barra en vivo abajo en la terminal, el monitor de contexto que montó tu Main Setup Prompt. La barra se pone **amarilla ⚠ al 50%** (con un aviso de una sola vez), y la auto-compactación se **frena justo antes del 75%** para que puedas correr `/session-close` antes de que se comprima el contexto. Si no ves la barra, abre una sesión nueva; si sigue sin aparecer, escribe `/context` para ver el estado actual y pídele a Claude que vuelva a correr el PASO 3.5 de tu Main Setup Prompt (no uses `/statusline-setup`: reemplaza la barra personalizada y quita el aviso del 50%).
+**Cómo ves tu uso:** tu % de contexto aparece como una barra en vivo abajo en la terminal, el monitor de contexto que montó tu Main Setup Prompt. La barra se pone **amarilla ⚠ al 50%** (con un aviso de una sola vez), y la **compactación automática queda apagada**, así que nada se comprime a tus espaldas: al 75% la barra se pone roja y esa es tu señal para correr `/session-close` (o `/compact`). Si ignoras la barra roja, un pedido posterior puede fallar; entonces corre `/compact` tú mismo. Si no ves la barra, abre una sesión nueva; si sigue sin aparecer, escribe `/context` para ver el estado actual y pídele a Claude que vuelva a correr el PASO 3.5 de tu Main Setup Prompt (no uses `/statusline-setup`: reemplaza la barra personalizada y quita el aviso del 50%).
 
 #### 3. Skills — Procedimientos Reutilizables
 
@@ -213,7 +213,7 @@ El inventario completo, por si necesitas auditar, replicar o resolver problemas 
 |-------|------|--------------|
 | `Stop` | Sonido | Aviso audible cuando Claude termina una tarea |
 | `UserPromptSubmit` | Aviso de contexto | Un recordatorio de una sola vez cuando pasas el 50% |
-| `PreCompact` | Freno antes de auto-compactar | Te da la oportunidad de correr `/session-close` primero |
+| `PreCompact` | Apaga la compactación automática (el intento se salta y la conversación sigue) | Tú decides cuándo correr `/session-close` o `/compact` |
 
 ### Qué Hacer Cuando Algo se Siente Raro
 
@@ -588,7 +588,7 @@ Ayúdame a crear una skill que la automatice.
 
 ### Skills iniciales (instaladas en tu paso de Skills & Config)
 
-Vienen del repositorio público **[AI-Acceleration/cc-starter-pack](https://github.com/AI-Acceleration/cc-starter-pack)**, fijado en la versión **`v1.0.0`** para que todos reciban la misma versión revisada.
+Vienen del repositorio público **[AI-Acceleration/cc-starter-pack](https://github.com/AI-Acceleration/cc-starter-pack)**, fijado en la versión **`v1.0.1`** para que todos reciban la misma versión revisada.
 
 | Skill | Qué hace | Cómo se usa |
 |-------|-------------|-----------|
@@ -599,29 +599,29 @@ Vienen del repositorio público **[AI-Acceleration/cc-starter-pack](https://gith
 | **skill-create** | Crea tus propias *skills* con una conversación guiada | `/skill-create` |
 | **deep-research** | Investigación en varias fases: barrido amplio → profundización → síntesis, con fuentes | `/deep-research [tema]` |
 | **deep-planning** | Planificación (lluvia de ideas → plan) antes de construir | `/deep-planning` |
-| **extract** | Extracción estructurada de una nota o una URL | `/extract [nota o URL]` |
 | **fermi-decomposition** | Descompone números «imposibles de medir» en factores estimables | `/fermi-decomposition` |
-| **context** | Cuánto contexto llevas usado | `/context` |
-| **permissions** | Muestra tu configuración de permisos actual | `/permissions` |
+| **load-context** | Una estimación de cuánto contexto llevas usado y un resumen de los temas de la sesión (para la cifra exacta, usa el comando integrado `/context`) | `/load-context` |
 
 Además **`/meeting-minutes`**, configurada para tu herramienta de transcripción (o para transcripciones pegadas).
 
-**Reinstalar o actualizar las *skills* iniciales.** Pídeselo a Claude, fijado al commit revisado de `v1.0.0` (es el mismo bloque del paso de Skills y Configuración). Si tu terminal corta lo que pegas, guarda este documento y dile a Claude: `Lee el archivo <ruta>, busca "Reinstalar o actualizar las skills iniciales" y sigue ese prompt.`
+**Reinstalar o actualizar las *skills* iniciales.** Pídeselo a Claude, fijado al commit revisado de `v1.0.1` (es el mismo bloque del paso de Skills y Configuración). Si tu terminal corta lo que pegas, guarda este documento y dile a Claude: `Lee el archivo <ruta>, busca "Reinstalar o actualizar las skills iniciales" y sigue ese prompt.`
 
 ```
-Reinstala mis skills iniciales desde AI-Acceleration/cc-starter-pack v1.0.0. Dime qué hace el comando de abajo
+Reinstala mis skills iniciales desde AI-Acceleration/cc-starter-pack v1.0.1. Dime qué hace el comando de abajo
 y, cuando te apruebe, córrelo exactamente como está, como un solo comando, y muéstrame su salida. Clona en una
 carpeta temporal nueva y corre install.sh solo si la clonación salió bien y está en el commit revisado.
 Cualquier línea STOP significa que no se instaló nada: muéstramela y no intentes saltártela. Si install.sh
-imprime líneas SKIP, muéstrame la lista y pregúntame qué hacer. Nunca corras install.sh desde otra carpeta.
+imprime líneas SKIP, muéstrame la lista y pregúntame qué hacer. Si imprime líneas NOTE sobre skills que
+quedaron de una versión anterior del paquete, muéstramelas y deja esas carpetas donde están salvo que yo
+te diga otra cosa. Nunca corras install.sh desde otra carpeta.
 
 PACK_TMP="$(mktemp -d)" || PACK_TMP=""
 if [ -z "$PACK_TMP" ]; then
   echo "STOP: could not create a temporary folder - not installed"
-elif ! git clone --depth 1 --branch v1.0.0 https://github.com/AI-Acceleration/cc-starter-pack.git "$PACK_TMP/cc-starter-pack"; then
+elif ! git clone --depth 1 --branch v1.0.1 https://github.com/AI-Acceleration/cc-starter-pack.git "$PACK_TMP/cc-starter-pack"; then
   echo "STOP: the clone failed - not installed"
-elif [ "$(cd "$PACK_TMP/cc-starter-pack" && git rev-parse HEAD)" != "711372c99e27700e70389a09b9a40b1911be8ca4" ]; then
-  echo "STOP: v1.0.0 is not the reviewed commit 711372c - not installed"
+elif [ "$(cd "$PACK_TMP/cc-starter-pack" && git rev-parse HEAD)" != "a85d906849f1fbd200d0e44a59b0d1f24b450135" ]; then
+  echo "STOP: v1.0.1 is not the reviewed commit a85d906 - not installed"
 else
   (cd "$PACK_TMP/cc-starter-pack" && bash ./install.sh)
 fi

@@ -216,20 +216,20 @@ Confirm the transcript source and that `~/.claude/skills/meeting-minutes/SKILL.m
 
 ## STEP 2.7: INSTALL THE STARTER SKILLS (ONE PACK, ONE CLONE)
 
-The starter skills come from one public, reviewed pack: **`AI-Acceleration/cc-starter-pack`, pinned at tag `v1.0.0`** (a fixed version, so every fresh install gets exactly the same files; a skill you already have under the same name is skipped and keeps your version — see 2.7a). It contains eleven skills, including the ones this kit uses every day:
+The starter skills come from one public, reviewed pack: **`AI-Acceleration/cc-starter-pack`, pinned at tag `v1.0.1`** (a fixed version, so every fresh install gets exactly the same files; a skill you already have under the same name is skipped and keeps your version — see 2.7a). It contains nine skills, including the ones this kit uses every day:
 
 - **`/session-close`** — close a session: update the brief, log the work, leave a Continuation Prompt (Step 4)
 - **`/project-create`** — create a Project / Program brief through guided Q&A
 - **`/inbox-clear`** — process `00 HUB/00 INBOX/`: classify each note, propose moves, act only after approval
 - **`/retro`** — session retrospectives that turn friction into CLAUDE.md rules
 - **`/skill-create`** — build new skills from a guided conversation (your Week-1 weekly-review skill)
-- plus `/context`, `/permissions`, `/extract`, `/deep-research`, `/deep-planning`, `/fermi-decomposition`
+- plus `/load-context`, `/deep-research`, `/deep-planning`, `/fermi-decomposition`
 
 Several skills ship helper files next to their `SKILL.md`, so install the whole pack, not single files. Nothing
 of the pack is kept afterwards: it is cloned into a brand-new temporary folder that is deleted at the end, so a
 leftover or changed copy can never be installed by mistake.
 
-### 2.7a — Clone the pack at `v1.0.0` into a temporary folder and run its installer
+### 2.7a — Clone the pack at `v1.0.1` into a temporary folder and run its installer
 
 Every install — the first one, a retry after an error, or a reinstall later (Doc 04) — uses this same block.
 Run it as **one** command:
@@ -238,10 +238,10 @@ Run it as **one** command:
 PACK_TMP="$(mktemp -d)" || PACK_TMP=""
 if [ -z "$PACK_TMP" ]; then
   echo "STOP: could not create a temporary folder - not installed"
-elif ! git clone --depth 1 --branch v1.0.0 https://github.com/AI-Acceleration/cc-starter-pack.git "$PACK_TMP/cc-starter-pack"; then
+elif ! git clone --depth 1 --branch v1.0.1 https://github.com/AI-Acceleration/cc-starter-pack.git "$PACK_TMP/cc-starter-pack"; then
   echo "STOP: the clone failed - not installed"
-elif [ "$(cd "$PACK_TMP/cc-starter-pack" && git rev-parse HEAD)" != "711372c99e27700e70389a09b9a40b1911be8ca4" ]; then
-  echo "STOP: v1.0.0 is not the reviewed commit 711372c - not installed"
+elif [ "$(cd "$PACK_TMP/cc-starter-pack" && git rev-parse HEAD)" != "a85d906849f1fbd200d0e44a59b0d1f24b450135" ]; then
+  echo "STOP: v1.0.1 is not the reviewed commit a85d906 - not installed"
 else
   (cd "$PACK_TMP/cc-starter-pack" && bash ./install.sh)
 fi
@@ -249,13 +249,14 @@ fi
 ```
 
 It runs the installer **only** when all three hold: the temporary folder was created, the clone succeeded,
-and the clone sits on commit `711372c99e27700e70389a09b9a40b1911be8ca4` — the exact `v1.0.0` this kit was reviewed against (a tag can be moved
+and the clone sits on commit `a85d906849f1fbd200d0e44a59b0d1f24b450135` — the exact `v1.0.1` this kit was reviewed against (a tag can be moved
 after the fact, a commit can't). The parentheses keep this session's working folder on the vault. Any
 `STOP:` line means nothing was installed: show me, and don't work around it. **Never run `install.sh` from
 any other folder** — not from a copy left by an earlier attempt, and not from an older `~/.aiac/cc-starter-pack`
 from a previous version of this kit (you can delete that one).
 
-- `install.sh` copies each skill folder into `~/.claude/skills/<skill>/`. It **skips** any skill I already have with the same name and prints `SKIP: …` for it — that skill keeps my version, not the `v1.0.0` one. If you see a `SKIP`, show me the list and ask me what to do — never overwrite one of my skills without my OK (`bash ./install.sh force` overwrites).
+- `install.sh` copies each skill folder into `~/.claude/skills/<skill>/`. It **skips** any skill I already have with the same name and prints `SKIP: …` for it — that skill keeps my version, not the `v1.0.1` one. If you see a `SKIP`, show me the list and ask me what to do — never overwrite one of my skills without my OK (`bash ./install.sh force` overwrites).
+- A `NOTE: …` line means a skill from an older version of the pack (`context`, `permissions` or `extract`) is still in `~/.claude/skills/`. The installer leaves it in place: show me the line and delete that folder only if I say so (`/context` and `/permissions` are also built-in Claude Code commands, so the old copies are not needed).
 - It ends with "Restart Claude Code": **don't restart now.** The skills load in my next session.
 
 ### 2.7b — Install `/playground` (official Anthropic plugin)
@@ -573,7 +574,7 @@ Give me a final summary of everything in this session:
 2. Compound Engineering plugin — Plan -> Build workflow
 3. Superpowers plugin — Debugging, brainstorming, code review
 4. Connectors — Google (Gmail / Drive / Calendar) or Microsoft 365, plus Granola if that's my meeting tool (other stacks deferred; `gws` CLI not today)
-5. Starter skills from `AI-Acceleration/cc-starter-pack` `v1.0.0` (`/session-close`, `/project-create`, `/inbox-clear`, `/retro`, `/skill-create` and more), plus `/meeting-minutes` and the `/playground` plugin
+5. Starter skills from `AI-Acceleration/cc-starter-pack` `v1.0.1` (`/session-close`, `/project-create`, `/inbox-clear`, `/retro`, `/skill-create` and more), plus `/meeting-minutes` and the `/playground` plugin
 6. Lessons file — `05 AI/CLAUDE CODE/resources/lessons.md`
 7. Plan Mode — Learned how to plan before building
 8. Cheat Sheet — Quick reference at `00 HUB/00 INBOX/`

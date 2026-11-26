@@ -951,7 +951,9 @@ if json_valid "$GS"; then
   elif [ "$broad_n" = "0" ]; then
     check sess notdone "Doc 02 - no blanket approvals in settings" "$bad_files settings file(s) could not be read (--details names them)"
   else
-    check sess notdone "Doc 02 - no blanket approvals in settings" "$broad_n broad rule(s) in $broad_files settings file(s) - remove them (--details lists them)"
+    broad_msg="$broad_n broad rule(s) in $broad_files settings file(s) - remove them (--details lists them)"
+    if [ "$bad_files" != "0" ]; then broad_msg="$broad_msg; $bad_files file(s) unreadable"; fi
+    check sess notdone "Doc 02 - no blanket approvals in settings" "$broad_msg"
   fi
   if [ "$DETAILS" = "1" ] && [ -n "$broad_lines" ]; then
     printf '%s\n' "$broad_lines" | sed '/^$/d' | sort | uniq -c | \

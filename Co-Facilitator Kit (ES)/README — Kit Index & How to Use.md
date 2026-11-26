@@ -16,7 +16,7 @@ Tú (el facilitador) le envías al participante los **Docs 01, 02, 03 y 07** (el
 Doc 07 es el vocabulario) más o menos una semana antes. El participante
 instala todo por su cuenta y termina con un pre-vuelo corto cuyo resultado, en
 una línea (`PREFLIGHT: READY · ACCOUNT: personal|team`), te envía.
-El día de la sesión corres el flujo de 8 bloques del **Doc 05 (el manual)**.
+El día de la sesión corres el flujo de 11 bloques del **Doc 05 (el manual)**.
 El participante le da el **Doc 02** a Claude Code **por archivo**: lo guarda y
 le dice a Claude «Lee el archivo <ruta> y sigue sus instrucciones». Claude lo
 entrevista, escoge su primer caso real y le arma su propio *vault* y su
@@ -164,11 +164,11 @@ lugar desde el que compartes.
 Los Docs 03/03W y 04 instalan las *skills* iniciales desde el repositorio
 público
 [`AI-Acceleration/cc-starter-pack`](https://github.com/AI-Acceleration/cc-starter-pack),
-**fijado en la etiqueta `v1.0.0`**, para que cada instalación nueva reciba los
+**fijado en la etiqueta `v1.0.1`**, para que cada instalación nueva reciba los
 mismos archivos revisados (una *skill* que el participante ya tenga con el mismo
 nombre se salta y conserva su versión). Todas las rutas de instalación clonan en una
 carpeta temporal nueva y corren el instalador solo si la clonación salió bien y está en
-el commit revisado (`711372c`), porque una etiqueta se puede mover. Una versión nueva
+el commit revisado (`a85d906`), porque una etiqueta se puede mover. Una versión nueva
 implica una etiqueta nueva, un commit revisado nuevo y actualizar los documentos.
 
 ## No depende de una sola herramienta de IA

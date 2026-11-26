@@ -88,7 +88,7 @@ bash bin/install-hooks.sh
 ```
 
 `.git/hooks` is not copied by `git clone`, so this command turns on the
-private-data gate for your commits. CI runs the same gate on every PR.
+private-data gate for your commits. CI runs the same gate on every pull request into main.
 
 **What the gate does and doesn't catch:** it blocks email addresses that are
 not on the allowlist, and internal files that are deliberately kept out of

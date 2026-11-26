@@ -16,8 +16,11 @@ English and the Spanish kit.
   Participants send only that block. The rest of the report never shows an
   email address, a token or a settings value; folder paths are hidden, and
   the repository's remote is shown only as a kind ("GitHub", "other host").
-  With `--details` it adds `~/…` paths and the remote's host name for the
-  participant's own eyes, under a do-not-share warning. A tool's version is
+  With `--details` it adds, for the participant's own eyes and under a
+  do-not-share warning: `~/…` paths (vault and repository), the remote's
+  host name, the domain of the git email address, where each tool is
+  installed, the list of vaults registered in Obsidian, and which settings
+  file each finding is in (by a fixed label, never the rule's text). A tool's version is
   shown only when its version command succeeds and prints exactly a version
   line; anything else reads "installed (version not read)", so a tool's own
   output is never echoed. With `--share` the script prints nothing but the
@@ -48,9 +51,10 @@ English and the Spanish kit.
   kit's own (checked before merging, even for keys the file doesn't have
   yet) or if a section of the file has an unexpected type. It creates the
   file private from the start and writes through a symlinked
-  `settings.json`. Before its first change it saves a private copy of the
-  file's current contents (of the real file, when `settings.json` is a
-  link), and it never overwrites an earlier backup.
+  `settings.json`. Before it changes anything it saves a private copy of
+  the file's current contents (of the real file, when `settings.json` is a
+  link) and prints the copy's name; it never overwrites an earlier backup
+  and writes the next free name instead (`settings.json.bak.1`, …).
 - **Safer first upload to GitHub.** Sign-in happens in the browser (or
   through the Git Credential Manager on Windows), with no token to create or
   paste (`gh` and the credential manager store their own). The repository
@@ -106,14 +110,17 @@ English and the Spanish kit.
   because terminals (the Windows one especially) can cut a long paste short.
 - **The starter skills moved to
   [`AI-Acceleration/cc-starter-pack`](https://github.com/AI-Acceleration/cc-starter-pack)**
-  and are pinned to version **v1.0.0**, so every fresh install gets the same
-  reviewed files (a skill the participant already has under the same name is
-  skipped and keeps their version). Every install path (first install,
-  retry, and the reinstall prompt in Doc 04) runs the same block: it clones
-  into a new temporary folder, runs the installer only after a successful
-  clone that sits on the reviewed `v1.0.0` commit (`711372c`; a tag can be
-  moved, a commit can't), and then deletes the folder. A leftover copy is
-  never reused.
+  and are pinned to version **v1.0.1** (nine skills), so every fresh install
+  gets the same reviewed files (a skill the participant already has under the
+  same name is skipped and keeps their version). Every install path (first
+  install, retry, and the reinstall prompt in Doc 04) runs the same block: it
+  clones into a new temporary folder, runs the installer only after a
+  successful clone that sits on the reviewed `v1.0.1` commit (`a85d906`; a tag
+  can be moved, a commit can't), and then deletes the folder. A leftover copy
+  is never reused. The pin moved up to v1.0.1 because that release drops
+  the `extract` and `permissions` skills, renames `context` to `load-context`
+  (it collided with the built-in `/context`) and stops `session-close` and
+  `retro` from editing settings files.
 - **Doc 01 ends with a required pre-flight.** Claude creates the vault
   (never in OneDrive, Dropbox, Google Drive or iCloud), has the participant
   open it in Obsidian with "Open folder as vault", checks every tool, and
@@ -131,9 +138,13 @@ English and the Spanish kit.
   steps, and explains how to keep plugins up to date. Its settings check
   compares the auto-compact value with 75 silently and prints only OK or
   NOT OK, never a value from the settings file.
-- **The context monitor's pause before auto-compaction works.** The
-  PreCompact hook now blocks with `"decision": "block"`, the documented
-  way; the previous `"continue": false` was ignored on that event.
+- **The context monitor really turns automatic compaction off.** The
+  PreCompact hook now blocks with `"decision": "block"`, the documented way
+  (the previous `"continue": false` was ignored on that event). A blocked
+  automatic compaction is skipped and the conversation continues; the bar
+  turns red at 75% as the cue to run `/session-close` or `/compact`, and if
+  the participant ignores it, a later request can fail until they run
+  `/compact`.
 - **Recording meetings is optional.** Granola, any other transcription tool,
   or a pasted transcript all work, and everyone in a meeting is asked first.
 - **Team and Enterprise accounts** use the plugins their organization

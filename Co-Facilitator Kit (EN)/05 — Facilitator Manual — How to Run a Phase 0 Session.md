@@ -181,7 +181,7 @@ The pre-flight line already confirms this (`gh login` would be listed as missing
 
 ## THE RUN-OF-SHOW
 
-Nine blocks. The minutes are the **nominal** best case (~90 min). On a first run, expect each block to take longer, and budget 2–3 hours in total. Keep this bar visible while you run:
+11 blocks. The minutes are the **nominal** best case (~90 min). On a first run, expect each block to take longer, and budget 2–3 hours in total. Keep this bar visible while you run:
 
 ```
 [ ] Block 0:   Start check: screen share + pre-flight line   5 min  ← before anything else
@@ -326,6 +326,9 @@ This is the biggest block and the heart of the setup. **Doc 02** (Windows: **02W
 - Watch for errors, explain what each step does as it happens, and **confirm the vault path** Claude uses matches the one you wrote down in Block 0.
 - During the **live interview**, help the participant articulate their work problem and steer toward a first case that's a good fit (see below).
 - **Before the first push**, make sure Claude stops and confirms the owner, **Private** visibility and the staged file list with the participant.
+- **Expect many approval prompts** in Docs 02 and 03: that is the narrow permission setup working.
+- **Watch every answer:** the participant picks plain **Yes** (or No), never "Yes, and don't ask again".
+- **If they picked "don't ask again"**, open the built-in `/permissions` screen with them, delete the rule it saved there, and re-run the status check.
 
 **What the participant does:**
 1. Enters the vault and starts Claude Code.
@@ -343,7 +346,7 @@ Your job during the interview is to be the human co-pilot: help them pick the ca
 **What the Main Setup Prompt builds:**
 - PARA folder structure + the `05 AI/CLAUDE CODE/` workspace.
 - The vault `CLAUDE.md` (behavioral rules) and the global router `~/.claude/CLAUDE.md`.
-- `~/.claude/settings.json`: narrow permissions, **merged** into whatever was there (never overwritten, never blanket approvals), the sound hook and the context monitor (status bar + auto-compact guardrails).
+- `~/.claude/settings.json`: narrow permissions, **merged** into whatever was there (never overwritten, never blanket approvals), the sound hook and the context monitor (status bar, 50% warning, automatic compaction turned off).
 - Git configured, GitHub connected, and a repo in `~/dev`, pushed to a **private** GitHub repository under the participant's own account.
 - The repo `CLAUDE.md` (case-specific domain context, from the interview), with a bridge back to the vault brief.
 - The project-brief template, the project brief in `01 PROJECTS/`, the Area MOC and the AI Acceleration Club journey brief.
@@ -423,14 +426,14 @@ If Claude reads the vault INBOX **without being given the path**, the router wor
 This is short but **load-bearing.** The context window is one of the two most important mental models (the other is `CLAUDE.md`). Members who understand it from day one avoid the "my session got worse the longer I worked" failure mode.
 
 **What you do, part 1: confirm the status bar (2 min).**
-- Doc 02 (STEP 3.5) already installed the context monitor: a status bar with the context %, a warning at 50% and an auto-compact guardrail at 75%. Have the participant look at the bottom of their terminal for the context percentage. If they don't see it, open a **new** session: status-line changes show up after a restart.
+- Doc 02 (STEP 3.5) already installed the context monitor: a status bar with the context %, a warning at 50%, and automatic compaction turned off (at 75% the bar turns red). Have the participant look at the bottom of their terminal for the context percentage. If they don't see it, open a **new** session: status-line changes show up after a restart.
 - **Don't run `/statusline-setup`.** It replaces the custom bar from Doc 02 and removes the 50% warning. If the bar is still missing after a restart, re-run Doc 02's STEP 3.5 only (Windows: 02W has a documented fallback).
 
 **What you do, part 2: teach the protocol (3 min).** Say these thresholds out loud; they *are* the protocol:
 
 - **Compact ideally before 50%.** Best quality. Plan sessions to hit natural break points before 50%, then `/session-close` + `/clear`.
 - **After 50%, context rot starts.** Not catastrophic, but Claude starts forgetting earlier context and making inconsistent references. The bar turns yellow and warns once.
-- **Compact certainly before 70%.** Past 70%, quality falls off a cliff. Auto-compaction is set to 75%, with a stop just before it so you decide, not the tool.
+- **Compact certainly before 70%.** Past 70%, quality falls off a cliff. Automatic compaction is turned off, so you decide, not the tool: at 75% the bar turns red, Claude Code skips its own compaction and the conversation continues. If the participant ignores the red bar, a later request can fail; then they run `/compact`.
 
 The two ways to compact at the threshold:
 - **A. `/session-close` + `/clear`**: cleanest. State is saved to the brief's Continuation Prompt, then reset. Best for task transitions.
@@ -444,7 +447,7 @@ The two ways to compact at the threshold:
 
 **Common errors + fixes:**
 - Bar not visible → new session first; then check `jq --version` (the bar depends on `jq`); then re-run Doc 02 STEP 3.5.
-- On Windows the bar misbehaves → follow 02W's fallback and stop after 3 minutes; the bar is display only, the auto-compact guardrail works without it.
+- On Windows the bar misbehaves → follow 02W's fallback and stop after 3 minutes; the bar is display only; the hook that turns automatic compaction off works without it.
 
 **Expected:** a context % visible in the bar (or the 02W fallback applied); the participant can state 50% / 70% / 75%.
 

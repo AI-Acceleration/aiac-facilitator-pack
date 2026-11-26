@@ -15,6 +15,10 @@ Este documento es para un participante que quiere un límite **verificable** alr
 
 Lee la Parte 1 antes de ejecutar nada. Te dice qué estás obteniendo de verdad — incluyendo lo que **no** estás obteniendo. Si las garantías de la Parte 1 no te resultan suficientes, la Parte 6 te dice qué hacer en su lugar.
 
+> **En cada pregunta de permiso, elige el "Yes" simple (o "No") — nunca "Yes, and don't ask again".**
+> La opción "don't ask again" guarda una regla duradera en tus ajustes que deja correr ese comando sin
+> preguntar desde entonces, y el chequeo de estado la va a reportar.
+
 ---
 
 ## Parte 1 — Qué garantiza esto de verdad
@@ -160,7 +164,7 @@ verificado) y reporta `NOT DONE`. No puede ver ajustes pasados con `--settings` 
 
 Dos cosas que obtienes gratis y vale la pena saber: el sandbox **auto-deniega las escrituras al propio `settings.json` de Claude Code en todos los ámbitos**, así que un comando confinado no puede reescribir su propia política. Y **los subagentes heredan la configuración de sandbox de la sesión padre** — corren en el mismo proceso, así que no hay bypass ahí.
 
-> **`sandbox.credentials` (opcional, necesita Claude Code v2.1.187+).** Verifica con `claude --version`. Este bloque deniega explícitamente los archivos de credenciales y desactiva las variables de entorno secretas para los comandos confinados. Nuestro `denyRead: ["~/"]` ya cubre los archivos bajo `$HOME`, y esto agrega la mitad de las variables de entorno:
+> **`sandbox.credentials` (opcional; mira la [documentación de sandboxing](https://code.claude.com/docs/en/sandboxing) para los detalles vigentes).** Este bloque deniega explícitamente los archivos de credenciales y desactiva las variables de entorno secretas para los comandos confinados. Nuestro `denyRead: ["~/"]` ya cubre los archivos bajo `$HOME`, y esto agrega la mitad de las variables de entorno:
 > ```json
 > "credentials": {
 >   "files": [
@@ -270,9 +274,11 @@ Luego guarda el bloque JSON de arriba como `~/.claude/aiac-02s-block.json` (ante
 script que usa el Paso 3 del Doc 02) y ejecuta
 `python3 ~/.claude/aiac-merge-settings.py ~/.claude/aiac-02s-block.json`. Agrega cada entrada que falte,
 conserva cada clave y regla que ya tenías, imprime solo las entradas del kit y los *nombres* de las
-claves que no tocó, y su última línea tiene que empezar con `Verified:`. Antes de su primer cambio guarda
-un respaldo privado de tu archivo actual como `~/.claude/settings.json.bak` (del archivo real, si
-`settings.json` es un enlace simbólico; nunca sobrescribe un respaldo anterior).
+claves que no tocó, y su última línea tiene que empezar con `Verified:`. Antes de cambiar nada guarda
+un respaldo privado de tu archivo actual (del archivo real, si `settings.json` es un enlace simbólico) e
+imprime su nombre: `~/.claude/settings.json.bak` la primera vez, el siguiente nombre libre
+`settings.json.bak.1`, `.bak.2`, … si ya hay un respaldo anterior (nunca sobrescribe uno anterior). Usa el
+archivo de respaldo que nombra el script.
 
 ```python
 # aiac-merge-settings.py - merges the AIAC kit's entries into ~/.claude/settings.json.
@@ -382,10 +388,9 @@ def replace(dst, new, dotted):
 
 def backup(real):
     """A private copy (0600) of the file's current bytes - the file a symlink
-    points at, never the link - made before the first change. An earlier
-    backup is never overwritten: if one exists, it is kept as it is."""
-    if os.path.isfile(BACKUP) and not os.path.islink(BACKUP):
-        return None
+    points at, never the link - made once per run, before the change. An
+    earlier backup is never overwritten: the copy goes to the first free name
+    (settings.json.bak, then settings.json.bak.1, .bak.2, ...), printed below."""
     name, n = BACKUP, 0
     while os.path.lexists(name):
         n += 1
@@ -518,7 +523,7 @@ Bajo este sandbox, Bash puede leer `~/.claude` pero **no puede escribir ahí**. 
 | Doc 03 Paso 2 y 2.7b — `claude plugin install …` | escribe en `~/.claude/plugins/` |
 | Doc 03 Paso 2.7a — la instalación del paquete de *skills* | escribe en `~/.claude/skills/` |
 
-Haz esos pasos desde una sesión de Claude Code arrancada **fuera del vault** — por ejemplo desde `~/dev` — donde la configuración de sandbox del vault no aplica. Es un paso corto y deliberado fuera del límite para instalaciones revisadas: lee cada comando antes de aprobarlo y después vuelve a tu sesión del vault. Las *skills* vienen de una versión pública y fija (`AI-Acceleration/cc-starter-pack` `v1.0.0`), así que puedes leer cada archivo antes de instalar.
+Haz esos pasos desde una sesión de Claude Code arrancada **fuera del vault** — por ejemplo desde `~/dev` — donde la configuración de sandbox del vault no aplica. Es un paso corto y deliberado fuera del límite para instalaciones revisadas: lee cada comando antes de aprobarlo y después vuelve a tu sesión del vault. Las *skills* vienen de una versión pública y fija (`AI-Acceleration/cc-starter-pack` `v1.0.1`), así que puedes leer cada archivo antes de instalar.
 
 ---
 
