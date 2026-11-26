@@ -268,9 +268,25 @@ info "Chip / architecture" "$arch_"
 
 # tool_version COMMAND -> "version X.Y.Z", or "installed (version not read)".
 # Only a parsed version number is ever printed, never the tool's own text.
+# gh and claude are never run: either can create its config folder or an
+# update file on its first run, and this script writes nothing. Their version
+# is read from the install path instead (Homebrew .../Cellar/gh/X.Y.Z/...,
+# native installer .../claude/versions/X.Y.Z), or not shown.
 tool_version() {
   c=$(cmd_name "$1")
-  v=$(version_of "$("$c" --version 2>/dev/null | head -3)")
+  v=""
+  case "$1" in
+    gh|claude)
+      t=$(command -v "$c")
+      lt=$(readlink "$t" 2>/dev/null)
+      [ -n "$lt" ] && t=$lt
+      case "$t" in
+        */Cellar/gh/*) r=${t#*/Cellar/gh/}; v=$(version_of "${r%%/*}") ;;
+        */claude/versions/*) r=${t##*/claude/versions/}; v=$(version_of "${r%%/*}") ;;
+      esac
+      ;;
+    *) v=$(version_of "$("$c" --version 2>/dev/null | head -3)") ;;
+  esac
   if [ -n "$v" ]; then printf 'version %s' "$v"; else printf '%s' "installed (version not read)"; fi
 }
 
@@ -495,6 +511,21 @@ fi
 HAS_VAULT=0
 [ -n "$VAULT" ] && [ -d "$VAULT" ] && HAS_VAULT=1
 
+# The code repo: ONLY a repo that the global router names (~/dev/<name>).
+# Nothing else in ~/dev is ever looked at.
+REPO=""
+if [ -f "$ROUTER" ]; then
+  names=$(grep -oE '[\\/]dev[\\/][A-Za-z0-9._-]+' "$ROUTER" 2>/dev/null | sed 's|^.dev.||')
+  OLDIFS=$IFS; IFS=$NL; set -f
+  for nm in $names; do
+    case "$nm" in .|..) continue ;; esac
+    for cand in "$HOME/dev/$nm" ${VAULT:+"$VAULT/dev/$nm"}; do
+      if [ -e "$cand/.git" ]; then REPO=$cand; break 2; fi
+    done
+  done
+  IFS=$OLDIFS; set +f
+fi
+
 if [ "$HAS_VAULT" = "1" ]; then
   check home done "Pre-flight - vault folder exists" "$(show_path "$VAULT")"
   info "  how it was located" "$VAULT_SRC"
@@ -534,45 +565,65 @@ if [ "$PRE_SESSION" = "1" ]; then
   printf '%s %s\n'   "      " "marked [sess] are not things you missed - they are the session agenda."
 fi
 
-# Broad, lasting approvals the kit never grants, looked for in the ALLOW list
-# only (wildcards in the "ask" list are intended: they make Claude ask). Any
-# git rule with a wildcard counts (git options can write files, run programs
-# or plant hooks); so does "mkdir *" (a lasting write grant) and a bare tool
-# name such as "Glob" or "Grep" (it pre-approves the tool outside the working
-# folder). Only the five exact read-only git rules, "ls *" and "wc *" are fine.
+# Broad, lasting approvals the kit never grants. Only the ALLOW list counts
+# (wildcards in the "ask" list are intended: they make Claude ask). The kit's
+# own allow list is these seven rules; besides them, an allow entry is broad
+# when it is:
+#   - a bare tool name such as Bash, Read, Edit, Write, Glob or Grep (it
+#     pre-approves the tool anywhere on disk), except one named MCP tool
+#     (mcp__server__tool, no wildcard) or WebSearch;
+#   - an interpreter, shell or privilege rule (python, node, uv, osascript,
+#     sudo...), with or without a wildcard or a path in front;
+#   - any Read / Edit / Write / Glob / Grep rule (a lasting file grant);
+#   - any other rule with a wildcard: git *, rm *, curl *, gh *, mkdir *...
+# A defaultMode other than default / manual / plan, and additionalDirectories
+# anywhere, count too. Exact one-command rules (no wildcard) are fine.
+# Each finding is a fixed category, so even --details never prints the rule
+# text (a rule can name a client folder or carry a token).
+KIT_ALLOW='["Bash(git status)", "Bash(git status --short)", "Bash(git diff)", "Bash(git log --oneline)", "Bash(git remote -v)", "Bash(ls *)", "Bash(wc *)"]'
+INTERP_RE='^(Bash|PowerShell)\\((\\S*/)?(python[0-9.]*|py|node|npx|pip[0-9.]*|uv|uvx|ruby|perl|deno|bun|bash|sh|zsh|fish|pwsh|powershell|osascript|sudo|env|xargs|eval)(\\.exe)?([ :)]|$)'
 BROAD_FILTER='
-  [ ((.permissions.allow // []) | if type == "array" then .[] else empty end
-      | select(type == "string")
-      | select(. == "Bash" or . == "Bash(*)" or . == "Bash(:*)" or
-               . == "Read" or . == "Write" or . == "Edit" or
-               . == "Glob" or . == "Grep" or
-               (test("^Bash\\(mkdir[ :)]") and test("[*]")) or
-               (test("^Bash\\(git[ :)]") and test("[*]")) or
-               test("^Bash\\((cat|head|gws)( \\*|:\\*|\\*)\\)$") or
-               test("^Bash\\((python3?|py|node|npx|pip3?|ruby|perl|deno|bun|bash|sh|zsh|pwsh|powershell)(\\.exe)?([ :].*)?\\)$"))),
-    (if .permissions.defaultMode == "bypassPermissions" then "defaultMode: bypassPermissions" else empty end),
-    (if ([.. | objects | has("additionalDirectories")] | any) then "additionalDirectories" else empty end)
+  [ (if (.permissions? | type) == "object" then .permissions else {} end) as $p
+    | ((($p.allow // []) | if type == "array" then .[] else empty end)
+        | select(type == "string")
+        | select((. as $r | '"$KIT_ALLOW"' | index([$r])) == null)
+        | if (test("[(]") | not) then
+            (if (test("^mcp__.+__.+") and (test("[*]") | not)) or . == "WebSearch" then empty
+             else "a bare tool approval (Bash, Read, Edit, Write...)" end)
+          elif test("'"$INTERP_RE"'") then "an interpreter or shell rule (python, node, sudo...)"
+          elif test("^(Read|Edit|Write|MultiEdit|NotebookEdit|Glob|Grep)[(]") then "a file-tool allow rule (Read, Edit, Write...)"
+          elif test("^Bash[(]git[ :]") and test("[*]") then "a git rule with a wildcard"
+          elif test("^(Bash|PowerShell)[(]") and test("[*]") then "a command rule with a wildcard (rm, curl, gh, mkdir...)"
+          elif test("[*]") then "a wildcard rule for another tool"
+          else empty end),
+      (($p.defaultMode? // null) | select(. != null and . != "default" and . != "manual" and . != "plan")
+        | "a non-default permission mode (defaultMode)"),
+      (if ([.. | objects | has("additionalDirectories")] | any) then "additionalDirectories" else empty end)
   ] | .[]'
 
 # Doc 02 STEP 3 "ask" list: commands Claude must ask about every time. All
-# eight must be present, each as the exact rule Bash(<command> *). Only the
-# command names are written here; the rules are built from them.
-ASK_REQUIRED='["cat", "head", "tail", "grep", "git add", "git commit", "git push", "gh repo create"]'
+# fourteen must be present, each as the exact rule Bash(<command> *). Only the
+# command names are written here; the rules are built from them. None of them
+# matches one of the seven allowed commands (an ask rule beats an allow rule).
+ASK_REQUIRED='["cat", "head", "tail", "grep", "diff", "sed", "sort", "git show", "git -C", "git -c", "git add", "git commit", "git push", "gh repo create"]'
 ASK_MISSING='
   ((.permissions.ask? // []) | if type == "array" then [.[] | select(type == "string")] else [] end) as $a
   | ['"$ASK_REQUIRED"'[] | . as $c | select(($a | index(["Bash(" + $c + " *)"])) == null)]'
 
-# Turns each broad rule into a fixed category, so even --details never prints
-# the rule text (a rule can name a client folder or carry a token).
-BROAD_KIND='
-  if . == "defaultMode: bypassPermissions" or . == "additionalDirectories" then .
-  elif . == "Glob" or . == "Grep" then "a bare Glob / Grep approval"
-  elif test("^Bash\\(mkdir") then "a mkdir wildcard (lasting write grant)"
-  elif test("^Bash\\(git") then "a git rule with a wildcard"
-  elif test("^Bash\\((cat|head)") then "a cat / head wildcard"
-  elif test("^Bash\\(gws") then "a blanket gws approval"
-  elif test("^Bash\\(") and (test("^Bash\\((\\*|:\\*)?\\)$") | not) then "an interpreter rule (python, node, a shell...)"
-  else "a blanket tool approval (Bash, Read, Write or Edit)" end'
+# Settings files where an allow rule can live: your global settings, plus the
+# vault's and the router-named repo's project and local files (a "Yes, and
+# don't ask again" answer is saved in a .claude/settings.local.json). Each
+# row: a fixed label (the only thing ever printed) and the file.
+SETTINGS_FILES="global settings.json$TAB$HOME/.claude/settings.json"
+SETTINGS_FILES="$SETTINGS_FILES${NL}global settings.local.json$TAB$HOME/.claude/settings.local.json"
+if [ "$HAS_VAULT" = "1" ]; then
+  SETTINGS_FILES="$SETTINGS_FILES${NL}vault .claude/settings.json$TAB$VAULT/.claude/settings.json"
+  SETTINGS_FILES="$SETTINGS_FILES${NL}vault .claude/settings.local.json$TAB$VAULT/.claude/settings.local.json"
+fi
+if [ -n "$REPO" ]; then
+  SETTINGS_FILES="$SETTINGS_FILES${NL}repo .claude/settings.json$TAB$REPO/.claude/settings.json"
+  SETTINGS_FILES="$SETTINGS_FILES${NL}repo .claude/settings.local.json$TAB$REPO/.claude/settings.local.json"
+fi
 
 # ---------------------------------------------------------------------------
 # Sandbox (Doc 02-S) - opt-in. Shown only when a sandbox config exists or when
@@ -587,7 +638,7 @@ if [ "$HAS_VAULT" = "1" ] && [ -f "$VS" ] && grep -q '"sandbox"' "$VS" 2>/dev/nu
 grep -q '"sandbox"' "$GS" 2>/dev/null && SANDBOX=1
 
 # Doc 02-S Part 3b: the Doc 02 allow list plus the WHOLE canonical deny list -
-# all eight entries, spelled exactly as 02-S writes them, not just one. The
+# all nine entries, spelled exactly as 02-S writes them, not just one. The
 # three file-type rules are home-anchored (~/**/x): a relative **/x only
 # covers the folder Claude was started in. The first item of each row is a
 # fixed name, printed when that entry is missing.
@@ -597,6 +648,7 @@ DENY_REQUIRED='[
   ["~/.gnupg", "Read(~/.gnupg/**)"],
   ["~/.config/gh", "Read(~/.config/gh/**)"],
   ["~/Library/Keychains", "Read(~/Library/Keychains/**)"],
+  ["~/.claude/.credentials.json", "Read(~/.claude/.credentials.json)"],
   [".env files", "Read(~/**/.env)"],
   ["*.pem files", "Read(~/**/*.pem)"],
   ["*.key files", "Read(~/**/*.key)"]
@@ -623,7 +675,9 @@ valid_global_security() {
 }
 
 # Doc 02-S Part 3a: deny reads of the whole home folder, re-allow only the
-# vault (".") and ~/.claude; write nothing extra. Part 3c option B may add one
+# vault (".") and ~/.claude, and deny again Claude Code's login file inside it
+# (~/.claude/.credentials.json, used on Linux and WSL2: the narrower deny wins
+# over the wider allow); write nothing extra. Part 3c option B may add one
 # named repo, ~/dev/<repo-name>, to allowRead and allowWrite. Nothing broader.
 valid_project_security() {
   jtest "$1" '
@@ -631,7 +685,8 @@ valid_project_security() {
     .sandbox.failIfUnavailable == true and
     .sandbox.allowUnsandboxedCommands == false and
     (.sandbox.filesystem.denyRead | type == "array" and
-      any(.[]; type == "string" and (. == "~/" or . == "~" or . == "~/**"))) and
+      any(.[]; type == "string" and (. == "~/" or . == "~" or . == "~/**")) and
+      any(.[]; . == "~/.claude/.credentials.json")) and
     (.sandbox.filesystem.allowRead | type == "array" and
       all(.[]; type == "string") and
       any(.[]; . == "." or . == "./") and
@@ -709,16 +764,37 @@ else
 fi
 
 if json_valid "$GS"; then
-  broad=$(jq -r "$BROAD_FILTER" "$GS" 2>/dev/null)
-  if [ -z "$broad" ]; then
-    check sess done "Doc 02 - no blanket approvals in settings" "no blanket git, cat, head, mkdir, interpreter or bare tool rules"
-  else
-    nb=$(printf '%s\n' "$broad" | wc -l | tr -d ' ')
-    check sess notdone "Doc 02 - no blanket approvals in settings" "$nb broad rule(s) found - remove them (--details lists them)"
-    if [ "$DETAILS" = "1" ]; then
-      jq -r "$BROAD_FILTER | $BROAD_KIND" "$GS" 2>/dev/null | sort | uniq -c | \
-        sed 's/^ *\([0-9]*\) /         broad rule (\1): /'
+  broad_n=0; broad_files=0; bad_files=0; checked=0; broad_lines=""
+  OLDIFS=$IFS; IFS=$NL; set -f
+  for row in $SETTINGS_FILES; do
+    lbl=${row%%"$TAB"*}
+    f=${row#*"$TAB"}
+    [ -f "$f" ] || continue
+    checked=$((checked+1))
+    if ! json_valid "$f"; then
+      bad_files=$((bad_files+1))
+      broad_lines="$broad_lines${NL}$lbl: not valid JSON - could not be checked"
+      continue
     fi
+    kinds=$(jq -r "$BROAD_FILTER" "$f" 2>/dev/null)
+    [ -n "$kinds" ] || continue
+    broad_files=$((broad_files+1))
+    for k in $kinds; do
+      broad_n=$((broad_n+1))
+      broad_lines="$broad_lines${NL}$lbl: $k"
+    done
+  done
+  IFS=$OLDIFS; set +f
+  if [ "$broad_n" = "0" ] && [ "$bad_files" = "0" ]; then
+    check sess done "Doc 02 - no blanket approvals in settings" "no broad allow rule or risky mode in $checked settings file(s) (global, vault, repo)"
+  elif [ "$broad_n" = "0" ]; then
+    check sess notdone "Doc 02 - no blanket approvals in settings" "$bad_files settings file(s) could not be read (--details names them)"
+  else
+    check sess notdone "Doc 02 - no blanket approvals in settings" "$broad_n broad rule(s) in $broad_files settings file(s) - remove them (--details lists them)"
+  fi
+  if [ "$DETAILS" = "1" ] && [ -n "$broad_lines" ]; then
+    printf '%s\n' "$broad_lines" | sed '/^$/d' | sort | uniq -c | \
+      sed 's/^ *\([0-9]*\) /         broad rule (\1): /'
   fi
 else
   check sess notdone "Doc 02 - no blanket approvals in settings" "cannot check (settings missing, malformed, or no jq)"
@@ -727,7 +803,7 @@ fi
 if json_valid "$GS"; then
   am=$(jq -r "$ASK_MISSING | join(\", \")" "$GS" 2>/dev/null)
   if jtest "$GS" "($ASK_MISSING) | length == 0"; then
-    check sess done "Doc 02 - ask-first rules in settings" "all 8 ask rules present"
+    check sess done "Doc 02 - ask-first rules in settings" "all 14 ask rules present"
   else
     check sess notdone "Doc 02 - ask-first rules in settings" "missing from permissions.ask: ${am:-the ask list}"
   fi
@@ -856,21 +932,6 @@ if [ -n "$gn" ] && [ -n "$ge" ]; then
   check sess done "Doc 02 - git identity set" "name set (not shown), $dom"
 else
   check sess notdone "Doc 02 - git identity set" "git user.name / user.email not set"
-fi
-
-# The code repo: ONLY a repo that the global router names (~/dev/<name>).
-# Nothing else in ~/dev is ever looked at.
-REPO=""
-if [ -f "$ROUTER" ]; then
-  names=$(grep -oE '[\\/]dev[\\/][A-Za-z0-9._-]+' "$ROUTER" 2>/dev/null | sed 's|^.dev.||')
-  OLDIFS=$IFS; IFS=$NL; set -f
-  for nm in $names; do
-    case "$nm" in .|..) continue ;; esac
-    for cand in "$HOME/dev/$nm" ${VAULT:+"$VAULT/dev/$nm"}; do
-      if [ -e "$cand/.git" ]; then REPO=$cand; break 2; fi
-    done
-  done
-  IFS=$OLDIFS; set +f
 fi
 
 # classify_remote URL -> sets REMOTE_CLASS to one of
