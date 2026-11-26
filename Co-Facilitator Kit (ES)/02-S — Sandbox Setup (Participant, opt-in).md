@@ -28,20 +28,22 @@ Primero la afirmación honesta, porque la versión de marketing de esto es falsa
 | **Comandos de Bash y cada proceso hijo que lanzan** (incluyendo `python`, `node`, `git`, cualquier script) | El kernel del sistema operativo — Seatbelt en macOS, bubblewrap en Linux/WSL2 | **Duro.** Se aplica sobre el proceso en ejecución. Se sostiene sin importar qué decidió ejecutar el modelo, e incluso si un comando permitido hace más de lo que su nombre sugiere. |
 | **Las herramientas de archivos integradas de Claude** — Read, Edit, Write, Glob, Grep | El sistema de permisos de Claude Code, en proceso, evaluado *antes* de que la herramienta corra | **A nivel de aplicación.** Las reglas de denegación son absolutas (gana la primera coincidencia, sin excepciones posibles), pero esto es Claude Code aplicándose reglas a sí mismo, no el kernel aplicándoselas a un proceso. |
 
-De la documentación oficial, textualmente:
+De la documentación oficial (citada de las páginas vigentes al 2026-11-25):
 
-> "Sandboxing provides OS-level enforcement that restricts what Bash commands can access at the filesystem and network level. **It applies only to Bash commands and their child processes.**"
+> "The sandbox covers shell commands only. Claude's file tools, MCP servers, and hooks run outside it."
 
 y
 
-> "**Built-in file tools**: Read, Edit, and Write use the permission system directly rather than running through the sandbox."
+> "**Built-in file and web tools**: tools such as Read, Edit, Write, WebFetch, and WebSearch follow permission rules instead. A `denyRead` entry doesn't stop the Read tool, and `allowedDomains` doesn't limit WebFetch"
 
 Así que la frase precisa, para la configuración de abajo, es:
 
 - **Todo lo que Claude ejecuta a través de Bash** (y cada proceso hijo) queda confinado por el kernel:
   puede **escribir** solo en la carpeta de trabajo (tu vault) y en la carpeta temporal de la sesión;
   puede **leer** tu vault y `~/.claude` (la configuración, las *skills* y los plugins de Claude Code),
-  pero **nada más dentro de tu carpeta de usuario**. Las rutas fuera de tu carpeta de usuario (carpetas
+  pero **nada más dentro de tu carpeta de usuario** — y tampoco el archivo de inicio de sesión de Claude
+  Code, `~/.claude/.credentials.json` (donde Linux y WSL2 guardan tu token de acceso), que la Parte 3a
+  vuelve a denegar para que ningún comando pueda leerlo y enviarlo a un dominio permitido como `github.com`. Las rutas fuera de tu carpeta de usuario (carpetas
   del sistema como `/usr` o `/etc`) siguen siendo legibles — la regla de denegación cubre `~/`, no todo el disco.
 - **Todo lo que Claude lee o escribe con sus herramientas de archivos integradas** se rige por reglas de
   permisos que Claude Code evalúa antes de actuar: el vault por defecto, una solicitud de permiso para
@@ -54,11 +56,11 @@ Ambas capas se configuran abajo. Ninguna es decorativa, y ninguna es una máquin
 
 Esta es la parte que vale la pena entender, porque es la razón por la que la configuración estándar de AIAC no te alcanza.
 
-Reglas de permisos como `Read(~/.ssh/**)` en una lista de denegación funcionan sobre las herramientas de archivos propias de Claude y sobre los comandos de archivos que Claude Code reconoce en Bash (`cat`, `head`, `tail`, `sed`). **No** funcionan sobre subprocesos arbitrarios. La documentación, textualmente:
+Reglas de permisos como `Read(~/.ssh/**)` en una lista de denegación funcionan sobre las herramientas de archivos propias de Claude y sobre los comandos de archivos que Claude Code reconoce en Bash (`cat`, `head`, `tail`, `sed`). **No** funcionan sobre subprocesos arbitrarios. La documentación (página vigente al 2026-11-25):
 
-> "They don't apply to arbitrary subprocesses that read or write files indirectly, like a Python or Node script that opens files itself. For OS-level enforcement that blocks all processes from accessing a path, enable the sandbox."
+> "They also don't apply to arbitrary subprocesses that read or write files indirectly, like a Python or Node script that opens files itself. For OS-level enforcement on sandboxed shell commands, enable the sandbox and turn off the unsandboxed retry."
 
-Versiones anteriores de la configuración de Fase 0 preaprobaban la ejecución de Python sin restricciones y tenían una **lista de denegación vacía**. Con esa combinación, un script de Python de una línea lee cualquier cosa en la máquina, y ninguna regla de permisos puede detenerlo. El Doc 02 ya no preaprueba ningún intérprete, así que hoy Claude tiene que preguntar antes de ejecutar uno — pero una vez que apruebas un script, las reglas de permisos siguen sin ver qué abre. Una lista de denegación por sí sola es teatro frente a un subproceso. El sandbox es lo que cierra ese hueco — y lo cierra en el kernel, que es por lo que se sostiene incluso si el modelo está confundido, equivocado o manipulado por algo que leyó.
+Versiones anteriores de la configuración de Fase 0 preaprobaban la ejecución de Python sin restricciones y tenían una **lista de denegación vacía**. Con esa combinación, un script de Python de una línea lee cualquier cosa en la máquina, y ninguna regla de permisos puede detenerlo. El Doc 02 ya no preaprueba ningún intérprete, así que fuera del sandbox Claude tiene que preguntar antes de ejecutar uno — pero una vez que apruebas un script, las reglas de permisos siguen sin ver qué abre. Una lista de denegación por sí sola es teatro frente a un subproceso. El sandbox es lo que cierra ese hueco — y lo cierra en el kernel, que es por lo que se sostiene incluso si el modelo está confundido, equivocado o manipulado por algo que leyó.
 
 ### Contra qué NO protege esto
 
@@ -94,9 +96,9 @@ Dos archivos. Crea ambos **antes** de entregarle el Doc 02 a Claude Code, a mano
 
 ### 3a — Ajustes del proyecto: `<YOUR_VAULT>/.claude/settings.json`
 
-**Este archivo debe vivir en tu vault**, no en `~/.claude/`. Eso sostiene el diseño, no es estético. La ruta `.` resuelve a la raíz del proyecto **solo** cuando la configuración vive en los ajustes del proyecto. La documentación, textualmente:
+**Este archivo debe vivir en tu vault**, no en `~/.claude/`. Eso sostiene el diseño, no es estético. La ruta `.` resuelve a la raíz del proyecto **solo** cuando la configuración vive en los ajustes del proyecto. La documentación (página vigente al 2026-11-25):
 
-> "The `.` in `allowRead` resolves to the project root because this configuration lives in project settings. If you placed the same configuration in `~/.claude/settings.json`, `.` would resolve to `~/.claude` instead, and project files would remain blocked by the `denyRead` rule."
+> "Place it in your project's `.claude/settings.json`, because the relative path `.` resolves to the project root when the configuration lives in project settings" … "If you placed the same configuration in `~/.claude/settings.json`, `.` would resolve to `~/.claude` instead, and project files would remain blocked by the `denyRead` rule."
 
 ```json
 {
@@ -105,7 +107,7 @@ Dos archivos. Crea ambos **antes** de entregarle el Doc 02 a Claude Code, a mano
     "failIfUnavailable": true,
     "allowUnsandboxedCommands": false,
     "filesystem": {
-      "denyRead": ["~/"],
+      "denyRead": ["~/", "~/.claude/.credentials.json"],
       "allowRead": [".", "~/.claude"],
       "allowWrite": []
     },
@@ -126,7 +128,8 @@ Dos archivos. Crea ambos **antes** de entregarle el Doc 02 a Claude Code, a mano
 Línea por línea, porque no deberías aceptar ninguna de estas bajo mi palabra:
 
 - **`denyRead: ["~/"]` + `allowRead: ["."]`** — la política de lectura por defecto del sandbox es **acceso de lectura a toda tu computadora**. Habilitar el sandbox por sí solo *no* restringe las lecturas. Este par es el patrón documentado para invertir eso a denegar-por-defecto: bloquea todo `$HOME`, luego vuelve a permitir la raíz del proyecto. Fíjate en la asimetría con las reglas de permisos — el `allowRead` del sandbox **sí puede** volver a permitir dentro de una región de `denyRead`; las reglas de denegación de permisos **no pueden** llevar excepciones. Sistemas distintos, semánticas distintas.
-- **`allowRead` incluye `~/.claude`** — sin esto, los comandos confinados ni siquiera pueden leer la configuración propia de Claude Code (`claude plugin list`, la verificación de *skills* del Paso 2.7c del Doc 03 y la verificación del router fallan). Ten claro lo que significa: **cualquier cosa que ejecute Bash puede leer `~/.claude`** — tu `CLAUDE.md` global, los ajustes, las *skills*, los archivos de plugins y las transcripciones de sesión. Y es **solo lectura**: **no** hace que `~/.claude` sea escribible, así que las instalaciones dentro de `~/.claude` siguen fallando bajo el sandbox (Parte 3d). Claude Code además **auto-deniega las escrituras a `settings.json` en todos los ámbitos**, así que un comando confinado no puede reescribir su propia política.
+- **`allowRead` incluye `~/.claude`** — sin esto, los comandos confinados ni siquiera pueden leer la configuración propia de Claude Code (`claude plugin list`, la verificación de *skills* del Paso 2.7c del Doc 03 y la verificación del router fallan). Ten claro lo que significa: **cualquier cosa que ejecute Bash puede leer `~/.claude`** — tu `CLAUDE.md` global, los ajustes, las *skills*, los archivos de plugins y las transcripciones de sesión (todo menos el archivo de inicio de sesión, siguiente punto). Y es **solo lectura**: **no** hace que `~/.claude` sea escribible, así que las instalaciones dentro de `~/.claude` siguen fallando bajo el sandbox (Parte 3d). Claude Code además **auto-deniega las escrituras a `settings.json` en todos los ámbitos**, así que un comando confinado no puede reescribir su propia política.
+- **`denyRead` también lista `~/.claude/.credentials.json`** — en Linux y WSL2, Claude Code guarda tu token de acceso en ese archivo (en macOS vive en el Llavero, así que ahí la entrada simplemente no coincide con nada). `allowRead` vuelve a abrir todo `~/.claude`, y `github.com` es un dominio permitido; la documentación advierte: "Allowing broad domains such as `github.com` can create paths for data exfiltration." Cuando las reglas de lectura se superponen, gana la ruta más estrecha — la documentación: "The deny holds inside a wider allow, so a broad allow can't silently re-expose a secret." Así, esta sola entrada mantiene el token lejos de todo comando confinado, mientras el resto de `~/.claude` sigue siendo legible.
 - **`allowWrite: []`** — las escrituras ya van por defecto al directorio de trabajo + el directorio temporal de la sesión. Vacío significa que no agregamos nada a eso.
 - **`failIfUnavailable: true`** — **este es el ajuste del que de verdad depende tu solicitud.** Por defecto, si el sandbox no puede arrancar (dependencia faltante, plataforma no soportada), Claude Code *imprime una advertencia y corre tus comandos sin confinar de todas formas*. Eso es una degradación silenciosa de "confinado" a "no confinado". Esto lo convierte en una falla dura. Sin esta línea, nada de lo anterior es una garantía.
 - **`allowUnsandboxedCommands: false`** — el interruptor de "modo sandbox estricto". Por defecto, cuando un comando falla por una restricción del sandbox, Claude puede reintentarlo con `dangerouslyDisableSandbox`, lo que lo corre fuera del límite (sujeto a una solicitud de permiso). Esto hace que ese parámetro sea **completamente ignorado**. Fíjate en el intercambio: algunas herramientas genuinamente no funcionan confinadas (`docker`, `watchman`/`jest`, y los CLI hechos en Go como `gh` pueden fallar la verificación TLS bajo Seatbelt en macOS). Con esto apagado, fallan en vez de escapar. Ese es el trato que estás pidiendo. Si `gh` se rompe, ejecuta tú los pasos de `gh` en una terminal normal (Parte 5) — nunca recurras a un *personal access token* clásico.
@@ -170,6 +173,12 @@ Esto cubre las herramientas de archivos integradas, que el sandbox no cubre. Las
       "Bash(head *)",
       "Bash(tail *)",
       "Bash(grep *)",
+      "Bash(diff *)",
+      "Bash(sed *)",
+      "Bash(sort *)",
+      "Bash(git show *)",
+      "Bash(git -C *)",
+      "Bash(git -c *)",
       "Bash(git add *)",
       "Bash(git commit *)",
       "Bash(git push *)",
@@ -181,6 +190,7 @@ Esto cubre las herramientas de archivos integradas, que el sandbox no cubre. Las
       "Read(~/.gnupg/**)",
       "Read(~/.config/gh/**)",
       "Read(~/Library/Keychains/**)",
+      "Read(~/.claude/.credentials.json)",
       "Read(~/**/.env)",
       "Read(~/**/*.pem)",
       "Read(~/**/*.key)"
@@ -209,10 +219,15 @@ Read(~/.aws/**)
 Read(~/.gnupg/**)
 Read(~/.config/gh/**)
 Read(~/Library/Keychains/**)
+Read(~/.claude/.credentials.json)
 Read(~/**/.env)
 Read(~/**/*.pem)
 Read(~/**/*.key)
 ```
+
+`Read(~/.claude/.credentials.json)` es la mitad de las herramientas integradas de la protección del
+archivo de inicio de sesión de la Parte 3a (la entrada del sandbox cubre Bash; esta cubre la herramienta
+Read de Claude).
 
 Cada ruta está anclada en tu carpeta de usuario (`~/`). Es deliberado: en la sintaxis de rutas de Claude
 Code, un patrón sin prefijo, como `**/*.key`, es relativo a la carpeta desde donde arrancó Claude, así que
@@ -225,7 +240,7 @@ herramientas de archivos de Claude y los comandos de archivos que Claude Code re
 
 ```bash
 mkdir -p ~/.claude
-cp -a ~/.claude/settings.json ~/.claude/settings.json.bak 2>/dev/null
+[ -e ~/.claude/settings.json.bak ] || cp -a ~/.claude/settings.json ~/.claude/settings.json.bak 2>/dev/null
 ```
 
 Luego guarda el bloque JSON de arriba como `~/.claude/aiac-02s-block.json` (antes edita la línea de
@@ -248,18 +263,26 @@ TARGET = os.path.expanduser("~/.claude/settings.json")
 DEEP = ("permissions", "hooks", "env")  # top-level objects merged key by key
 
 
+def stop(message):
+    sys.exit("STOP: " + message + " Nothing was changed.")
+
+
 def merge(dst, new, path, added, kept):
     for key, val in new.items():
         name = ".".join(path + [key])
+        deep = isinstance(val, dict) and (path or key in DEEP)
         if key not in dst:
             dst[key] = val
             added.append(name)
-        elif isinstance(val, list) and isinstance(dst[key], list):
+        elif (isinstance(val, list) or deep) and type(dst[key]) is not type(val):
+            stop(name + " in your settings is not a JSON " +
+                 ("list" if isinstance(val, list) else "object") + ", so the kit entries can't be added.")
+        elif isinstance(val, list):
             for item in val:
                 if item not in dst[key]:
                     dst[key].append(item)
                     added.append(name + ": " + (item if isinstance(item, str) else "1 entry"))
-        elif isinstance(val, dict) and isinstance(dst[key], dict) and (path or key in DEEP):
+        elif deep:
             merge(dst[key], val, path + [key], added, kept)
         elif dst[key] != val:
             kept.append(name)
@@ -295,44 +318,54 @@ def main():
     while len(args) >= 2 and args[0] == "--replace":
         to_replace.append(args[1])
         args = args[2:]
-    if args and args[0] != "-":
-        with open(args[0], encoding="utf-8") as f:
-            block = json.load(f)
-    else:
-        block = json.load(sys.stdin)
+    try:
+        if args and args[0] != "-":
+            with open(args[0], encoding="utf-8") as f:
+                block = json.load(f)
+        else:
+            block = json.load(sys.stdin)
+    except (OSError, ValueError):
+        stop("the kit block could not be read as JSON (check it was copied whole).")
     if not isinstance(block, dict):
-        sys.exit("STOP: the kit block is not a JSON object. Nothing was changed.")
+        stop("the kit block is not a JSON object.")
+    # Write through a symlinked settings.json to the file it points at.
+    real = os.path.realpath(TARGET)
     current = {}
-    if os.path.exists(TARGET):
+    if os.path.exists(real):
         try:
-            with open(TARGET, encoding="utf-8") as f:
+            with open(real, encoding="utf-8") as f:
                 current = json.load(f)
         except ValueError:
-            sys.exit("STOP: ~/.claude/settings.json is not valid JSON. Nothing was changed.")
+            stop("~/.claude/settings.json is not valid JSON.")
         if not isinstance(current, dict):
-            sys.exit("STOP: ~/.claude/settings.json is not a JSON object. Nothing was changed.")
+            stop("~/.claude/settings.json is not a JSON object.")
     added, kept = [], []
     for dotted in to_replace:
         try:
             replace(current, block, dotted)
         except (KeyError, TypeError):
-            sys.exit("STOP: " + dotted + " is not in the kit block. Nothing was changed.")
+            stop(dotted + " is not in the kit block.")
         added.append(dotted + " (replaced, as you asked)")
     merge(current, block, [], added, kept)
     kept = [k for k in kept if not any(r.startswith(k + ".") for r in to_replace)]
-    if added:
-        tmp = TARGET + ".aiac-tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
+    if added or not os.path.exists(real):
+        os.makedirs(os.path.dirname(real), exist_ok=True)
+        tmp = real + ".aiac-tmp"
+        if os.path.lexists(tmp):
+            os.unlink(tmp)
+        # Created private (0600) from the start, never briefly readable by others.
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(current, f, indent=2, ensure_ascii=False)
             f.write("\n")
-        if os.path.exists(TARGET):
-            shutil.copymode(TARGET, tmp)
-        os.replace(tmp, TARGET)
+        if os.path.exists(real):
+            shutil.copymode(real, tmp)
+        os.replace(tmp, real)
     for name in added:
         print("added: " + name)
     for name in kept:
         print("kept your existing value (not shown): " + name)
-    with open(TARGET, encoding="utf-8") as f:
+    with open(real, encoding="utf-8") as f:
         gaps = missing(json.load(f), block, [], kept)
     if gaps:
         sys.exit("STOP: still missing after the merge: " + ", ".join(gaps))
@@ -344,8 +377,8 @@ main()
 
 Por qué la lista se ve así, y por qué cada decisión es deliberada:
 
-- **Ningún intérprete (`python`, `node`…) ni `pip install` en `allow`.** Preaprobar un intérprete significa preaprobar "leer o escribir cualquier archivo, sin restricción de ninguna regla de permisos". Con el sandbox activo, los scripts quedan confinados por el kernel de todos modos — pero no hay razón para *además* entregarles una preaprobación en blanco, y si el sandbox alguna vez falla al cargar, tú quieres la solicitud de permiso. (`failIfUnavailable: true` debería hacer eso imposible. Cinturón y tirantes.)
-- **Nada de git sin restricciones, ningún permiso de escritura permanente, y reglas `ask` para lo que imprime o publica.** Por las mismas razones que en el Doc 02: solo se preaprueban comandos de git exactos y de solo lectura más `ls` y `wc` (sin comodines, porque opciones como `--output`, `--ext-diff` o `--template` escriben archivos, ejecutan programas o plantan *hooks*). `cat`, `head`, `tail` y `grep` son comandos integrados de solo lectura que Claude Code ejecuta sin pedir permiso en cualquier lugar del disco salvo que una regla diga otra cosa, así que van en `ask`, junto con `git add`, `git commit`, `git push` y `gh repo create`.
+- **Ningún intérprete (`python`, `node`…) ni `pip install` en `allow`.** Preaprobar un intérprete significa preaprobar "leer o escribir cualquier archivo, sin restricción de ninguna regla de permisos". Con el sandbox activo, los scripts quedan confinados por el kernel de todos modos — y en el modo auto-allow del sandbox corren sin ninguna solicitud de permiso — pero no hay razón para *además* entregarles una preaprobación en blanco: si el sandbox alguna vez falla al cargar, la regla allow que falta es lo que trae de vuelta la solicitud de permiso. (`failIfUnavailable: true` debería hacer eso imposible. Cinturón y tirantes.)
+- **Nada de git sin restricciones, ningún permiso de escritura permanente, y reglas `ask` para lo que imprime o publica.** Por las mismas razones que en el Doc 02: solo se preaprueban comandos de git exactos y de solo lectura más `ls` y `wc` (sin comodines, porque opciones como `--output`, `--ext-diff` o `--template` escriben archivos, ejecutan programas o plantan *hooks*). `cat`, `head`, `tail`, `grep`, `diff`, `sed`, `sort` y `git show` pueden imprimir archivos y son comandos integrados de solo lectura que Claude Code ejecuta sin pedir permiso en cualquier lugar del disco salvo que una regla diga otra cosa, así que van en `ask`, junto con `git -C` / `git -c`, `git add`, `git commit`, `git push` y `gh repo create`. Otros comandos de solo lectura (por ejemplo `git log -p`) siguen ejecutándose sin preguntar — el Paso 3 del Doc 02 explica por qué; bajo el sandbox, de todos modos no pueden leer fuera del límite.
 - **Nada de `Read`, `Write`, `Edit`, `Glob`, `Grep` a secas en `allow`.** Un nombre de herramienta a secas en `allow` pre-aprueba esa herramienta para **cualquier** entrada — incluyendo rutas fuera de tu vault. Dejarlos fuera mantiene el comportamiento real por defecto: *"By default, Claude has access to files in the directory where you launched it."* Lanza desde el vault, y el vault es el alcance.
 - **Entradas `deny` dirigidas, no una amplia.** Fíjate en lo que está **ausente** a propósito: no hay `Read(~/Documents/**)` ni `Read(//**)`. Tu vault vive en tu carpeta de usuario (`~/AIAC-Vault` por defecto), y las reglas de denegación de permisos tienen precedencia sobre las de permiso **sin ninguna excepción posible** — una denegación amplia como esa dejaría a Claude fuera, en silencio, del mismísimo vault que estás tratando de darle. Estas entradas son estrechas a propósito. El límite amplio es tarea del sandbox; esta lista es para las joyas de la corona de las herramientas integradas.
 - **El *hook* de sonido es solo para macOS.** En Windows (WSL2) usa `powershell.exe -c "[console]::beep(1000,400)"`; en Linux `paplay /usr/share/sounds/freedesktop/stereo/bell.oga`. Si no estás seguro, borra el bloque `"Stop"` completo — es una comodidad, y un comando equivocado aquí falla en cada turno.
@@ -362,7 +395,7 @@ Escoge una antes de la sesión:
 - **(B) Repositorio en `~/dev`, nombrado explícitamente** — conserva la disposición de la Fase 0 y agrega exactamente una ruta al sandbox:
   ```json
   "filesystem": {
-    "denyRead": ["~/"],
+    "denyRead": ["~/", "~/.claude/.credentials.json"],
     "allowRead": [".", "~/.claude", "~/dev/<repo-name>"],
     "allowWrite": ["~/dev/<repo-name>"]
   }
@@ -409,7 +442,7 @@ ls -la "$CANARY_DIR" && echo "CANARY_DIR=$CANARY_DIR"
 
 > Ejecuta este comando exacto y muéstrame la salida cruda, incluyendo cualquier error: `python3 -c "print(open('<CANARY_DIR>/secret.txt').read())"`
 
-**Aquí se juega todo.** Tiene que fallar con un error de sistema de archivos/permisos del sistema operativo. Si imprime `CANARY-SHOULD-NEVER-BE-READ`, tu sandbox no está activo — para y arréglalo antes de continuar. Esta prueba está construida específicamente para saltarse las reglas de permisos (es un subproceso haciendo su propia E/S de archivos), así que **solo** un sandbox de kernel funcionando la detiene. Una configuración que pasa el paso 1 pero falla esta es exactamente el modo de falla que este documento existe para prevenir. (Claude te va a preguntar antes de ejecutar Python — apruébalo una vez para esta prueba.)
+**Aquí se juega todo.** Tiene que fallar con un error de sistema de archivos/permisos del sistema operativo. Si imprime `CANARY-SHOULD-NEVER-BE-READ`, tu sandbox no está activo — para y arréglalo antes de continuar. Esta prueba está construida específicamente para saltarse las reglas de permisos (es un subproceso haciendo su propia E/S de archivos), así que **solo** un sandbox de kernel funcionando la detiene. Una configuración que pasa el paso 1 pero falla esta es exactamente el modo de falla que este documento existe para prevenir. (Que Claude pregunte antes depende del modo que elegiste en `/sandbox`: en modo auto-allow un comando confinado corre sin solicitud de permiso; en modo de permisos normales lo apruebas una vez. En cualquier caso, la lectura en sí tiene que fallar.)
 
 **4. Prueba la capa de herramientas integradas.** Pídele a Claude:
 
@@ -510,7 +543,7 @@ Para la Fase 0 específicamente, la configuración de la Parte 3 es la proporci�
 
 ## Fuentes
 
-Cada cita y cada ajuste de arriba vienen de la documentación oficial de Claude Code, consultada el 2026-07-15:
+Cada ajuste de arriba viene de la documentación oficial de Claude Code (consultada por primera vez el 2026-07-15). Las citas se volvieron a verificar contra las páginas vigentes el 2026-11-25 y llevan esa fecha; las páginas cambian, así que verifícalas de nuevo antes de apoyarte en una cita:
 
 - `https://code.claude.com/docs/en/sandboxing.md` — alcance del sandbox, configuración de sistema de archivos/red, plataformas soportadas, limitaciones
 - `https://code.claude.com/docs/en/permissions.md` — precedencia de reglas, patrones de rutas, la salvedad de los subprocesos, el valor por defecto del directorio de trabajo

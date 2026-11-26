@@ -108,16 +108,18 @@ Retirado del kit en v0.2 (por eso ya no son filas de Windows): el ayudante de Gr
 | Balance de bloques de código | ✅ 94 líneas de *fence*, balanceadas | ✅ 34 líneas de *fence*, balanceadas |
 | Comandos de macOS dentro de bloques de código | ✅ 0 | ✅ 0 |
 | Rutas `~/Library` dentro de bloques de código | ✅ 0 | ✅ 0 |
-| `bash -n` sobre cada bloque bash | ✅ 23 limpios / 5 solo con marcadores (`<repo-name>`, `<file>`) — los mismos 5 que la línea base EN | ✅ 11 limpios, 0 fallando |
+| `bash -n` sobre cada bloque bash | ✅ 17 limpios / 11 solo con marcadores (`<repo-name>`, `<file>`) — los mismos 11 que la línea base EN | ✅ 11 limpios, 0 fallando |
 | El bloque `settings.json` parsea, el *hook* Stop desescapa correctamente | ✅ `powershell.exe -c "[console]::beep(1000,400)"` | n/a |
 | Comillas tipográficas dentro de bloques de código | ✅ 0 | ✅ 0 |
 
 **Nota sobre los permisos:** como el resto del kit, estas variantes usan el bloque de permisos
 **acotado**. `allow` tiene solo comandos de solo lectura: comandos de git exactos (`git status`,
 `git status --short`, `git diff`, `git log --oneline`, `git remote -v`) más `ls` y `wc` — ningún permiso
-de escritura permanente, nada de `mkdir`. `ask` hace que `cat`, `head`, `tail`, `grep`, `git add`,
-`git commit`, `git push` y `gh repo create` pregunten cada vez (Claude Code ejecuta comandos integrados de
-solo lectura como `cat` sin pedir permiso salvo que una regla `ask` o `deny` los cubra). Ningún comodín de
+de escritura permanente, nada de `mkdir`. `ask` hace que `cat`, `head`, `tail`, `grep`, `diff`, `sed`,
+`sort`, `git show`, `git -C`, `git -c`, `git add`, `git commit`, `git push` y `gh repo create` pregunten
+cada vez (Claude Code ejecuta comandos integrados de solo lectura como `cat` sin pedir permiso salvo que
+una regla `ask` o `deny` los cubra). El Paso 12 empieza cada bloque con `cd ~/dev/<repo-name> &&`, igual
+que la línea base EN. Ningún comodín de
 git en `allow`, ningún intérprete (`python`, `py`, `python3`, `node`), nada de `pip install`, nada de
 `Read`/`Write`/`Edit`/`Glob`/`Grep` a secas — y el bloque se fusiona en local con
 `aiac-merge-settings.py`, que nunca imprime los valores existentes. El cambio del STEP 7

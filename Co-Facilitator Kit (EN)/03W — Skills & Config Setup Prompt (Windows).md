@@ -237,23 +237,28 @@ if [ -e ~/.aiac/cc-starter-pack ]; then
   echo "STOP: ~/.aiac/cc-starter-pack already exists - not installed"
 else
   git clone --depth 1 --branch v1.0.0 https://github.com/AI-Acceleration/cc-starter-pack.git ~/.aiac/cc-starter-pack \
-    && (cd ~/.aiac/cc-starter-pack && bash ./install.sh)
+    && (cd ~/.aiac/cc-starter-pack \
+        && if [ "$(git rev-parse HEAD)" = "711372c99e27700e70389a09b9a40b1911be8ca4" ]; then bash ./install.sh; \
+           else echo "STOP: v1.0.0 is not the reviewed commit 711372c - not installed"; fi)
 fi
 ```
 
 (The parentheses keep this session's working folder on the vault. The `&&` means a failed clone never
-runs anything.)
+runs anything. A tag can be moved after the fact, so the installer also runs only if the clone sits on
+commit `711372c99e27700e70389a09b9a40b1911be8ca4` — the exact `v1.0.0` this kit was reviewed against. A
+`STOP: v1.0.0 is not the reviewed commit` line means nothing was installed: show me, and don't work
+around it.)
 
 - **If it prints `STOP`** (a copy exists from an earlier attempt), tell me before touching it. Either,
   with my OK, rename it out of the way (`mv ~/.aiac/cc-starter-pack ~/.aiac/cc-starter-pack.old`) and
   run the block again, or verify it first — this installs only if the copy points at the official
-  repo, sits exactly on GitHub's `v1.0.0` commit and has no changed or extra files:
+  repo, sits exactly on the reviewed `v1.0.0` commit (`711372c`) and has no changed or extra files:
 
   ```bash
   (cd ~/.aiac/cc-starter-pack \
     && test "$(git remote get-url origin)" = "https://github.com/AI-Acceleration/cc-starter-pack.git" \
     && test -z "$(git status --porcelain --untracked-files=all)" \
-    && test "$(git rev-parse HEAD)" = "$(git ls-remote origin 'refs/tags/v1.0.0' 'refs/tags/v1.0.0^{}' | tail -n 1 | cut -f1)" \
+    && test "$(git rev-parse HEAD)" = "711372c99e27700e70389a09b9a40b1911be8ca4" \
     && echo "VERIFIED: v1.0.0, clean" && bash ./install.sh)
   ```
 
@@ -466,30 +471,74 @@ Let's do a quick test to make sure everything works. Run this simple exercise:
 
 1. Check that the CLAUDE.md in this vault is readable — read it and tell me the first line.
 2. Check that `~/.claude/CLAUDE.md` exists and has the correct vault path.
-3. Check the permissions in `~/.claude/settings.json` **without opening or printing the file** (it can
-   hold keys). Run this check — it prints only rule names:
+3. Check the permissions **without opening or printing any settings file** (they can hold keys). Run
+   this check — it reads `~/.claude/settings.json` and `settings.local.json`, the same two files in this
+   vault's `.claude/` folder (where "Yes, and don't ask again" answers are saved) and in my repo's, and it
+   prints only counts and categories, never a rule's text. Put my repo name in place of `<repo-name>`:
 
    ```bash
    py - <<'PY'
    import json, os, re
-   s = json.load(open(os.path.expanduser("~/.claude/settings.json"), encoding="utf-8"))
-   p = s.get("permissions") or {}
-   allow = [r for r in p.get("allow") or [] if isinstance(r, str)]
-   ask = [r for r in p.get("ask") or [] if isinstance(r, str)]
-   broad = [r for r in allow if r in ("Bash", "Bash(*)", "Read", "Write", "Edit", "Glob", "Grep")
-            or re.match(r"Bash\((git|gh|gws|cat|head|tail|grep|mkdir)\b.*\*", r)
-            or re.match(r"Bash\((python3?|py|node|npx|pip3?)\b", r)]
-   need = ["Bash(cat *)", "Bash(head *)", "Bash(tail *)", "Bash(grep *)",
-           "Bash(git add *)", "Bash(git commit *)", "Bash(git push *)", "Bash(gh repo create *)"]
-   print("broad allow rules:", ", ".join(broad) or "none")
-   print("missing ask rules:", ", ".join(r for r in need if r not in ask) or "none")
-   print("additionalDirectories:", "present" if "additionalDirectories" in p else "absent")
+   KIT = ["Bash(git status)", "Bash(git status --short)", "Bash(git diff)", "Bash(git log --oneline)",
+          "Bash(git remote -v)", "Bash(ls *)", "Bash(wc *)"]
+   NEED = ["cat", "head", "tail", "grep", "diff", "sed", "sort", "git show", "git -C", "git -c",
+           "git add", "git commit", "git push", "gh repo create"]
+   INTERP = re.compile(r"^(Bash|PowerShell)\((\S*/)?(python[0-9.]*|py|node|npx|pip[0-9.]*|uv|uvx|ruby|perl|deno|bun|bash|sh|zsh|fish|pwsh|powershell|osascript|sudo|env|xargs|eval)(\.exe)?([ :)]|$)")
+   def kind(r):  # the same categories as the status check; the rule text is never printed
+       if r in KIT:
+           return None
+       if "(" not in r:
+           ok = (re.match(r"mcp__.+__.+", r) and "*" not in r) or r == "WebSearch"
+           return None if ok else "bare tool"
+       if INTERP.search(r):
+           return "interpreter or shell"
+       if re.match(r"(Read|Edit|Write|MultiEdit|NotebookEdit|Glob|Grep)\(", r):
+           return "file-tool rule"
+       if "*" in r:
+           if re.match(r"Bash\(git[ :]", r):
+               return "git wildcard"
+           return "command wildcard" if re.match(r"(Bash|PowerShell)\(", r) else "other wildcard"
+       return None
+   def has_extra_dirs(x):
+       if isinstance(x, dict):
+           return "additionalDirectories" in x or any(has_extra_dirs(v) for v in x.values())
+       return isinstance(x, list) and any(has_extra_dirs(v) for v in x)
+   FILES = [("global", "~/.claude/settings.json"), ("global local", "~/.claude/settings.local.json"),
+            ("vault", ".claude/settings.json"), ("vault local", ".claude/settings.local.json"),
+            ("repo", "~/dev/<repo-name>/.claude/settings.json"),
+            ("repo local", "~/dev/<repo-name>/.claude/settings.local.json")]
+   found, ask, extra = {}, [], False
+   for label, path in FILES:
+       path = os.path.expanduser(path)
+       if not os.path.isfile(path):
+           continue
+       try:
+           s = json.load(open(path, encoding="utf-8"))
+       except ValueError:
+           found[label + ": not valid JSON"] = 1
+           continue
+       p = s.get("permissions") if isinstance(s, dict) else None
+       p = p if isinstance(p, dict) else {}
+       allow = p.get("allow") if isinstance(p.get("allow"), list) else []
+       for k in [kind(r) for r in allow if isinstance(r, str)]:
+           if k:
+               found[label + ": " + k] = found.get(label + ": " + k, 0) + 1
+       if p.get("defaultMode") not in (None, "default", "manual", "plan"):
+           found[label + ": defaultMode"] = 1
+       extra = extra or has_extra_dirs(s)
+       if label == "global" and isinstance(p.get("ask"), list):
+           ask = [r for r in p["ask"] if isinstance(r, str)]
+   print("broad allow rules:", "%d (%s)" % (sum(found.values()), ", ".join(
+       "%s x%d" % (k, n) for k, n in sorted(found.items()))) if found else "none")
+   print("missing ask rules:", ", ".join(c for c in NEED if "Bash(%s *)" % c not in ask) or "none")
+   print("additionalDirectories:", "present" if extra else "absent")
    PY
    ```
 
    PASS = `broad allow rules: none`, `missing ask rules: none`, `additionalDirectories: absent`. If
-   anything else shows up, show me the line and ask me before changing anything — I remove a rule
-   myself in a text editor, or tell you to re-run the Doc 02 merge for a missing one.
+   anything else shows up, show me the line and ask me before changing anything — it names the file and
+   the kind of rule; I open that file myself in a text editor and remove the rule, or tell you to re-run
+   the Doc 02 merge for a missing one.
 4. Check that the six skills exist at `~/.claude/skills/<skill>/SKILL.md` (the loop from Step 2.7c): `session-close`, `project-create`, `inbox-clear`, `retro`, `skill-create`, `meeting-minutes`.
 5. Check with `claude plugin list` that `playground`, `compound-engineering` and `superpowers` are installed.
 6. **Find out which Python command exists on this machine before using one.** On Windows the

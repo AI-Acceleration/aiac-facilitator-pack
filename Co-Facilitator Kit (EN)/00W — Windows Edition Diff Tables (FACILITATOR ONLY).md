@@ -107,16 +107,17 @@ Removed from the kit in v0.2 (so no longer Windows rows): the Granola cached-tok
 | Code-fence balance | ✅ 94 fence lines, balanced | ✅ 34 fence lines, balanced |
 | macOS commands inside code blocks | ✅ 0 | ✅ 0 |
 | `~/Library` paths inside code blocks | ✅ 0 | ✅ 0 |
-| `bash -n` on every bash block | ✅ 23 clean / 5 placeholder-only (`<repo-name>`, `<file>`) — same 5 as the EN baseline | ✅ 11 clean, 0 failing |
+| `bash -n` on every bash block | ✅ 17 clean / 11 placeholder-only (`<repo-name>`, `<file>`) — same 11 as the EN baseline | ✅ 11 clean, 0 failing |
 | `settings.json` block parses, Stop hook de-escapes correctly | ✅ `powershell.exe -c "[console]::beep(1000,400)"` | n/a |
 | Smart quotes inside code blocks | ✅ 0 | ✅ 0 |
 
 **Note on permissions:** like the rest of the kit, these variants use the **narrow** permissions
 block. `allow` holds only read-only commands: exact git commands (`git status`, `git status --short`,
 `git diff`, `git log --oneline`, `git remote -v`) plus `ls` and `wc` — no lasting write grant, no
-`mkdir`. `ask` makes `cat`, `head`, `tail`, `grep`, `git add`, `git commit`, `git push` and
-`gh repo create` ask every time (Claude Code runs built-in read-only commands such as `cat` without a
-prompt unless an `ask` or `deny` rule covers them). No git wildcard in `allow`, no interpreter
+`mkdir`. `ask` makes `cat`, `head`, `tail`, `grep`, `diff`, `sed`, `sort`, `git show`, `git -C`,
+`git -c`, `git add`, `git commit`, `git push` and `gh repo create` ask every time (Claude Code runs
+built-in read-only commands such as `cat` without a prompt unless an `ask` or `deny` rule covers them).
+Step 12 starts every block with `cd ~/dev/<repo-name> &&`, same as the EN baseline. No git wildcard in `allow`, no interpreter
 (`python`, `py`, `python3`, `node`), no `pip install`, no bare `Read`/`Write`/`Edit`/`Glob`/`Grep` —
 and the block is merged locally by `aiac-merge-settings.py`, which never prints existing values. The Windows STEP 7 change above keeps
 that hardening: it runs the greeting once with normal approval using the Python command that actually

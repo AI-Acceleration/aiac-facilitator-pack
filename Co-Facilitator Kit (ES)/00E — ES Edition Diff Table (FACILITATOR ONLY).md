@@ -26,7 +26,7 @@ cambió a propósito.
 | Paridad de conteo de bloques y de encabezados, archivo por archivo | ✅ exacta en los documentos con gemelo EN |
 | Comillas tipográficas en documentos del participante | ✅ 0 |
 | Voseo en documentos del participante | ✅ 0 (el registro por defecto es español latinoamericano neutro con tuteo) |
-| Bloque de permisos (`allow` de 7 reglas de solo lectura, `ask` de 8 reglas, y en el 02-S la lista `deny` canónica de 8 rutas) en los Documentos 02 / 02W / 02-S, y el script de fusión `aiac-merge-settings.py` | ✅ idénticos al EN, byte por byte (los verifica `tests/test_setup_permissions.py`) |
+| Bloque de permisos (`allow` de 7 reglas de solo lectura, `ask` de 14 reglas, y en el 02-S la lista `deny` canónica de 9 rutas) en los Documentos 02 / 02W / 02-S, y el script de fusión `aiac-merge-settings.py` | ✅ idénticos al EN, byte por byte (los verifica `tests/test_setup_permissions.py`) |
 | `tools/aiac-status-check.sh` | ✅ idéntico al EN — **compartido a propósito, no bifurcado** |
 
 ## Las desviaciones — 8 en total

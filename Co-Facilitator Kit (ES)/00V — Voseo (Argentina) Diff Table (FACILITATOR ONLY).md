@@ -102,6 +102,10 @@ cuando es imperativo dirigido al lector. En **negrita**, las que no salen de mov
 | 48 | `ten` | **`tené`** | ~2 |
 | 49 | `ábrelo` | **`abrilo`** | ~1 |
 | 50 | `descarga` | `descargá` | ~1 |
+| 51 | `trabaja` | `trabajá` | ~2 |
+| 52 | `empieza` | **`empezá`** | ~2 |
+| 53 | `apruébala` | **`aprobala`** | ~2 |
+| 54 | `muéstramela` | **`mostrámela`** | ~2 |
 
 ### Las irregulares — las que no salen de mover el acento
 
@@ -113,7 +117,7 @@ La regla general del imperativo voseo es *quitar la `-r` del infinitivo y acentu
 | `haz` | `hacé` | No es `hacé` ← `haz`; sale de `hacer`. `hazlo` → **`hacelo`** (sin tilde: la sílaba tónica ya cae bien). |
 | `ve` | `andá` | **Supletiva.** El voseo usa *andar*, no *ir*. `ve a la carpeta` → `andá a la carpeta`. |
 | `pon` | `poné` | De `poner`. `ponlo` → **`ponelo`**. |
-| `sigue` · `vuelve` · `muestra` · `prueba` · `pide` · `elige` | `seguí` · `volvé` · `mostrá` · `probá` · `pedí` · `elegí` | **Verbos con cambio de raíz:** el voseo usa la raíz del infinitivo, sin diptongo ni cambio de vocal (`seguir`, `volver`, `mostrar`, `probar`, `pedir`, `elegir`). `vuelve a hacer push` → `volvé a hacer push`. |
+| `sigue` · `vuelve` · `muestra` · `prueba` · `pide` · `elige` · `empieza` · `aprueba` | `seguí` · `volvé` · `mostrá` · `probá` · `pedí` · `elegí` · `empezá` · `aprobá` | **Verbos con cambio de raíz:** el voseo usa la raíz del infinitivo, sin diptongo ni cambio de vocal (`seguir`, `volver`, `mostrar`, `probar`, `pedir`, `elegir`, `empezar`, `aprobar`). `vuelve a hacer push` → `volvé a hacer push`. |
 | `di` · `dime` · `dile` | `decí` · `decime` · `decile` | De `decir`. `dímelo` → **`decímelo`** (aquí la tilde se queda: la palabra queda esdrújula). |
 | `ten` · `ven` · `mantén` | `tené` · `vení` · `mantené` | De `tener`, `venir`, `mantener`. `mantén presionada` → `mantené presionada`. |
 | `asegúrate` | `asegurate` | ⚠ **La tilde DESAPARECE.** El acento se corre a la última sílaba, que ya no necesita tilde escrita. Escribir `asegurate` con tilde es el error más común. |
@@ -134,6 +138,7 @@ La regla general del imperativo voseo es *quitar la `-r` del infinitivo y acentu
 | `quieres` | `querés` | ~13 | |
 | `eres` | **`sos`** | ~4 | Supletiva |
 | `haces` | `hacés` | ~3 | |
+| `apruebas` | **`aprobás`** | ~1 | Cambio de raíz, como `aprueba` → `aprobá` |
 | `sabes` | `sabés` | ~3 | |
 | `debes` | `debés` | ~2 | |
 | `sientes` | `sentís` | ~2 | |
