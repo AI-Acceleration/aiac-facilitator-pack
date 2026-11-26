@@ -13,21 +13,30 @@ English and the Spanish kit.
 - **The status check no longer shows private details.** It now ends with a
   short block marked "safe to share" that holds only check names, `DONE` /
   `NOT DONE` / `SKIPPED (optional)`, the operating system and one verdict.
-  Participants send only that block. The rest of the report hides email
-  addresses, shortens folder paths to `~/…`, and shows a GitHub link as the
-  website name only, never a username or token.
+  Participants send only that block. The rest of the report never shows an
+  email address, a token or a settings value; folder paths are hidden, and
+  the repository's remote is shown only as a kind ("GitHub", "other host").
+  With `--details` it adds `~/…` paths and the remote's host name for the
+  participant's own eyes, under a do-not-share warning. It writes nothing: it
+  doesn't even run `gh` or `claude`, which can create files on first run.
 - **Setup grants far fewer standing permissions.** Claude is pre-approved
   only for a short list of read-only commands (such as `git status` and
   `git diff`), with no lasting write permission. Explicit `ask` rules make
-  it ask every time before it adds or commits files, publishes anything, or
-  prints a file through the shell (`cat`, `head`, `tail`, `grep`), and it
-  asks before running a script. The docs now say plainly which read-only
-  commands Claude Code runs without asking.
+  it ask every time before it adds or commits files, publishes anything
+  (including `git -C …` and `git -c …` forms), or prints a file through the
+  shell (`cat`, `head`, `tail`, `grep`, `diff`, `sed`, `sort`, `git show`),
+  and it asks before running a script. The docs now say plainly which
+  read-only commands Claude Code still runs without asking (for example
+  `git log -p`), and why an `ask` rule can't cover them without also
+  catching the allowed commands.
 - **Settings are merged locally, without showing them.** A small script
   merges the kit's entries into the participant's existing
   `~/.claude/settings.json`, keeps every key and rule already there, and
   prints only what it added and the names of keys it left alone, never
-  their values (the file can hold API keys).
+  their values (the file can hold API keys). It stops without changing
+  anything if the kit block is damaged or a section has an unexpected type,
+  creates the file private from the start, and writes through a symlinked
+  `settings.json`. Re-running the step never overwrites the first backup.
 - **Safer first upload to GitHub.** Sign-in happens in the browser (or
   through the Git Credential Manager on Windows), with no token to create or
   paste (`gh` and the credential manager store their own). The repository
@@ -35,14 +44,18 @@ English and the Spanish kit.
   stops the setup. Before the first upload, Claude checks the address git
   will really push to, confirms with the participant who owns the
   repository and that it is **Private**, and shows exactly which files and
-  commits are going up.
+  commits are going up. Every command in that step starts by moving into the
+  repository folder, so none of them runs in the vault by mistake.
 - **Removed a meeting-notes shortcut** that read a login token from another
   app's files and depended on an unofficial connection.
 - **The opt-in sandbox (Doc 02-S) is described honestly.** It says what the
   sandbox does and does not cover. Its self-test uses made-up files in a
   temporary folder, never a real key. Its credential deny rules are anchored
   to the home folder, so they cover the self-test's files too, and the
-  complete list sits in one place.
+  complete list sits in one place. It also blocks Claude Code's login file on
+  Linux and WSL2 (`~/.claude/.credentials.json`), which sandboxed commands
+  could otherwise read and send to an allowed site such as GitHub. Its quotes
+  from the Claude Code docs are re-checked against the live pages and dated.
 - **New `SECURITY.md`** explains how to report a security or privacy problem
   privately.
 - **The private-data gate is stricter** (shipped as its own change, merged
@@ -62,8 +75,9 @@ English and the Spanish kit.
   and are pinned to version **v1.0.0**, so every fresh install gets the same
   reviewed files (a skill the participant already has under the same name is
   skipped and keeps their version). The installer runs only after a
-  successful clone, or after checking that an existing copy is the official
-  `v1.0.0` with no changes.
+  successful clone that sits on the reviewed `v1.0.0` commit (`711372c`; a
+  tag can be moved, a commit can't), or after checking that an existing copy
+  is exactly that commit with no changes.
 - **Doc 01 ends with a required pre-flight.** Claude creates the vault
   (never in OneDrive, Dropbox, Google Drive or iCloud), has the participant
   open it in Obsidian with "Open folder as vault", checks every tool, and
@@ -92,7 +106,10 @@ English and the Spanish kit.
 - **Status check v2.0** works on macOS, Windows (Git Bash or WSL) and Linux,
   warns when the vault sits in a cloud-synced folder, checks that Obsidian's
   config folder is in the vault Claude uses, checks the ask-first rules and the
-  complete sandbox deny list, and only shows the sandbox checks when a
+  complete sandbox deny list, looks for broad allow rules and risky permission
+  modes in the global, vault and repository settings (including the
+  `settings.local.json` files where "don't ask again" answers are saved),
+  and only shows the sandbox checks when a
   sandbox is set up. Its labels say only what it can see on the machine (for
   example "repo origin points at GitHub"), and it lists what it cannot check
   from there, such as whether the repository exists on GitHub and is Private.
