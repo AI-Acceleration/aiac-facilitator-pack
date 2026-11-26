@@ -44,10 +44,37 @@ git config user.email "<id>+<login>@users.noreply.github.com"
 
 The gate accepts either form of a GitHub no-reply address as a commit's
 author or committer (or a tag's tagger), and GitHub's own web-merge
-committer. Any other address in those fields fails the history check. To
-credit a co-author, use their no-reply address on a trailer line of exactly
-this form: `Co-authored-by: Their Name <their no-reply address>`.
-Anywhere else in a message or a file, a no-reply address still fails.
+committer. Any other address in those fields fails the history check.
+
+To credit a co-author, end the commit message with a trailer block and put
+their no-reply address on a line of exactly this form:
+
+```text
+Short summary of the change
+
+Why it was needed, in as many paragraphs as you like.
+
+Co-authored-by: Their Name <their no-reply address>
+```
+
+The line counts only inside the message's **final trailer block**: the last
+paragraph (after the last blank line), which must not be the summary line
+and in which **every** line is a `Key: value` trailer (`Co-authored-by:`,
+`Signed-off-by:`, `Reviewed-by:` and so on, one per line, no wrapped
+continuation lines). The same line in the middle of the message, or in a
+last paragraph that also holds ordinary text, fails. So does the address on
+any other trailer, in a tag message, in a file or in a file name.
+
+The service addresses in `.githooks/allow-patterns.txt` (today only the one
+an AI assistant puts on its `Co-Authored-By:` attribution line) follow the
+same rule: accepted as a commit or tag identity and on a `Co-authored-by`
+line of the final trailer block, nowhere else. Writing one in a document, or
+in the body of a commit message, fails like any other address.
+
+The `commit-msg` hook judges the message before git strips its comment
+template, so it ignores a `# ...` template at the end of the message and
+everything below a `--verbose` scissors line. The history check reads the
+message as committed.
 
 ## Proposing a change
 
@@ -86,13 +113,15 @@ tables too. Register is chosen per *participant*, not per facilitator.
 
 The gate checks two things. Know where it stops: it is not a review.
 
-1. **Email addresses.** Any address that is not explicitly allowlisted fails
-   as `UNALLOWLISTED`, in file contents, file names, commit messages, commit
-   and tag headers, and every object in history. If your PR fails on it, you
-   pasted an address into a file or a message. Remove it; don't work around
-   it. The gate reads addresses hidden with HTML entities, full-width or
-   zero-width characters or `%40`, but not an address assembled at runtime
-   from string fragments.
+1. **Email addresses.** Every address fails as `UNALLOWLISTED`, in file
+   contents, file names, commit messages, commit and tag headers, and every
+   object in history, except the attributions described under "Commit with
+   your GitHub no-reply address": a no-reply or allowlisted identity in a
+   commit or tag header, and a `Co-authored-by` line in the final trailer
+   block of a commit message. If your PR fails on it, you pasted an address
+   into a file or a message. Remove it; don't work around it. The gate reads
+   addresses hidden with HTML entities, full-width or zero-width characters
+   or `%40`, but not an address assembled at runtime from string fragments.
 2. **Withheld files.** Internal files listed in `.githooks/forbidden-*.txt`
    (build specs and the trainer registry, which are not part of the public
    pack) are blocked by path and name, case-insensitively.
@@ -109,13 +138,26 @@ Other verdicts you may see:
 - `KNOWN-PRIVATE`: the address is on the deny list. This fails unconditionally;
   adding it to the allowlist does not help, by design.
 
-The gate never prints an address it caught: CI logs are public. It shows
-`address#<8 hex>` (the start of the address's SHA-256) and the line number,
-and replaces any part of a file path that holds an address with
-`[redacted#<8 hex>]`. Control characters in a path (a newline, for example)
-are printed as escapes such as `\x0a`, so a file name cannot fake a line of
-the CI log. Run `python3 bin/gate_scan.py --tree` locally to see which file
-and line.
+The gate never prints an address it caught. It shows `address#<8 hex>` (the
+start of the address's SHA-256) and the line number.
+
+**In CI it never prints a file or ref name either**, because CI logs are
+public and a name is text a pull request controls: it could hold an address,
+a private word, or a sequence the runner would read as a workflow command
+(`::error::`, `##[error]`). Each name is shown as `path#<8 hex>`, the start
+of the SHA-256 of the name, and a count of the names involved. When git
+itself fails during the check, CI prints a fixed message instead of git's
+own error text, which can quote a file name. The scanner switches to this
+output with `--ci`, which CI passes, or whenever the `GITHUB_ACTIONS` or `CI`
+environment variable is set.
+
+**Locally** (`python3 bin/gate_scan.py --tree`, `--history`, or the hooks)
+each finding shows the file name and line, followed by the same
+`path#<8 hex>`, so you can match a CI finding to its file. Even there, any
+part of a path that holds an address is replaced with `[redacted#<8 hex>]`,
+control characters print as escapes such as `\x0a`, and a `::` or `##` run
+(or a `:` or `#` at either end of a name) prints as `\x3a` / `\x23`
+escapes, so a name cannot fake a line of a log.
 
 Commit **messages** are scanned too, by `.githooks/commit-msg` locally and by
 `--history` in CI. Git history is permanent; don't paste an address into one.
@@ -136,8 +178,10 @@ your PR does not change what judges it. It checks, in order:
 3. every commit in history, including yours, the same scan as
    `python3 bin/gate_scan.py --history`.
 
-The CI log never prints an address or a changed file name: logs are public.
-Run the commands above locally to see which file and line.
+The CI log never prints an address, a file or ref name from your PR, or
+git's own error text: logs are public. Findings name files as
+`path#<8 hex>`; run the commands above locally to see which file and line
+(the local output shows the same `path#<8 hex>` next to each name).
 
 The `tests` check runs your PR's own unit tests with a read-only token.
 
