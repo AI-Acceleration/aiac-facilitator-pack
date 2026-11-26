@@ -1,0 +1,495 @@
+"""The CI side of the gate: bin/gate_surface_pin.sh, bin/gate_pr_check.sh and
+the workflow files that call them.
+
+CI logs are public, so the main property tested here is that a changed or
+offending file NAME never reaches the output, whatever it holds. Synthetic
+addresses are built from fragments (this file is itself scanned by the gate)
+and live at the reserved `.test` TLD.
+"""
+import os
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+import tempfile
+import textwrap
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+FIXTURES = ROOT / "tests" / "fixtures"
+WORKFLOWS = ROOT / ".github" / "workflows"
+
+DOMAIN = "example-invalid" + ".test"
+UNKNOWN = "someone.else" + "@" + DOMAIN
+GIT_EMAIL = "t" + "@" + DOMAIN
+# A file name that is sensitive without holding an address: nothing in the
+# output may echo it either.
+PRIVATE_WORD = "participant-surname-zqxv"
+
+
+def fake_git(directory, subcommand, stderr_text):
+    """A `git` that fails `subcommand` with `stderr_text` on stderr and runs
+    the real git for everything else. Put `directory` first on PATH."""
+    real = shutil.which("git")
+    script = Path(directory) / "git"
+    script.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = %s ]; then printf '%%s\\n' %s >&2; exit 128; fi\n"
+        "exec %s \"$@\"\n" % (shlex.quote(subcommand), shlex.quote(stderr_text),
+                              shlex.quote(real)), encoding="utf-8")
+    script.chmod(0o755)
+    return str(directory)
+
+
+# A git command in workflow shell code: `git` as a word, not part of a path
+# or name such as `.githooks` or `github.sha`.
+GIT_CALL = re.compile(r"(?<![\w./-])git\s+[a-z]")
+STDERR_SUPPRESSED = re.compile(r"2>\s*/dev/null|>\s*/dev/null\s+2>&1")
+
+
+def shell_statements(text):
+    """Non-comment lines of `text`, with backslash continuations joined."""
+    out, cur = [], ""
+    for line in text.splitlines():
+        if line.lstrip().startswith("#"):
+            continue
+        if line.rstrip().endswith("\\"):
+            cur += line.rstrip()[:-1] + " "
+            continue
+        out.append(cur + line)
+        cur = ""
+    if cur:
+        out.append(cur)
+    return out
+
+
+def unguarded_git_calls(text):
+    """Git calls whose stderr can reach the log, or whose failure is not
+    turned into a fixed GATE ERROR message."""
+    bad = []
+    for stmt in shell_statements(text):
+        if not GIT_CALL.search(stmt):
+            continue
+        quiet = STDERR_SUPPRESSED.search(stmt)
+        fixed = (re.search(r"\|\|\s*\{\s*echo \"GATE ERROR: ", stmt)
+                 or re.match(r"\s*if ! git ", stmt))
+        if not (quiet and fixed):
+            bad.append(stmt.strip())
+    return bad
+
+
+def tests_runner(workflow_text):
+    """The inline Python that tests.yml runs the suite with."""
+    m = re.search(r"python3 - <<'EOF'\n(.*?)\n[ \t]*EOF(?:\n|$)", workflow_text, re.S)
+    return textwrap.dedent(m.group(1)) + "\n" if m else None
+
+
+# What a failing git might print: a private name and forged log commands.
+GIT_STDERR = ("fatal: bad path '%s'\n::error::forged ##[error]x" % PRIVATE_WORD)
+
+
+class CiSandbox(unittest.TestCase):
+    """A repo whose `main` holds the REAL gate scripts and pattern files (deny
+    list swapped for the synthetic fixture), plus a `pr` branch to judge.
+    The working tree stays on main: like CI, the checkout is the base."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="gateci-"))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        (self.tmp / "bin").mkdir()
+        for name in ("gate_scan.py", "gate_surface_pin.sh", "gate_pr_check.sh"):
+            shutil.copy2(ROOT / "bin" / name, self.tmp / "bin" / name)
+        shutil.copytree(ROOT / ".githooks", self.tmp / ".githooks")
+        shutil.copy2(FIXTURES / "deny-hashes-test.txt",
+                     self.tmp / ".githooks" / "deny-hashes.txt")
+        with open(self.tmp / ".githooks" / "allow-patterns.txt", "a",
+                  encoding="utf-8") as f:
+            f.write("\n%s\n" % GIT_EMAIL)
+        (self.tmp / ".github").mkdir()
+        (self.tmp / ".github" / "ci.yml").write_text("name: ci\n", encoding="utf-8")
+        (self.tmp / "doc.md").write_text("clean body\n", encoding="utf-8")
+        self.git("init", "-q")
+        self.git("config", "user.email", GIT_EMAIL)
+        self.git("config", "user.name", "t")
+        self.git("checkout", "-q", "-b", "main")
+        self.git("add", "-A")
+        self.git("commit", "-q", "--no-verify", "-m", "base")
+        self.git("branch", "pr")
+
+    def git(self, *args, **kw):
+        return subprocess.run(["git", *args], cwd=str(self.tmp), check=True,
+                              capture_output=True, **kw)
+
+    def on_pr(self, files, message="pr change"):
+        """Commit `files` ({path: text}) on the pr branch without touching
+        main's working tree: objects only, the way CI receives a PR."""
+        idx = self.tmp / ".git" / "pr-index"
+        env = dict(os.environ, GIT_INDEX_FILE=str(idx))
+        self.git("read-tree", "pr", env=env)
+        for path, text in files.items():
+            blob = self.git("hash-object", "-w", "--stdin",
+                            input=text.encode("utf-8")).stdout.strip().decode()
+            self.git("update-index", "--add", "--cacheinfo",
+                     "100644,%s,%s" % (blob, path), env=env)
+        tree = self.git("write-tree", env=env).stdout.strip().decode()
+        idx.unlink()
+        sha = self.git("commit-tree", tree, "-p", "pr", "-m", message
+                       ).stdout.strip().decode()
+        self.git("update-ref", "refs/heads/pr", sha)
+        return sha
+
+    def run_script(self, name, *args, fail_git=None):
+        """fail_git=(subcommand, ...) makes that git subcommand fail with
+        GIT_STDERR."""
+        env = dict(os.environ)
+        if fail_git:
+            bindir = Path(tempfile.mkdtemp(prefix="gatefakegit-"))
+            self.addCleanup(shutil.rmtree, bindir, True)
+            env["PATH"] = (fake_git(bindir, fail_git, GIT_STDERR) + os.pathsep +
+                           env.get("PATH", ""))
+        return subprocess.run(["bash", str(self.tmp / "bin" / name), *args],
+                              cwd=str(self.tmp), capture_output=True, text=True,
+                              env=env)
+
+    def assertNothingLeaks(self, r, *needles):
+        out = r.stdout + r.stderr
+        for n in needles + (DOMAIN, PRIVATE_WORD, "forged"):
+            self.assertNotIn(n, out)
+
+    def assertNoLogCommand(self, r):
+        """No output line may hold a workflow command sequence, anywhere."""
+        out = r.stdout + r.stderr
+        self.assertNotIn("\r", out)
+        for line in out.splitlines():
+            self.assertNotIn("::", line, "workflow command sequence: %r" % line)
+            self.assertNotIn("##", line, "legacy command sequence: %r" % line)
+
+
+class TestSurfacePin(CiSandbox):
+    def test_changed_surface_names_are_never_printed(self):
+        self.on_pr({".github/%s.yml" % UNKNOWN: "x\n",
+                    "bin/%s.sh" % PRIVATE_WORD: "x\n",
+                    ".githooks/notes %s" % PRIVATE_WORD: "x\n"})
+        r = self.run_script("gate_surface_pin.sh", "main", "pr")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("BLOCKED", r.stdout)
+        self.assertIn("3 path(s)", r.stdout)
+        self.assertNothingLeaks(r, UNKNOWN, "someone.else")
+
+    def test_name_with_newline_counts_once_and_is_not_printed(self):
+        self.on_pr({".github/a\n%s.yml" % PRIVATE_WORD: "x\n"})
+        r = self.run_script("gate_surface_pin.sh", "main", "pr")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("1 path(s)", r.stdout)
+        self.assertNothingLeaks(r)
+
+    def test_edit_to_existing_surface_file_is_blocked(self):
+        self.on_pr({".github/ci.yml": "name: neutered\n"})
+        r = self.run_script("gate_surface_pin.sh", "main", "pr")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertNotIn("ci.yml", r.stdout + r.stderr)
+
+    def test_change_outside_the_surface_passes(self):
+        self.on_pr({"doc.md": "changed body\n"})
+        r = self.run_script("gate_surface_pin.sh", "main", "pr")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_branch_behind_a_main_side_gate_change_passes(self):
+        # main changed the surface after the PR branched; the PR did not.
+        self.on_pr({"doc.md": "changed body\n"})
+        (self.tmp / ".github" / "ci.yml").write_text("name: ci v2\n",
+                                                     encoding="utf-8")
+        self.git("commit", "-q", "--no-verify", "-am", "main-side gate change")
+        r = self.run_script("gate_surface_pin.sh", "main", "pr")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_codeowners_change_is_blocked_and_not_named(self):
+        # CODEOWNERS decides who must review the surface, so it is surface.
+        self.on_pr({"CODEOWNERS": "* @%s\n" % PRIVATE_WORD})
+        r = self.run_script("gate_surface_pin.sh", "main", "pr")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("1 path(s)", r.stdout)
+        self.assertNothingLeaks(r)
+
+    def test_codeowners_in_docs_is_blocked_and_not_named(self):
+        # GitHub falls back to docs/CODEOWNERS; it is pinned too.
+        self.on_pr({"docs/CODEOWNERS": "* @%s\n" % PRIVATE_WORD})
+        r = self.run_script("gate_surface_pin.sh", "main", "pr")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("1 path(s)", r.stdout)
+        self.assertNotIn("docs/", r.stdout + r.stderr)
+        self.assertNothingLeaks(r)
+
+    def test_edit_to_existing_codeowners_is_blocked(self):
+        (self.tmp / "CODEOWNERS").write_text("* @owner\n", encoding="utf-8")
+        self.git("add", "CODEOWNERS")
+        self.git("commit", "-q", "--no-verify", "-m", "codeowners")
+        self.git("branch", "-f", "pr", "main")
+        self.on_pr({"CODEOWNERS": "# emptied\n"})
+        r = self.run_script("gate_surface_pin.sh", "main", "pr")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("1 path(s)", r.stdout)
+
+    def test_gate_tests_are_not_pinned(self):
+        # Tests never run in the gate job, so they are reviewed (CODEOWNERS)
+        # but not pinned: a test-only PR is not an admin merge.
+        self.on_pr({"tests/test_gate_new.py": "x = 1\n",
+                    "tests/fixtures/extra.txt": "x\n"})
+        r = self.run_script("gate_surface_pin.sh", "main", "pr")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_unresolvable_commit_fails_loud(self):
+        r = self.run_script("gate_surface_pin.sh", "main", "f" * 40)
+        self.assertEqual(r.returncode, 3, r.stdout + r.stderr)
+        self.assertIn("GATE ERROR", r.stderr)
+
+    def test_git_error_text_is_never_printed(self):
+        self.on_pr({"doc.md": "changed body\n"})
+        for sub in ("merge-base", "diff"):
+            with self.subTest(git=sub):
+                r = self.run_script("gate_surface_pin.sh", "main", "pr",
+                                    fail_git=sub)
+                self.assertEqual(r.returncode, 3, r.stdout + r.stderr)
+                self.assertIn("GATE ERROR", r.stderr)
+                self.assertNothingLeaks(r)
+                self.assertNoLogCommand(r)
+
+
+class TestPrCheck(CiSandbox):
+    def test_clean_pr_passes(self):
+        sha = self.on_pr({"kit/new doc.md": "clean\n"})
+        r = self.run_script("gate_pr_check.sh", "main", sha)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("tree", r.stdout)
+        self.assertIn("history", r.stdout)
+
+    def test_address_in_pr_file_is_blocked_and_redacted(self):
+        sha = self.on_pr({"kit/doc.md": "route to %s\n" % UNKNOWN})
+        r = self.run_script("gate_pr_check.sh", "main", sha)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("UNALLOWLISTED", r.stderr)
+        self.assertNothingLeaks(r, UNKNOWN)
+
+    def test_pr_file_is_scanned_though_main_checkout_lacks_it(self):
+        # The working tree is main's: the PR's file exists only as objects.
+        sha = self.on_pr({"kit/doc.md": "route to %s\n" % UNKNOWN})
+        self.assertFalse((self.tmp / "kit").exists())
+        self.assertEqual(self.run_script("gate_pr_check.sh", "main", sha).returncode, 1)
+
+    def test_sensitive_surface_name_never_printed_by_any_check(self):
+        sha = self.on_pr({".github/%s.yml" % UNKNOWN: "x\n",
+                          "bin/%s.sh" % PRIVATE_WORD: "x\n"})
+        r = self.run_script("gate_pr_check.sh", "main", sha)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("2 path(s)", r.stdout)
+        self.assertIn("path#", r.stderr)  # the scanner's own finding, by id
+        self.assertNotIn("[redacted#", r.stderr)  # CI never prints the path
+        out = r.stdout + r.stderr
+        self.assertNotIn(UNKNOWN, out)
+        self.assertNotIn(DOMAIN, out)
+        # The non-address name is reported only by the surface pin, by count.
+        self.assertNotIn(PRIVATE_WORD, out)
+
+    def test_pr_path_text_never_reaches_the_log(self):
+        # Paths outside the gate surface, so only the scanner sees them: in
+        # CI it prints each as path#<8 hex>, never its text.
+        sha = self.on_pr({
+            "kit/%s ##[error]x.md" % PRIVATE_WORD: "route to %s\n" % UNKNOWN,
+            "kit/a ::error::%s.md" % PRIVATE_WORD: "route to %s\n" % UNKNOWN,
+            "kit/\n::warning::%s.md" % PRIVATE_WORD: "route to %s\n" % UNKNOWN},
+            "odd names")
+        r = self.run_script("gate_pr_check.sh", "main", sha)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("UNALLOWLISTED", r.stderr)
+        self.assertIn("path#", r.stderr)
+        self.assertNotIn("kit/", r.stdout + r.stderr)
+        self.assertNothingLeaks(r, UNKNOWN)
+        self.assertNoLogCommand(r)
+
+    def test_git_error_text_is_never_printed(self):
+        sha = self.on_pr({"doc.md": "changed\n"})
+        for sub in ("read-tree", "for-each-ref", "rev-list", "ls-files"):
+            with self.subTest(git=sub):
+                r = self.run_script("gate_pr_check.sh", "main", sha, fail_git=sub)
+                self.assertEqual(r.returncode, 3, r.stdout + r.stderr)
+                self.assertIn("GATE ERROR", r.stderr)
+                self.assertNothingLeaks(r)
+                self.assertNoLogCommand(r)
+
+    def test_withheld_file_in_pr_is_blocked(self):
+        sha = self.on_pr({"kit/00 — Trainer Registry.md": "x\n"})
+        r = self.run_script("gate_pr_check.sh", "main", sha)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("FORBIDDEN BASENAME", r.stderr)
+
+    def test_pr_cannot_loosen_the_scanner_that_judges_it(self):
+        # The PR replaces the scanner with one that always passes and adds a
+        # leak. The check runs main's scanner, so the leak is still caught.
+        sha = self.on_pr({"bin/gate_scan.py": "import sys\nsys.exit(0)\n",
+                          ".githooks/allow-patterns.txt": UNKNOWN + "\n",
+                          "kit/doc.md": "route to %s\n" % UNKNOWN})
+        r = self.run_script("gate_pr_check.sh", "main", sha)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("UNALLOWLISTED", r.stderr)
+        self.assertIn("BLOCKED: this change edits the gate surface", r.stdout)
+
+    def test_address_in_pr_commit_message_is_blocked(self):
+        sha = self.on_pr({"doc.md": "changed\n"}, "thanks %s" % UNKNOWN)
+        r = self.run_script("gate_pr_check.sh", "main", sha)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("commit message", r.stderr)
+        self.assertNothingLeaks(r, UNKNOWN)
+
+    def test_head_not_reachable_from_a_ref_fails_loud(self):
+        sha = self.on_pr({"doc.md": "changed\n"})
+        self.git("update-ref", "refs/heads/pr", "main")
+        r = self.run_script("gate_pr_check.sh", "main", sha)
+        self.assertEqual(r.returncode, 3, r.stdout + r.stderr)
+        self.assertIn("not reachable", r.stderr)
+
+    def test_unresolvable_head_fails_loud(self):
+        r = self.run_script("gate_pr_check.sh", "main", "f" * 40)
+        self.assertEqual(r.returncode, 3, r.stdout + r.stderr)
+
+
+class TestWorkflows(unittest.TestCase):
+    """Static checks on the workflow text: the trust boundary is in YAML, and
+    a careless edit to it would not fail any other test."""
+
+    def setUp(self):
+        self.gate = (WORKFLOWS / "gate.yml").read_text(encoding="utf-8")
+        self.tests = (WORKFLOWS / "tests.yml").read_text(encoding="utf-8")
+
+    def code(self, text):
+        return "\n".join(l for l in text.splitlines()
+                         if not l.lstrip().startswith("#"))
+
+    def test_gate_runs_from_main_not_from_the_pr(self):
+        gate = self.code(self.gate)
+        self.assertRegex(gate, r"(?m)^  pull_request_target:")
+        self.assertNotRegex(gate, r"(?m)^  pull_request:")
+        self.assertIn("bash bin/gate_pr_check.sh", gate)
+
+    def test_gate_judges_only_pull_requests_into_main(self):
+        # On pull_request_target the trusted code is the base branch's tip;
+        # only main is protected, so only PRs into main may be judged.
+        gate = self.code(self.gate)
+        self.assertRegex(gate, r"(?m)^  pull_request_target:\n"
+                               r"    branches: \[main\]$")
+
+    def test_pin_and_codeowners_cover_the_same_surface(self):
+        pin = (ROOT / "bin" / "gate_surface_pin.sh").read_text(encoding="utf-8")
+        m = re.search(r"(?m)^SURFACE=\(([^)]*)\)$", pin)
+        self.assertIsNotNone(m)
+        surface = m.group(1).split()
+        owners = (ROOT / "CODEOWNERS").read_text(encoding="utf-8")
+        owned = {l.split()[0] for l in owners.splitlines()
+                 if l.strip() and not l.startswith("#")}
+        for path in surface:
+            self.assertTrue({"/" + path, "/" + path + "/"} & owned,
+                            "%s is pinned but has no code-owner rule" % path)
+        self.assertIn("CODEOWNERS", surface)
+
+    def test_gate_never_checks_out_or_runs_pr_code(self):
+        gate = self.code(self.gate)
+        self.assertIn("ref: ${{ github.sha }}", gate)
+        self.assertNotRegex(gate, r"ref:\s*\$\{\{\s*github\.event\.pull_request")
+        self.assertNotRegex(gate, r"ref:\s*refs/pull")
+        self.assertNotIn("unittest", gate)
+        self.assertNotIn("secrets.", gate)
+        # PR-controlled event fields reach shell only through env, never
+        # interpolated into a run: script.
+        for line in gate.splitlines():
+            if "github.event.pull_request" in line:
+                self.assertRegex(line, r"^\s+PR_[A-Z]+: \$\{\{ github\.event\."
+                                       r"pull_request\.(number|head\.sha) \}\}$")
+
+    def test_gate_token_is_read_only_and_checkout_pinned(self):
+        for text in (self.gate, self.tests):
+            code = self.code(text)
+            self.assertRegex(code, r"(?m)^permissions:\n  contents: read$")
+            self.assertIn("persist-credentials: false", code)
+            for uses in re.findall(r"uses: (\S+)", code):
+                self.assertRegex(uses, r"@[0-9a-f]{40}$")
+
+    def test_no_workflow_prints_file_names(self):
+        # The old pin step echoed `git diff --name-only` verbatim.
+        for text in (self.gate, self.tests):
+            code = self.code(text)
+            self.assertNotIn("--name-only", code)
+            self.assertNotIn("$changed", code)
+
+    def test_every_scanner_run_in_the_gate_uses_ci_output(self):
+        # GitHub sets GITHUB_ACTIONS, which the scanner also honours; the
+        # explicit flag keeps CI output if that ever changes.
+        runs = re.findall(r"gate_scan\.py[^\n]*", self.code(self.gate))
+        self.assertTrue(runs)
+        for run in runs:
+            self.assertIn("--ci", run)
+        pr = (ROOT / "bin" / "gate_pr_check.sh").read_text(encoding="utf-8")
+        scans = re.findall(r"gate_scan\.py\"[^\n]*", pr)
+        self.assertEqual(len(scans), 2)
+        for run in scans:
+            self.assertIn("--ci", run)
+
+    def test_every_git_call_in_the_gate_hides_its_stderr(self):
+        # git's own error text can quote a ref or path from the pull request
+        # and the log is public: every git call sends stderr to /dev/null and
+        # a failure prints a fixed GATE ERROR line instead.
+        calls = [s for s in shell_statements(self.gate) if GIT_CALL.search(s)]
+        self.assertGreaterEqual(len(calls), 4, calls)
+        self.assertEqual(unguarded_git_calls(self.gate), [])
+
+    def test_git_call_check_catches_a_bare_call(self):
+        # The check above must be able to fail.
+        for snippet in (
+                'git fetch origin "+refs/pull/1/head:refs/gate/x"\n',
+                'git update-ref -d refs/gate/x 2>/dev/null\n',
+                'git update-ref refs/gate/x "$H" || { echo "GATE ERROR: x"; exit 3; }\n',
+                'git fetch origin x \\\n  || { echo "GATE ERROR: x"; exit 3; }\n'):
+            with self.subTest(snippet=snippet):
+                self.assertEqual(len(unguarded_git_calls(snippet)), 1)
+        self.assertEqual(unguarded_git_calls(
+            "# git fetch in a comment\nuses: .githooks/x ${{ github.sha }}\n"), [])
+
+    def test_tests_workflow_requires_jq_before_the_suite(self):
+        # Many status-check tests skip themselves without jq; CI must not go
+        # green with them skipped.
+        code = self.code(self.tests)
+        guard = code.find('command -v jq >/dev/null || '
+                          '{ echo "jq is required for the tests"; exit 1; }')
+        suite = code.find("unittest")
+        self.assertNotEqual(guard, -1, "tests.yml has no jq guard")
+        self.assertNotEqual(suite, -1, "tests.yml does not run the suite")
+        self.assertLess(guard, suite, "the jq guard must run before the tests")
+
+    def test_tests_workflow_runs_the_suite_and_fails_on_skips(self):
+        # Run the workflow's own runner against tiny suites.
+        runner = tests_runner(self.code(self.tests))
+        self.assertIsNotNone(runner, "tests.yml has no inline unittest runner")
+        cases = {
+            "passes": ("def test_x(self): pass", 0),
+            "fails": ("def test_x(self): self.fail('no')", 1),
+            "skips": ("@unittest.skip('jq required')\n    def test_x(self): pass", 1),
+        }
+        for name, (body, want) in cases.items():
+            with self.subTest(case=name):
+                tmp = Path(tempfile.mkdtemp(prefix="gaterunner-"))
+                self.addCleanup(shutil.rmtree, tmp, True)
+                (tmp / "tests").mkdir()
+                (tmp / "tests" / "__init__.py").write_text("", encoding="utf-8")
+                (tmp / "tests" / "test_one.py").write_text(
+                    "import unittest\n\nclass T(unittest.TestCase):\n"
+                    "    %s\n" % body, encoding="utf-8")
+                r = subprocess.run([sys.executable, "-"], input=runner,
+                                   cwd=str(tmp), capture_output=True, text=True)
+                self.assertEqual(r.returncode, want, r.stdout + r.stderr)
+                self.assertIn("test_x", r.stderr)  # verbose: each test named
+                if name == "skips":
+                    self.assertIn("skipped", r.stdout + r.stderr)
+
+
+if __name__ == "__main__":
+    unittest.main()

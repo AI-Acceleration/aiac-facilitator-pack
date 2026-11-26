@@ -1,11 +1,23 @@
 # The maintainers team reviews everything in this repo.
 *       @AI-Acceleration/maintainers
 
-# Security-relevant surface. A change here alters what the gate can see:
+# Security-relevant surface. A change here alters what the gate can see or
+# who must review it:
 #   .githooks/**        pattern lists and the hooks that run the gate
 #   bin/gate_scan.py    the gate itself
 #   .github/**          the CI that runs the gate
-# Review these as security changes, not docs changes.
+#   CODEOWNERS          this file: who reviews the lines above
+# Review these as security changes, not docs changes. The CI surface pin
+# (bin/gate_surface_pin.sh) blocks the same paths, so they land only by an
+# admin merge after review.
+#
+# The gate's tests and fixtures get the same reviewer, but are not pinned:
+# they never run in the gate job, so editing them cannot change what the
+# gate sees. They are where a gate change is exercised, so read them with it.
 /.githooks/             @wildbuffaloman
 /bin/                   @wildbuffaloman
 /.github/               @wildbuffaloman
+/CODEOWNERS             @wildbuffaloman
+/docs/CODEOWNERS        @wildbuffaloman
+/tests/test_gate*.py    @wildbuffaloman
+/tests/fixtures/        @wildbuffaloman
