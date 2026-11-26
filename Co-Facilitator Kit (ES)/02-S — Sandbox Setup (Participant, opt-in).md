@@ -15,6 +15,10 @@ Este documento es para un participante que quiere un límite **verificable** alr
 
 Lee la Parte 1 antes de ejecutar nada. Te dice qué estás obteniendo de verdad — incluyendo lo que **no** estás obteniendo. Si las garantías de la Parte 1 no te resultan suficientes, la Parte 6 te dice qué hacer en su lugar.
 
+> **En cada pregunta de permiso, elige el "Yes" simple (o "No") — nunca "Yes, and don't ask again".**
+> La opción "don't ask again" guarda una regla duradera en tus ajustes que deja correr ese comando sin
+> preguntar desde entonces, y el chequeo de estado la va a reportar.
+
 ---
 
 ## Parte 1 — Qué garantiza esto de verdad

@@ -111,7 +111,7 @@ La ventana de contexto de Claude es limitada. Mientras trabajas en una sesión, 
 - Corre `/session-close` y después `/clear` para empezar de cero (lo más limpio: el estado queda guardado en el Continuation Prompt del brief de tu proyecto, y después se reinicia).
 - O corre `/compact` para resumir en el sitio y seguir a mitad de tarea (más rápido, pero pierde detalle: prefiere la opción de arriba en una pausa natural).
 
-**Cómo ves tu uso:** tu % de contexto aparece como una barra en vivo abajo en la terminal, el monitor de contexto que montó tu Main Setup Prompt. La barra se pone **amarilla ⚠ al 50%** (con un aviso de una sola vez), y la auto-compactación se **frena justo antes del 75%** para que puedas correr `/session-close` antes de que se comprima el contexto. Si no ves la barra, abre una sesión nueva; si sigue sin aparecer, escribe `/context` para ver el estado actual y pídele a Claude que vuelva a correr el PASO 3.5 de tu Main Setup Prompt (no uses `/statusline-setup`: reemplaza la barra personalizada y quita el aviso del 50%).
+**Cómo ves tu uso:** tu % de contexto aparece como una barra en vivo abajo en la terminal, el monitor de contexto que montó tu Main Setup Prompt. La barra se pone **amarilla ⚠ al 50%** (con un aviso de una sola vez), y la **compactación automática queda apagada**, así que nada se comprime a tus espaldas: al 75% la barra se pone roja y esa es tu señal para correr `/session-close` (o `/compact`). Si ignoras la barra roja, un pedido posterior puede fallar; entonces corre `/compact` tú mismo. Si no ves la barra, abre una sesión nueva; si sigue sin aparecer, escribe `/context` para ver el estado actual y pídele a Claude que vuelva a correr el PASO 3.5 de tu Main Setup Prompt (no uses `/statusline-setup`: reemplaza la barra personalizada y quita el aviso del 50%).
 
 #### 3. Skills — Procedimientos Reutilizables
 
@@ -213,7 +213,7 @@ El inventario completo, por si necesitas auditar, replicar o resolver problemas 
 |-------|------|--------------|
 | `Stop` | Sonido | Aviso audible cuando Claude termina una tarea |
 | `UserPromptSubmit` | Aviso de contexto | Un recordatorio de una sola vez cuando pasas el 50% |
-| `PreCompact` | Freno antes de auto-compactar | Te da la oportunidad de correr `/session-close` primero |
+| `PreCompact` | Apaga la compactación automática (el intento se salta y la conversación sigue) | Tú decides cuándo correr `/session-close` o `/compact` |
 
 ### Qué Hacer Cuando Algo se Siente Raro
 

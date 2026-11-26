@@ -16,7 +16,7 @@ Tú (el facilitador) le envías al participante los **Docs 01, 02, 03 y 07** (el
 Doc 07 es el vocabulario) más o menos una semana antes. El participante
 instala todo por su cuenta y termina con un pre-vuelo corto cuyo resultado, en
 una línea (`PREFLIGHT: READY · ACCOUNT: personal|team`), te envía.
-El día de la sesión corres el flujo de 8 bloques del **Doc 05 (el manual)**.
+El día de la sesión corres el flujo de 11 bloques del **Doc 05 (el manual)**.
 El participante le da el **Doc 02** a Claude Code **por archivo**: lo guarda y
 le dice a Claude «Lee el archivo <ruta> y sigue sus instrucciones». Claude lo
 entrevista, escoge su primer caso real y le arma su propio *vault* y su

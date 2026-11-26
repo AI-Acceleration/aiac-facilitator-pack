@@ -135,9 +135,13 @@ English and the Spanish kit.
   steps, and explains how to keep plugins up to date. Its settings check
   compares the auto-compact value with 75 silently and prints only OK or
   NOT OK, never a value from the settings file.
-- **The context monitor's pause before auto-compaction works.** The
-  PreCompact hook now blocks with `"decision": "block"`, the documented
-  way; the previous `"continue": false` was ignored on that event.
+- **The context monitor really turns automatic compaction off.** The
+  PreCompact hook now blocks with `"decision": "block"`, the documented way
+  (the previous `"continue": false` was ignored on that event). A blocked
+  automatic compaction is skipped and the conversation continues; the bar
+  turns red at 75% as the cue to run `/session-close` or `/compact`, and if
+  the participant ignores it, a later request can fail until they run
+  `/compact`.
 - **Recording meetings is optional.** Granola, any other transcription tool,
   or a pasted transcript all work, and everyone in a meeting is asked first.
 - **Team and Enterprise accounts** use the plugins their organization

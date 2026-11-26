@@ -109,7 +109,7 @@ Claude's context window is limited. As you work in a session, it fills with conv
 - Run `/session-close`, then `/clear` to start fresh (cleanest: state is saved in your project brief's Continuation Prompt, then reset).
 - Or run `/compact` to summarize in place and keep going mid-task (faster, but lossy: prefer the option above at a natural break point).
 
-**How to see your usage:** your context % shows as a live bar at the bottom of the terminal, the context monitor set up by your Main Setup Prompt. The bar turns **yellow ⚠ at 50%** (with a one-time warning), and auto-compaction is **stopped just before 75%** so you get a chance to run `/session-close` before context is compressed. If the bar isn't visible, open a new session; if it's still missing, type `/context` to see the current state and ask Claude to re-run STEP 3.5 of your Main Setup Prompt (don't use `/statusline-setup`: it replaces the custom bar and removes the 50% warning).
+**How to see your usage:** your context % shows as a live bar at the bottom of the terminal, the context monitor set up by your Main Setup Prompt. The bar turns **yellow ⚠ at 50%** (with a one-time warning), and **automatic compaction is turned off**, so nothing is compressed behind your back: at 75% the bar turns red and that is your cue to run `/session-close` (or `/compact`). If you ignore the red bar, a later request can fail; then run `/compact` yourself. If the bar isn't visible, open a new session; if it's still missing, type `/context` to see the current state and ask Claude to re-run STEP 3.5 of your Main Setup Prompt (don't use `/statusline-setup`: it replaces the custom bar and removes the 50% warning).
 
 #### 3. Skills — Reusable Procedures
 
@@ -211,7 +211,7 @@ Full inventory, in case you need to audit, replicate or troubleshoot later.
 |-------|------|--------------|
 | `Stop` | Sound | Audible notification when Claude finishes a task |
 | `UserPromptSubmit` | Context warning | A one-time reminder once you pass 50% |
-| `PreCompact` | Stop before auto-compact | Gives you the chance to `/session-close` first |
+| `PreCompact` | Turns automatic compaction off (the attempt is skipped, the conversation continues) | You decide when to `/session-close` or `/compact` |
 
 ### How to Troubleshoot When Something Feels Off
 

@@ -183,7 +183,7 @@ La línea del pre-vuelo ya lo confirma (si no, aparece `gh login` como falta). A
 
 ## EL GUION DE LA SESIÓN
 
-Nueve bloques. Los minutos son el **mejor caso nominal** (~90 min). En una primera sesión, espera que cada bloque tome más, y calcula 2 a 3 horas en total. Mantén esta barra a la vista mientras dictas:
+11 bloques. Los minutos son el **mejor caso nominal** (~90 min). En una primera sesión, espera que cada bloque tome más, y calcula 2 a 3 horas en total. Mantén esta barra a la vista mientras dictas:
 
 ```
 [ ] Block 0:   Start check: screen share + pre-flight line   5 min  ← before anything else
@@ -328,6 +328,9 @@ Es el bloque más grande y el corazón de la configuración. El **Doc 02** (Wind
 - Vigila los errores, explica qué hace cada paso mientras pasa, y **confirma que la ruta del *vault*** que usa Claude coincide con la que anotaste en el Bloque 0.
 - Durante la **entrevista en vivo**, ayuda al participante a articular su problema de trabajo y orienta hacia un primer caso que encaje bien (ver abajo).
 - **Antes del primer push**, asegúrate de que Claude se detenga y confirme con el participante el dueño, la visibilidad **Private** y la lista de archivos a subir.
+- **Espera muchas preguntas de aprobación** en los Docs 02 y 03: es la configuración estrecha de permisos funcionando.
+- **Vigila cada respuesta:** el participante elige el **Yes** simple (o No), nunca "Yes, and don't ask again".
+- **Si eligió "don't ask again"**, abre junto al participante la pantalla integrada `/permissions`, borra ahí la regla que guardó y vuelve a correr el chequeo de estado.
 
 **Qué hace el participante:**
 1. Entra al *vault* y arranca Claude Code.
@@ -345,7 +348,7 @@ Tu trabajo durante la entrevista es ser el copiloto humano: ayúdalo a escoger u
 **Lo que construye el Main Setup Prompt:**
 - La estructura de carpetas PARA + el espacio de trabajo `05 AI/CLAUDE CODE/`.
 - El `CLAUDE.md` del *vault* (reglas de comportamiento) y el enrutador global `~/.claude/CLAUDE.md`.
-- `~/.claude/settings.json`: permisos acotados, **fusionados** con lo que ya hubiera (nunca sobrescrito, nunca aprobaciones generales), el hook de sonido y el monitor de contexto (barra de estado + resguardos de auto-compactación).
+- `~/.claude/settings.json`: permisos acotados, **fusionados** con lo que ya hubiera (nunca sobrescrito, nunca aprobaciones generales), el hook de sonido y el monitor de contexto (barra de estado, aviso al 50%, compactación automática apagada).
 - Git configurado, GitHub conectado y un repo en `~/dev`, subido a un repositorio **privado** de GitHub bajo la propia cuenta del participante.
 - El `CLAUDE.md` del repo (contexto del dominio específico del caso, sacado de la entrevista), con un puente de vuelta al brief del *vault*.
 - La plantilla de brief de proyecto, el brief de proyecto en `01 PROJECTS/`, el MOC del Área y el brief del recorrido en el AI Acceleration Club.
@@ -425,14 +428,14 @@ Si Claude lee el INBOX del *vault* **sin que le den la ruta**, el enrutador func
 Es corto pero **carga peso.** La ventana de contexto es uno de los dos modelos mentales más importantes (el otro es el `CLAUDE.md`). Quien lo entiende desde el primer día evita la falla de «mi sesión empeoraba mientras más trabajaba».
 
 **Qué haces tú, parte 1: confirma la barra de estado (2 min).**
-- El Doc 02 (PASO 3.5) ya instaló el monitor de contexto: una barra de estado con el % de contexto, un aviso al 50% y un resguardo de auto-compactación al 75%. Que el participante busque el porcentaje de contexto abajo en su terminal. Si no lo ve, que abra una sesión **nueva**: los cambios de la barra aparecen después de reiniciar.
+- El Doc 02 (PASO 3.5) ya instaló el monitor de contexto: una barra de estado con el % de contexto, un aviso al 50% y la compactación automática apagada (al 75% la barra se pone roja). Que el participante busque el porcentaje de contexto abajo en su terminal. Si no lo ve, que abra una sesión **nueva**: los cambios de la barra aparecen después de reiniciar.
 - **No corras `/statusline-setup`.** Reemplaza la barra personalizada del Doc 02 y quita el aviso del 50%. Si la barra sigue sin aparecer después de reiniciar, vuelve a correr sólo el PASO 3.5 del Doc 02 (en Windows, el 02W tiene un respaldo documentado).
 
 **Qué haces tú, parte 2: enseña el protocolo (3 min).** Di estos umbrales en voz alta; *son* el protocolo:
 
 - **Compacta idealmente antes del 50%.** La mejor calidad. Planifica las sesiones para llegar a pausas naturales antes del 50%, y entonces `/session-close` + `/clear`.
 - **Después del 50% empieza la degradación del contexto.** No es catastrófico, pero Claude empieza a olvidar el contexto anterior y a hacer referencias inconsistentes. La barra se pone amarilla y avisa una vez.
-- **Compacta sí o sí antes del 70%.** Pasado el 70%, la calidad se desploma. La auto-compactación quedó en 75%, con un freno justo antes para que decidas tú y no la herramienta.
+- **Compacta sí o sí antes del 70%.** Pasado el 70%, la calidad se desploma. La compactación automática quedó apagada, así que decides tú y no la herramienta: al 75% la barra se pone roja, Claude Code se salta su propia compactación y la conversación sigue. Si el participante ignora la barra roja, un pedido posterior puede fallar; entonces corre `/compact`.
 
 Las dos formas de compactar al llegar al umbral:
 - **A. `/session-close` + `/clear`**: lo más limpio. El estado queda guardado en el Continuation Prompt del brief, y después se reinicia. Lo mejor para cambiar de tarea.
@@ -446,7 +449,7 @@ Las dos formas de compactar al llegar al umbral:
 
 **Errores comunes y arreglos:**
 - La barra no se ve → primero una sesión nueva; después revisa `jq --version` (la barra depende de `jq`); después vuelve a correr el PASO 3.5 del Doc 02.
-- En Windows la barra falla → sigue el respaldo del 02W y para a los 3 minutos; la barra es sólo visual, el resguardo de auto-compactación funciona sin ella.
+- En Windows la barra falla → sigue el respaldo del 02W y para a los 3 minutos; la barra es sólo visual; el *hook* que apaga la compactación automática funciona sin ella.
 
 **Esperado:** un % de contexto visible en la barra (o el respaldo del 02W aplicado); el participante puede decir 50% / 70% / 75%.
 

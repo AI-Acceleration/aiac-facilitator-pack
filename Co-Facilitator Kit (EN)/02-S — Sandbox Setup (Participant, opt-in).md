@@ -13,6 +13,10 @@ This document is for a participant who wants a **verifiable** boundary around Cl
 
 Read Part 1 before you run anything. It tells you what you are actually getting — including what you are **not** getting. If Part 1's guarantees aren't strong enough for you, Part 6 tells you what to do instead.
 
+> **On every permission prompt, choose plain "Yes" (or "No") — never "Yes, and don't ask again".**
+> The "don't ask again" option saves a lasting rule in your settings that lets that command run
+> without asking from then on, and the status check will then report it.
+
 ---
 
 ## Part 1 — What this actually guarantees
