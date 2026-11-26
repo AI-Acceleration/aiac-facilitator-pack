@@ -162,6 +162,7 @@ If the participant asks that Claude only touch the folder they give it, send **`
 - Doc 02's **STEP 3 permissions block is skipped**: 02-S replaces it deliberately.
 - Read 02-S's own statement of the boundary with the participant: the sandbox confines Claude's shell commands, but it is not an all-purpose wall (02-S lists what stays outside it). Don't promise more than it states.
 - **Claude may not be able to run `git` or `gh`** under the sandbox. The participant runs those themselves, and the commit becomes their act of approval. Say this up front so it doesn't read as a failure mid-session. If `gh` fails, use the browser path in § 10 (no tokens).
+- **The repo is named up front.** 02-S Part 3c adds exactly one `~/dev/<repo-name>` to the sandbox; agree the repo name before the session and use the same name in Doc 02. In Step 6 the participant creates the folder in a normal terminal and restarts Claude Code in the vault.
 - Mac and Linux only. Native Windows has no sandbox (WSL2 required).
 
 ### 10. GitHub access (this kit's version)

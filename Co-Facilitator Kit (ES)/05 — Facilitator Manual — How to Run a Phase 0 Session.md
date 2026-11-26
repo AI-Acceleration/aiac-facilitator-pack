@@ -164,6 +164,7 @@ Si el participante pide que Claude sólo toque la carpeta que él le dé, mánda
 - El **bloque de permisos del PASO 3 del Doc 02 se salta**: el 02-S lo reemplaza a propósito.
 - Lee con el participante lo que el propio 02-S dice del límite: el sandbox encierra los comandos de terminal de Claude, pero no es un muro para todo (el 02-S lista lo que queda afuera). No prometas más de lo que dice.
 - **Puede que Claude no pueda correr `git` ni `gh`** dentro del sandbox. Esos los corre el participante, y el commit se convierte en su acto de aprobación. Dilo de entrada para que no parezca una falla a mitad de sesión. Si `gh` falla, usa el camino por navegador del § 10 (sin tokens).
+- **El repo se nombra de antemano.** La Parte 3c del 02-S agrega al sandbox exactamente un `~/dev/<repo-name>`; acuerden el nombre del repo antes de la sesión y usen el mismo nombre en el Doc 02. En el Paso 6 el participante crea la carpeta en una terminal normal y reinicia Claude Code en el vault.
 - Sólo Mac y Linux. Windows nativo no tiene sandbox (hace falta WSL2).
 
 ### 10. Acceso a GitHub (la versión de este kit)
