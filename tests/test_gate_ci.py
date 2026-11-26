@@ -124,6 +124,41 @@ class TestSurfacePin(CiSandbox):
         r = self.run_script("gate_surface_pin.sh", "main", "pr")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
+    def test_codeowners_change_is_blocked_and_not_named(self):
+        # CODEOWNERS decides who must review the surface, so it is surface.
+        self.on_pr({"CODEOWNERS": "* @%s\n" % PRIVATE_WORD})
+        r = self.run_script("gate_surface_pin.sh", "main", "pr")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("1 path(s)", r.stdout)
+        self.assertNothingLeaks(r)
+
+    def test_codeowners_in_docs_is_blocked_and_not_named(self):
+        # GitHub falls back to docs/CODEOWNERS; it is pinned too.
+        self.on_pr({"docs/CODEOWNERS": "* @%s\n" % PRIVATE_WORD})
+        r = self.run_script("gate_surface_pin.sh", "main", "pr")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("1 path(s)", r.stdout)
+        self.assertNotIn("docs/", r.stdout + r.stderr)
+        self.assertNothingLeaks(r)
+
+    def test_edit_to_existing_codeowners_is_blocked(self):
+        (self.tmp / "CODEOWNERS").write_text("* @owner\n", encoding="utf-8")
+        self.git("add", "CODEOWNERS")
+        self.git("commit", "-q", "--no-verify", "-m", "codeowners")
+        self.git("branch", "-f", "pr", "main")
+        self.on_pr({"CODEOWNERS": "# emptied\n"})
+        r = self.run_script("gate_surface_pin.sh", "main", "pr")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("1 path(s)", r.stdout)
+
+    def test_gate_tests_are_not_pinned(self):
+        # Tests never run in the gate job, so they are reviewed (CODEOWNERS)
+        # but not pinned: a test-only PR is not an admin merge.
+        self.on_pr({"tests/test_gate_new.py": "x = 1\n",
+                    "tests/fixtures/extra.txt": "x\n"})
+        r = self.run_script("gate_surface_pin.sh", "main", "pr")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
     def test_unresolvable_commit_fails_loud(self):
         r = self.run_script("gate_surface_pin.sh", "main", "f" * 40)
         self.assertEqual(r.returncode, 3, r.stdout + r.stderr)
@@ -217,6 +252,26 @@ class TestWorkflows(unittest.TestCase):
         self.assertRegex(gate, r"(?m)^  pull_request_target:")
         self.assertNotRegex(gate, r"(?m)^  pull_request:")
         self.assertIn("bash bin/gate_pr_check.sh", gate)
+
+    def test_gate_judges_only_pull_requests_into_main(self):
+        # On pull_request_target the trusted code is the base branch's tip;
+        # only main is protected, so only PRs into main may be judged.
+        gate = self.code(self.gate)
+        self.assertRegex(gate, r"(?m)^  pull_request_target:\n"
+                               r"    branches: \[main\]$")
+
+    def test_pin_and_codeowners_cover_the_same_surface(self):
+        pin = (ROOT / "bin" / "gate_surface_pin.sh").read_text(encoding="utf-8")
+        m = re.search(r"(?m)^SURFACE=\(([^)]*)\)$", pin)
+        self.assertIsNotNone(m)
+        surface = m.group(1).split()
+        owners = (ROOT / "CODEOWNERS").read_text(encoding="utf-8")
+        owned = {l.split()[0] for l in owners.splitlines()
+                 if l.strip() and not l.startswith("#")}
+        for path in surface:
+            self.assertTrue({"/" + path, "/" + path + "/"} & owned,
+                            "%s is pinned but has no code-owner rule" % path)
+        self.assertIn("CODEOWNERS", surface)
 
     def test_gate_never_checks_out_or_runs_pr_code(self):
         gate = self.code(self.gate)
