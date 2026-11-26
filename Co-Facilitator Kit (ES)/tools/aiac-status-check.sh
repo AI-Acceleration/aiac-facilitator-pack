@@ -18,8 +18,11 @@
 #
 # HOW TO RUN - use the exact filename you received (.sh or .sh.txt both work):
 #   bash ~/Downloads/aiac-status-check.sh.txt
-# You can run it in a terminal window (Git Bash on Windows) or ask Claude Code
-# to run that same command for you.
+# Run that in your own terminal window (Git Bash on Windows) to see the full
+# report. If you ask Claude Code to run it for you, have it add --share:
+#   bash ~/Downloads/aiac-status-check.sh.txt --share
+# so that only the safe-to-share block below reaches the conversation (and
+# Claude's context), never the details above it.
 #
 # WHAT TO SHARE: ONLY the block at the very end, from the line
 #   ----- AIAC STATUS (safe to share) -----
@@ -34,22 +37,27 @@
 # OPTIONS:
 #   bash aiac-status-check.sh.txt "/path/to/your/vault"   check this vault
 #   bash aiac-status-check.sh.txt --sandbox    also check the opt-in sandbox (Doc 02-S)
+#   bash aiac-status-check.sh.txt --share      print ONLY the safe-to-share block
 #   bash aiac-status-check.sh.txt --details    more local detail - do NOT share it
+#                                              (ignored together with --share)
 # ---------------------------------------------------------------------------
 
 VERSION="2.0"
 
 DETAILS=0
+SHARE=0
 FORCE_SANDBOX=0
 VAULT_ARG=""
 for arg in "$@"; do
   case "$arg" in
     --details) DETAILS=1 ;;
+    --share) SHARE=1 ;;
     --sandbox) FORCE_SANDBOX=1 ;;
     -h|--help)
-      printf '%s\n' "Usage: bash aiac-status-check.sh [--sandbox] [--details] [\"/path/to/vault\"]"
+      printf '%s\n' "Usage: bash aiac-status-check.sh [--sandbox] [--share | --details] [\"/path/to/vault\"]"
       printf '%s\n' "Read-only. Share ONLY the block between '----- AIAC STATUS (safe to share) -----'"
       printf '%s\n' "and '----- END -----' at the end of the output."
+      printf '%s\n' "--share prints only that block (use it when Claude Code runs the check)."
       exit 0
       ;;
     -*) printf '%s\n' "Unknown option (try --help)"; exit 2 ;;
@@ -61,6 +69,13 @@ done
 # tokens, so they are discarded. Only this script's own fixed text is printed.
 # (AIAC_STATUS_DEBUG=1 keeps them, for the script's maintainers only.)
 [ "${AIAC_STATUS_DEBUG:-0}" = "1" ] || exec 2>/dev/null
+
+# --share: every check still runs, but its details go nowhere. Only the fixed
+# safe-to-share block at the end is printed (see the end of this script).
+if [ "$SHARE" = "1" ]; then
+  DETAILS=0
+  exec 3>&1 1>/dev/null
+fi
 
 # Never take a lock or refresh an index in any repository we look at.
 GIT_OPTIONAL_LOCKS=0
@@ -113,11 +128,16 @@ show_path() {
 
 lower() { printf '%s' "$1" | tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz'; }
 
-# version_of TEXT -> the first dotted version number in TEXT (e.g. 2.43.0), or
-# empty. Never the rest of the text: tool output can hold paths or tokens.
-version_of() {
-  printf '%s\n' "$1" | grep -oE '[0-9]+([.][0-9]+){1,3}' | head -1 | cut -c1-24
+# strict_version TEXT REGEX -> the version captured by REGEX's first group,
+# but only when TEXT is one line that matches REGEX as a whole; else empty.
+# Tool output can hold paths, host names, addresses or tokens, so nothing is
+# ever pulled out of free text: a line that is not exactly the expected
+# version line gives no version at all.
+strict_version() {
+  case "$1" in *"$NL"*) return 0 ;; esac
+  if [[ "$1" =~ $2 ]]; then printf '%s' "${BASH_REMATCH[1]}"; fi
 }
+V3='[0-9]{1,3}[.][0-9]{1,3}[.][0-9]{1,3}'
 
 # Convert ~, $HOME and Windows drive paths (C:\Users\...) to this shell's form.
 to_unix_path() {
@@ -251,8 +271,12 @@ head1 "STAGE 0 - MACHINE AND PREREQUISITES  (Doc 01)"
 
 info "Operating system" "$PLATFORM"
 if [ "$PLATFORM" = "macOS" ]; then
-  mv_=$(version_of "$(sw_vers -productVersion 2>/dev/null)")
-  info "macOS version" "${mv_:-unknown}"
+  mv_=""
+  if mv_out=$(sw_vers -productVersion 2>/dev/null </dev/null); then
+    mv_=$(strict_version "$mv_out" '^([0-9]{1,2}([.][0-9]{1,2}){0,2})$')
+  fi
+  mv_out=""
+  info "macOS version" "${mv_:-not read}"
   mem=$(sysctl -n hw.memsize 2>/dev/null || /usr/sbin/sysctl -n hw.memsize 2>/dev/null || echo 0)
   case "$mem" in ''|*[!0-9]*) mem=0 ;; esac
   info "Memory (GB)" "$(( mem / 1073741824 ))"
@@ -267,7 +291,10 @@ esac
 info "Chip / architecture" "$arch_"
 
 # tool_version COMMAND -> "version X.Y.Z", or "installed (version not read)".
-# Only a parsed version number is ever printed, never the tool's own text.
+# A version is shown only when the probe succeeded (exit 0) and its first
+# line is exactly the tool's usual version line (git version 2.43.0, jq-1.7.1).
+# Anything else - a failed probe, extra text, an address-shaped number - shows
+# "installed (version not read)". The tool's own text is never printed.
 # gh and claude are never run: either can create its config folder or an
 # update file on its first run, and this script writes nothing. Their version
 # is read from the install path instead (Homebrew .../Cellar/gh/X.Y.Z/...,
@@ -275,17 +302,29 @@ info "Chip / architecture" "$arch_"
 tool_version() {
   c=$(cmd_name "$1")
   v=""
+  re=""
+  case "$1" in
+    git) re="^git version ($V3)( [(]Apple Git-[0-9]{1,4}[)]|[.]windows[.][0-9]{1,3})?\$" ;;
+    jq) re='^jq-([0-9]{1,3}[.][0-9]{1,3}([.][0-9]{1,3})?)(-apple|-[0-9]{1,4}-apple-g[0-9a-f]{7,40}(-dirty)?)?$' ;;
+  esac
   case "$1" in
     gh|claude)
       t=$(command -v "$c")
       lt=$(readlink "$t" 2>/dev/null)
       [ -n "$lt" ] && t=$lt
+      seg=""
       case "$t" in
-        */Cellar/gh/*) r=${t#*/Cellar/gh/}; v=$(version_of "${r%%/*}") ;;
-        */claude/versions/*) r=${t##*/claude/versions/}; v=$(version_of "${r%%/*}") ;;
+        */Cellar/gh/*) r=${t#*/Cellar/gh/}; seg=${r%%/*} ;;
+        */claude/versions/*) r=${t##*/claude/versions/}; seg=${r%%/*} ;;
       esac
+      v=$(strict_version "$seg" "^($V3)(_[0-9]{1,3})?\$")
       ;;
-    *) v=$(version_of "$("$c" --version 2>/dev/null | head -3)") ;;
+    *)
+      if [ -n "$re" ] && out=$("$c" --version 2>/dev/null </dev/null); then
+        v=$(strict_version "$(printf '%s\n' "$out" | head -1)" "$re")
+      fi
+      out=""
+      ;;
   esac
   if [ -n "$v" ]; then printf 'version %s' "$v"; else printf '%s' "installed (version not read)"; fi
 }
@@ -342,15 +381,22 @@ tool_check jq "Doc 01 - jq installed"
 
 # Python 3: python3, python or the Windows py launcher. The Microsoft Store
 # stub prints "Python was not found", so only a real "Python 3.x" counts.
+# Only a successful probe whose first line starts "Python 3.<digit>" counts;
+# the version is shown only when that line is exactly "Python 3.X.Y".
 PY_VER=""
 for py in python3 python py; do
   have "$py" || continue
   c=$(cmd_name "$py")
-  if [ "$py" = "py" ]; then v=$("$c" -3 --version 2>&1 | head -1); else v=$("$c" --version 2>&1 | head -1); fi
+  if [ "$py" = "py" ]; then out=$("$c" -3 --version 2>&1 </dev/null); else out=$("$c" --version 2>&1 </dev/null); fi
+  rc=$?
+  v=$(printf '%s\n' "$out" | head -1)
+  out=""
+  [ "$rc" = "0" ] || continue
   case "$v" in
     "Python 3."[0-9]*)
-      pv=$(version_of "$v")
-      [ -n "$pv" ] && { PY_VER="version $pv ($py)"; break; }
+      pv=$(strict_version "$v" "^Python (3[.][0-9]{1,3}[.][0-9]{1,3})\$")
+      if [ -n "$pv" ]; then PY_VER="version $pv ($py)"; else PY_VER="installed, version not read ($py)"; fi
+      break
       ;;
   esac
 done
@@ -674,31 +720,138 @@ valid_global_security() {
   '
 }
 
-# Doc 02-S Part 3a: deny reads of the whole home folder, re-allow only the
-# vault (".") and ~/.claude, and deny again Claude Code's login file inside it
-# (~/.claude/.credentials.json, used on Linux and WSL2: the narrower deny wins
-# over the wider allow); write nothing extra. Part 3c option B may add one
-# named repo, ~/dev/<repo-name>, to allowRead and allowWrite. Nothing broader.
-valid_project_security() {
-  jtest "$1" '
-    .sandbox.enabled == true and
-    .sandbox.failIfUnavailable == true and
-    .sandbox.allowUnsandboxedCommands == false and
-    (.sandbox.filesystem.denyRead | type == "array" and
-      any(.[]; type == "string" and (. == "~/" or . == "~" or . == "~/**")) and
-      any(.[]; . == "~/.claude/.credentials.json")) and
-    (.sandbox.filesystem.allowRead | type == "array" and
-      all(.[]; type == "string") and
-      any(.[]; . == "." or . == "./") and
-      any(.[]; . == "~/.claude" or . == "~/.claude/" or . == "~/.claude/**") and
-      all(.[]; test("^([.]/?|~/[.]claude(/|/[*][*])?|~/dev/[^/*]+(/|/[*][*])?)$"))) and
-    ((.sandbox.filesystem.allowWrite // []) | type == "array" and
-      all(.[]; type == "string") and
-      all(.[]; test("^([.]/?|~/dev/[^/*]+(/|/[*][*])?)$"))) and
-    (.sandbox.network.allowedDomains | type == "array" and
-      all(.[]; type == "string" and . != "*")) and
-    ([.. | objects | has("additionalDirectories")] | any | not)
-  '
+# Doc 02-S Part 3a, judged on the EFFECTIVE configuration. Claude Code merges
+# the sandbox arrays of every settings file it loads (paths and domains are
+# combined, not replaced), and a later file can switch a setting off. So every
+# file that can carry sandbox settings is read: the vault's settings.json (it
+# must hold the 3a values itself) and settings.local.json (where /sandbox saves
+# its choices), your global settings, and any managed policy file on this
+# machine. Together they must give exactly what 02-S writes:
+#   - enabled, failIfUnavailable on; allowUnsandboxedCommands off; no file
+#     switching any of them the other way;
+#   - denyRead holds ~/ and Claude Code's login file ~/.claude/.credentials.json;
+#   - allowRead is the vault (".") and ~/.claude, plus at most ONE repo,
+#     ~/dev/<repo-name> (Part 3c) - the router-named one when there is one;
+#     allowWrite is empty or that same repo;
+#   - allowedDomains is exactly the six 02-S domains, and no saved
+#     WebFetch(domain:...) approval adds another (they are merged in too);
+#   - nothing that widens or weakens it: no file-tool allow rule or
+#     additionalDirectories (they add paths), no excludedCommands (those run
+#     outside the sandbox), no filesystem.disabled (it turns filesystem
+#     isolation off; user and managed settings can set it), no weaker
+#     nested/network isolation, Apple Events, user namespaces, Unix sockets,
+#     Mach lookups, local binding or custom proxy.
+# A settings file that exists but can't be read leaves the result unverified,
+# which is reported as NOT DONE. Each problem is a fixed sentence: no value
+# from any file is ever printed.
+SBX_DOMAINS='["github.com", "api.github.com", "codeload.github.com", "registry.npmjs.org", "pypi.org", "files.pythonhosted.org"]'
+SBX_PROBLEMS='
+  def sbx: if type == "object" and (.sandbox | type) == "object" then .sandbox else {} end;
+  def g(p): try getpath(p) catch {bad: true};
+  def items(p): [ .[] | sbx | g(p) | if . == null then empty elif type == "array" then .[] else {bad: true} end ];
+  def vals(p): [ .[] | sbx | g(p) | select(. != null) ];
+  def repo_of: rtrimstr("/**") | rtrimstr("/");
+  . as $all
+  | ($all[0] | sbx) as $p
+  | items(["filesystem", "denyRead"]) as $dr
+  | items(["filesystem", "allowRead"]) as $ar
+  | items(["filesystem", "allowWrite"]) as $aw
+  | items(["network", "allowedDomains"]) as $dom
+  | [ $all[] | (if type == "object" then .permissions else null end)
+      | if type == "object" then (.allow // []) else [] end
+      | if type == "array" then .[] else empty end | select(type == "string") ] as $allow
+  | ([ $ar[], $aw[] ] | map(select(type == "string" and test("^~/dev/[^/*]+(/|/[*][*])?$")) | repo_of) | unique) as $repos
+  | [
+      (if $p.enabled == true and $p.failIfUnavailable == true and $p.allowUnsandboxedCommands == false
+       then empty else "the vault file does not hold the three 02-S switches" end),
+      (if ([ $all[] | select(type != "object" or (has("sandbox") and (.sandbox | type) != "object")) ] | length) == 0
+          and ([ $all[] | sbx | (.filesystem, .network) | select(. != null and type != "object") ] | length) == 0
+       then empty else "a settings file has a sandbox section of the wrong shape" end),
+      (if (vals(["enabled"]) | all(. == true)) and (vals(["failIfUnavailable"]) | all(. == true))
+          and (vals(["allowUnsandboxedCommands"]) | all(. == false))
+       then empty else "another settings file switches a 02-S setting off" end),
+      (if ($dr | all(type == "string")) and ($dr | any(. == "~/" or . == "~" or . == "~/**"))
+          and (($dr | index(["~/.claude/.credentials.json"])) != null)
+       then empty else "denyRead lacks ~/ or the login file" end),
+      (if ($ar | all(type == "string" and test("^([.]/?|~/[.]claude(/|/[*][*])?|~/dev/[^/*]+(/|/[*][*])?)$")))
+          and ($ar | any(. == "." or . == "./"))
+          and ($ar | any(. == "~/.claude" or . == "~/.claude/" or . == "~/.claude/**"))
+       then empty else "allowRead is not the vault, ~/.claude and one repo" end),
+      (if ($aw | all(type == "string" and test("^([.]/?|~/dev/[^/*]+(/|/[*][*])?)$")))
+       then empty else "allowWrite is not empty or one repo" end),
+      (if ($repos | length) <= 1 and ($repo == "" or ($repos | all(. == "~/dev/" + $repo)))
+       then empty else "more than one repo, or not the repo your router names" end),
+      (if ([ $aw[] | select(type == "string" and test("^~/dev/")) | repo_of ]
+           - [ $ar[] | select(type == "string") | repo_of ] | length) == 0
+       then empty else "the writable repo is not in allowRead" end),
+      (if ($dom | all(type == "string")) and (($dom | unique) == ($domains | unique))
+       then empty else "allowedDomains is not exactly the six 02-S domains" end),
+      (if ([ $allow[] | select(startswith("WebFetch(domain:")) | ltrimstr("WebFetch(domain:") | rtrimstr(")")
+             | . as $d | select(($domains | index([$d])) == null) ] | length) == 0
+       then empty else "a saved WebFetch approval adds a domain" end),
+      (if ([ $allow[] | select(test("^(Read|Edit|Write|MultiEdit|NotebookEdit)([(]|$)")) ] | length) == 0
+          and ([ $all[] | .. | objects | has("additionalDirectories") ] | any | not)
+       then empty else "a file-tool allow rule or additionalDirectories adds paths" end),
+      (if (items(["excludedCommands"]) | length) == 0
+       then empty else "excludedCommands runs commands outside the sandbox" end),
+      (if (vals(["filesystem", "disabled"]) | all(. == false))
+       then empty else "filesystem isolation is disabled (filesystem.disabled)" end),
+      (if ((vals(["enableWeakerNestedSandbox"]) + vals(["enableWeakerNetworkIsolation"])
+            + vals(["allowAppleEvents"]) + vals(["allowNestedUserNamespaces"])
+            + vals(["network", "allowAllUnixSockets"]) + vals(["network", "allowLocalBinding"])) | all(. == false))
+          and (items(["network", "allowUnixSockets"]) | length) == 0
+          and (items(["network", "allowMachLookup"]) | length) == 0
+          and ((vals(["network", "httpProxyPort"]) + vals(["network", "socksProxyPort"])) | length) == 0
+       then empty else "a setting that weakens the sandbox is on" end)
+    ] | .[]'
+
+# Managed policy folders: an organization's settings, which outrank yours.
+managed_dirs() {
+  if [ -n "${AIAC_STATUS_MANAGED_DIR:-}" ]; then printf '%s\n' "$AIAC_STATUS_MANAGED_DIR"; return 0; fi
+  case "$PLATFORM" in
+    macOS) printf '%s\n' "/Library/Application Support/ClaudeCode" ;;
+    Linux) printf '%s\n' "/etc/claude-code" ;;
+    "Windows (WSL)") printf '%s\n' "/etc/claude-code" "$WSL_C/Program Files/ClaudeCode" ;;
+    Windows) printf '%s\n' "$(to_unix_path "${PROGRAMFILES:-C:/Program Files}")/ClaudeCode" ;;
+  esac
+}
+
+# sandbox_problems -> one fixed sentence per problem (nothing = matches 02-S).
+sandbox_problems() {
+  have jq || { printf '%s\n' "unverified: cannot check without jq"; return 0; }
+  set -- "$VAULT/.claude/settings.json" "$VAULT/.claude/settings.local.json" \
+         "$HOME/.claude/settings.json" "$HOME/.claude/settings.local.json"
+  OLDIFS=$IFS; IFS=$NL; set -f
+  for md in $(managed_dirs); do
+    [ -n "$md" ] || continue
+    set -- "$@" "$md/managed-settings.json"
+    if [ -d "$md/managed-settings.d" ]; then
+      set +f
+      for mf in "$md/managed-settings.d"/*.json; do [ -e "$mf" ] && set -- "$@" "$mf"; done
+      set -f
+    fi
+  done
+  IFS=$OLDIFS; set +f
+  found=""
+  unreadable=0
+  first=1
+  for f in "$@"; do
+    if [ "$first" = "1" ]; then
+      first=0
+      json_valid "$f" || { printf '%s\n' "the vault file is missing or not valid JSON"; return 0; }
+      continue
+    fi
+    [ -e "$f" ] || continue
+    if json_valid "$f"; then found="$found$NL$f"; else unreadable=1; fi
+  done
+  [ "$unreadable" = "1" ] && printf '%s\n' "unverified: a settings or policy file could not be read"
+  repo_name=""
+  case "$REPO" in "$HOME/dev/"*) repo_name=${REPO#"$HOME/dev/"} ;; esac
+  OLDIFS=$IFS; IFS=$NL; set -f
+  # shellcheck disable=SC2086
+  jq -r -s --arg repo "$repo_name" --argjson domains "$SBX_DOMAINS" "$SBX_PROBLEMS" \
+    "$VAULT/.claude/settings.json" $found 2>/dev/null || printf '%s\n' "unverified: the settings could not be compared"
+  IFS=$OLDIFS; set +f
 }
 
 if [ "$SANDBOX" = "1" ]; then
@@ -716,16 +869,24 @@ if [ "$SANDBOX" = "1" ]; then
       check sbxh notdone "Doc 02-S - hardened global settings (Part 3b)" "needs the full 02-S deny list, no blanket or interpreter approvals, no additionalDirectories"
     fi
   fi
-  if [ "$HAS_VAULT" = "1" ] && valid_project_security "$VS"; then
-    check sbxs done "Doc 02-S - sandbox config in the vault (Part 3a)" ""
-  elif [ "$HAS_VAULT" = "0" ]; then
-    check sbxs notdone "Doc 02-S - sandbox config in the vault (Part 3a)" "no vault yet - created in the session"
+  sbx_lbl="Doc 02-S - sandbox config in the vault (Part 3a)"
+  if [ "$HAS_VAULT" = "0" ]; then
+    check sbxs notdone "$sbx_lbl" "no vault yet - created in the session"
   elif [ ! -f "$VS" ]; then
-    check sbxs notdone "Doc 02-S - sandbox config in the vault (Part 3a)" "missing: <vault>/.claude/settings.json"
-  elif ! have jq; then
-    check sbxs notdone "Doc 02-S - sandbox config in the vault (Part 3a)" "cannot check without jq"
+    check sbxs notdone "$sbx_lbl" "missing: <vault>/.claude/settings.json"
   else
-    check sbxs notdone "Doc 02-S - sandbox config in the vault (Part 3a)" "present but not the 02-S Part 3a values"
+    sbx_out=$(sandbox_problems)
+    if [ -z "$sbx_out" ]; then
+      check sbxs done "$sbx_lbl" "every settings file found matches 02-S (confirm in /sandbox Config)"
+    else
+      sbx_n=$(printf '%s\n' "$sbx_out" | wc -l | tr -d ' ')
+      sbx_first=$(printf '%s\n' "$sbx_out" | head -1)
+      if [ "$sbx_n" -gt 1 ]; then sbx_first="$sbx_first (+$((sbx_n-1)) more)"; fi
+      check sbxs notdone "$sbx_lbl" "$sbx_first"
+      if [ "$DETAILS" = "1" ]; then
+        printf '%s\n' "$sbx_out" | sed 's/^/         sandbox: /'
+      fi
+    fi
   fi
   # Only fixed words and counts are printed, never a value from the file.
   if [ "$HAS_VAULT" = "1" ] && json_valid "$VS"; then
@@ -1135,9 +1296,14 @@ print_group() {  # print_group GROUP_A GROUP_B
 
 # The safe-to-share block. Only fixed check names, statuses, the OS and the
 # verdict are printed here - never a path, name, address, URL or setting value.
-printf '\n'
-printf '%s\n' "Share ONLY the block below. Copy every line from the first ----- line to the last."
-printf '\n'
+# With --share this block is the whole output.
+if [ "$SHARE" = "1" ]; then
+  exec 1>&3 3>&-
+else
+  printf '\n'
+  printf '%s\n' "Share ONLY the block below. Copy every line from the first ----- line to the last."
+  printf '\n'
+fi
 printf '%s\n' "----- AIAC STATUS (safe to share) -----"
 printf 'Status check: v%s\n' "$VERSION"
 printf 'OS: %s\n' "$PLATFORM"
