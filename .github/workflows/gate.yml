@@ -65,12 +65,12 @@ jobs:
       - name: Private-data gate (main, tracked files)
         if: ${{ github.event_name == 'push' }}
         shell: bash
-        run: python3 bin/gate_scan.py --tree
+        run: python3 bin/gate_scan.py --tree --ci
 
       - name: Private-data gate (main, full history)
         if: ${{ !cancelled() && github.event_name == 'push' }}
         shell: bash
-        run: python3 bin/gate_scan.py --history
+        run: python3 bin/gate_scan.py --history --ci
 
       - name: Assert the withheld files are absent (main)
         if: ${{ !cancelled() && github.event_name == 'push' }}

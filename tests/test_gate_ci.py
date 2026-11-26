@@ -8,6 +8,7 @@ and live at the reserved `.test` TLD.
 """
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -24,6 +25,24 @@ GIT_EMAIL = "t" + "@" + DOMAIN
 # A file name that is sensitive without holding an address: nothing in the
 # output may echo it either.
 PRIVATE_WORD = "participant-surname-zqxv"
+
+
+def fake_git(directory, subcommand, stderr_text):
+    """A `git` that fails `subcommand` with `stderr_text` on stderr and runs
+    the real git for everything else. Put `directory` first on PATH."""
+    real = shutil.which("git")
+    script = Path(directory) / "git"
+    script.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = %s ]; then printf '%%s\\n' %s >&2; exit 128; fi\n"
+        "exec %s \"$@\"\n" % (shlex.quote(subcommand), shlex.quote(stderr_text),
+                              shlex.quote(real)), encoding="utf-8")
+    script.chmod(0o755)
+    return str(directory)
+
+
+# What a failing git might print: a private name and forged log commands.
+GIT_STDERR = ("fatal: bad path '%s'\n::error::forged ##[error]x" % PRIVATE_WORD)
 
 
 class CiSandbox(unittest.TestCase):
@@ -76,14 +95,31 @@ class CiSandbox(unittest.TestCase):
         self.git("update-ref", "refs/heads/pr", sha)
         return sha
 
-    def run_script(self, name, *args):
+    def run_script(self, name, *args, fail_git=None):
+        """fail_git=(subcommand, ...) makes that git subcommand fail with
+        GIT_STDERR."""
+        env = dict(os.environ)
+        if fail_git:
+            bindir = Path(tempfile.mkdtemp(prefix="gatefakegit-"))
+            self.addCleanup(shutil.rmtree, bindir, True)
+            env["PATH"] = (fake_git(bindir, fail_git, GIT_STDERR) + os.pathsep +
+                           env.get("PATH", ""))
         return subprocess.run(["bash", str(self.tmp / "bin" / name), *args],
-                              cwd=str(self.tmp), capture_output=True, text=True)
+                              cwd=str(self.tmp), capture_output=True, text=True,
+                              env=env)
 
     def assertNothingLeaks(self, r, *needles):
         out = r.stdout + r.stderr
-        for n in needles + (DOMAIN, PRIVATE_WORD):
+        for n in needles + (DOMAIN, PRIVATE_WORD, "forged"):
             self.assertNotIn(n, out)
+
+    def assertNoLogCommand(self, r):
+        """No output line may hold a workflow command sequence, anywhere."""
+        out = r.stdout + r.stderr
+        self.assertNotIn("\r", out)
+        for line in out.splitlines():
+            self.assertNotIn("::", line, "workflow command sequence: %r" % line)
+            self.assertNotIn("##", line, "legacy command sequence: %r" % line)
 
 
 class TestSurfacePin(CiSandbox):
@@ -164,6 +200,17 @@ class TestSurfacePin(CiSandbox):
         self.assertEqual(r.returncode, 3, r.stdout + r.stderr)
         self.assertIn("GATE ERROR", r.stderr)
 
+    def test_git_error_text_is_never_printed(self):
+        self.on_pr({"doc.md": "changed body\n"})
+        for sub in ("merge-base", "diff"):
+            with self.subTest(git=sub):
+                r = self.run_script("gate_surface_pin.sh", "main", "pr",
+                                    fail_git=sub)
+                self.assertEqual(r.returncode, 3, r.stdout + r.stderr)
+                self.assertIn("GATE ERROR", r.stderr)
+                self.assertNothingLeaks(r)
+                self.assertNoLogCommand(r)
+
 
 class TestPrCheck(CiSandbox):
     def test_clean_pr_passes(self):
@@ -192,12 +239,39 @@ class TestPrCheck(CiSandbox):
         r = self.run_script("gate_pr_check.sh", "main", sha)
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         self.assertIn("2 path(s)", r.stdout)
-        self.assertIn("[redacted#", r.stderr)  # the scanner's own finding
+        self.assertIn("path#", r.stderr)  # the scanner's own finding, by id
+        self.assertNotIn("[redacted#", r.stderr)  # CI never prints the path
         out = r.stdout + r.stderr
         self.assertNotIn(UNKNOWN, out)
         self.assertNotIn(DOMAIN, out)
         # The non-address name is reported only by the surface pin, by count.
         self.assertNotIn(PRIVATE_WORD, out)
+
+    def test_pr_path_text_never_reaches_the_log(self):
+        # Paths outside the gate surface, so only the scanner sees them: in
+        # CI it prints each as path#<8 hex>, never its text.
+        sha = self.on_pr({
+            "kit/%s ##[error]x.md" % PRIVATE_WORD: "route to %s\n" % UNKNOWN,
+            "kit/a ::error::%s.md" % PRIVATE_WORD: "route to %s\n" % UNKNOWN,
+            "kit/\n::warning::%s.md" % PRIVATE_WORD: "route to %s\n" % UNKNOWN},
+            "odd names")
+        r = self.run_script("gate_pr_check.sh", "main", sha)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("UNALLOWLISTED", r.stderr)
+        self.assertIn("path#", r.stderr)
+        self.assertNotIn("kit/", r.stdout + r.stderr)
+        self.assertNothingLeaks(r, UNKNOWN)
+        self.assertNoLogCommand(r)
+
+    def test_git_error_text_is_never_printed(self):
+        sha = self.on_pr({"doc.md": "changed\n"})
+        for sub in ("read-tree", "for-each-ref", "rev-list", "ls-files"):
+            with self.subTest(git=sub):
+                r = self.run_script("gate_pr_check.sh", "main", sha, fail_git=sub)
+                self.assertEqual(r.returncode, 3, r.stdout + r.stderr)
+                self.assertIn("GATE ERROR", r.stderr)
+                self.assertNothingLeaks(r)
+                self.assertNoLogCommand(r)
 
     def test_withheld_file_in_pr_is_blocked(self):
         sha = self.on_pr({"kit/00 — Trainer Registry.md": "x\n"})
@@ -301,6 +375,19 @@ class TestWorkflows(unittest.TestCase):
             code = self.code(text)
             self.assertNotIn("--name-only", code)
             self.assertNotIn("$changed", code)
+
+    def test_every_scanner_run_in_the_gate_uses_ci_output(self):
+        # GitHub sets GITHUB_ACTIONS, which the scanner also honours; the
+        # explicit flag keeps CI output if that ever changes.
+        runs = re.findall(r"gate_scan\.py[^\n]*", self.code(self.gate))
+        self.assertTrue(runs)
+        for run in runs:
+            self.assertIn("--ci", run)
+        pr = (ROOT / "bin" / "gate_pr_check.sh").read_text(encoding="utf-8")
+        scans = re.findall(r"gate_scan\.py\"[^\n]*", pr)
+        self.assertEqual(len(scans), 2)
+        for run in scans:
+            self.assertIn("--ci", run)
 
     def test_tests_workflow_runs_the_suite(self):
         self.assertIn("python3 -m unittest discover -s tests", self.tests)

@@ -13,6 +13,7 @@ and must never be copied into `.githooks/deny-hashes.txt`.
 """
 import hashlib
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -34,6 +35,9 @@ OUTSIDE = "98765+outside-contrib" + "@" + NOREPLY_DOMAIN
 # The legacy login-only no-reply form older accounts still use.
 LEGACY = "outside-contrib" + "@" + NOREPLY_DOMAIN
 WEB_MERGE = "noreply" + "@" + "github.com"
+# A path word that is private without holding an address: CI output must
+# never echo it.
+PRIVATE_WORD = "participant-surname-zqxv"
 
 
 def fp(addr):
@@ -41,10 +45,43 @@ def fp(addr):
     return "address#" + hashlib.sha256(addr.lower().encode()).hexdigest()[:8]
 
 
-def run_gate(sandbox, *args):
+def pid(name):
+    """How the gate names a file or ref name in CI output."""
+    return "path#" + hashlib.sha256(
+        name.encode("utf-8", "surrogateescape")).hexdigest()[:8]
+
+
+def gate_env(ci=False, path=None):
+    """The test's own environment minus the CI markers, so local-mode tests
+    stay local when the suite itself runs in GitHub Actions."""
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("GITHUB_ACTIONS", "CI")}
+    if ci:
+        env["GITHUB_ACTIONS"] = "true"
+    if path:
+        env["PATH"] = path + os.pathsep + env.get("PATH", "")
+    return env
+
+
+def run_gate(sandbox, *args, ci=False, path=None):
     return subprocess.run(
         [sys.executable, str(sandbox / "bin" / "gate_scan.py")] + list(args),
-        capture_output=True, text=True, cwd=str(sandbox))
+        capture_output=True, text=True, cwd=str(sandbox),
+        env=gate_env(ci, path))
+
+
+def fake_git(directory, subcommand, stderr_text):
+    """A `git` that fails `subcommand` with `stderr_text` on stderr and runs
+    the real git for everything else. Put `directory` first on PATH."""
+    real = shutil.which("git")
+    script = Path(directory) / "git"
+    script.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = %s ]; then printf '%%s\\n' %s >&2; exit 128; fi\n"
+        "exec %s \"$@\"\n" % (shlex.quote(subcommand), shlex.quote(stderr_text),
+                              shlex.quote(real)), encoding="utf-8")
+    script.chmod(0o755)
+    return str(directory)
 
 
 class GateSandbox(unittest.TestCase):
@@ -741,11 +778,15 @@ class GateSandbox(unittest.TestCase):
 
     def assertNoLogCommand(self, r):
         """GitHub Actions reads a line starting (after whitespace) with `::`
-        or `##[` as a workflow command."""
-        for line in (r.stdout + r.stderr).splitlines():
-            self.assertFalse(line.lstrip().startswith(("::", "##[")),
-                             "output line could be a workflow command: %r" % line)
-        self.assertNotIn("\r", r.stdout + r.stderr)
+        as a workflow command, and older runners the legacy `##[` anywhere in
+        a line. No output line may hold either sequence, anywhere."""
+        out = r.stdout + r.stderr
+        self.assertNotIn("\r", out)
+        for line in out.splitlines():
+            self.assertNotIn("::", line, "workflow command sequence: %r" % line)
+            self.assertNotIn("##", line, "legacy command sequence: %r" % line)
+            self.assertFalse(line.lstrip().startswith((":", "#")),
+                             "output line could start a command: %r" % line)
 
     def test_newline_in_path_cannot_start_a_workflow_command_tree(self):
         self.stage_blob("notes/a\n::error title=x::spoofed.md",
@@ -754,7 +795,8 @@ class GateSandbox(unittest.TestCase):
         self.assertBlocked(r, "UNALLOWLISTED")
         self.assertNoLogCommand(r)
         # The escape is visible, so the file can still be found.
-        self.assertIn("notes/a\\x0a::error title=x::spoofed.md:1", r.stderr)
+        self.assertIn("notes/a\\x0a\\x3a\\x3aerror title=x\\x3a\\x3aspoofed.md:1",
+                      r.stderr)
         self.assertRedacted(r, UNKNOWN)
 
     def test_path_starting_with_command_prefix_is_escaped(self):
@@ -763,8 +805,8 @@ class GateSandbox(unittest.TestCase):
         r = run_gate(self.tmp, "--tree")
         self.assertBlocked(r, "UNALLOWLISTED")
         self.assertNoLogCommand(r)
-        self.assertIn("\\x3a:error::spoofed.md:1", r.stderr)
-        self.assertIn("\\x23#[error]spoofed.md:1", r.stderr)
+        self.assertIn("\\x3a\\x3aerror\\x3a\\x3aspoofed.md:1", r.stderr)
+        self.assertIn("\\x23\\x23[error]spoofed.md:1", r.stderr)
 
     def test_control_characters_in_historical_path_are_escaped(self):
         self.stage_blob("a\r::warning::b ::notice::c.md",
@@ -773,8 +815,103 @@ class GateSandbox(unittest.TestCase):
         r = run_gate(self.tmp, "--history")
         self.assertBlocked(r, "UNALLOWLISTED")
         self.assertNoLogCommand(r)
-        self.assertIn("a\\x0d::warning::b\\u2028::notice::c.md", r.stderr)
+        self.assertIn("a\\x0d\\x3a\\x3awarning\\x3a\\x3ab\\u2028"
+                      "\\x3a\\x3anotice\\x3a\\x3ac.md", r.stderr)
         self.assertRedacted(r, UNKNOWN)
+
+    def test_embedded_command_sequences_in_path_are_neutralised(self):
+        # Not at the start of the line: GitHub's legacy `##[` parser matched
+        # anywhere, and a name ending in `:` meets the `:line` printed after it.
+        for name in ("notes/x ##[error]spoofed.md", "notes/x ::error::y.md",
+                     "notes/x:", "notes/x#", "notes/a#[b ##c::d"):
+            self.stage_blob(name, "route to %s\n" % UNKNOWN)
+        for args in (("--tree",), ()):
+            with self.subTest(args=args):
+                r = run_gate(self.tmp, *args)
+                self.assertBlocked(r, "UNALLOWLISTED")
+                self.assertNoLogCommand(r)
+                self.assertIn("notes/x \\x23\\x23[error]spoofed.md:1", r.stderr)
+                self.assertIn("notes/x\\x3a:1", r.stderr)
+                self.assertRedacted(r, UNKNOWN)
+
+    # --- CI mode: names a pull request controls are never printed ---------
+    def plant_hostile_names(self):
+        names = ["notes/%s ##[error]x.md" % PRIVATE_WORD,
+                 "notes/a\n::error::%s.md" % PRIVATE_WORD,
+                 "notes/%s.md" % UNKNOWN]
+        for name in names:
+            self.stage_blob(name, "route to %s\n" % UNKNOWN)
+        return names
+
+    def assertOpaque(self, r, names):
+        out = r.stdout + r.stderr
+        self.assertNoLogCommand(r)
+        self.assertRedacted(r, UNKNOWN)
+        for word in (PRIVATE_WORD, "notes/", "spoofed", "error]"):
+            self.assertNotIn(word, out)
+        for name in names:
+            self.assertIn(pid(name), r.stderr)
+
+    def test_ci_mode_prints_path_ids_not_names_tree(self):
+        names = self.plant_hostile_names()
+        for kw in ({"ci": True}, {}):
+            args = ("--tree",) if kw else ("--tree", "--ci")
+            with self.subTest(args=args, **kw):
+                r = run_gate(self.tmp, *args, **kw)
+                self.assertBlocked(r, "UNALLOWLISTED")
+                self.assertOpaque(r, names)
+                self.assertIn("3 file or ref name(s)", r.stderr)
+                self.assertIn("not printed in CI", r.stderr)
+
+    def test_ci_mode_prints_path_ids_not_names_history(self):
+        names = self.plant_hostile_names()
+        self.git("commit", "-q", "--no-verify", "-m", "route to %s" % UNKNOWN)
+        blob = self.git("hash-object", "-w", "--stdin",
+                        input=("route to %s\n" % UNKNOWN).encode("ascii")
+                        ).stdout.strip().decode("ascii")
+        ref = "refs/data/%s" % PRIVATE_WORD
+        self.git("update-ref", ref, blob)
+        r = run_gate(self.tmp, "--history", ci=True)
+        self.assertBlocked(r, "UNALLOWLISTED")
+        self.assertOpaque(r, names)
+        self.assertNotIn("refs/", r.stdout + r.stderr)
+        self.assertIn(pid(ref), r.stderr)
+        # Labels the gate builds itself (object kind + SHA) stay readable.
+        self.assertIn("<commit message> ", r.stderr)
+
+    def test_local_finding_carries_the_same_path_id_as_ci(self):
+        names = self.plant_hostile_names()
+        r = run_gate(self.tmp, "--tree")
+        self.assertBlocked(r, "UNALLOWLISTED")
+        self.assertNoLogCommand(r)
+        for name in names:
+            self.assertIn(pid(name), r.stderr)
+        self.assertIn(PRIVATE_WORD, r.stderr)  # locally the name is readable
+
+    # --- git's own error text never reaches a CI log -----------------------
+    def test_git_failure_message_is_fixed_in_ci(self):
+        self.write("doc.md", "clean\n")
+        bindir = Path(tempfile.mkdtemp(prefix="gatefakegit-"))
+        self.addCleanup(shutil.rmtree, bindir, True)
+        stderr = "fatal: bad path '%s'\n::error::forged ##[error]x" % PRIVATE_WORD
+        path = fake_git(bindir, "ls-files", stderr)
+        r = run_gate(self.tmp, "--tree", ci=True, path=path)
+        self.assertEqual(r.returncode, 3, r.stdout + r.stderr)
+        self.assertIn("GATE ERROR: git ls-files failed (exit 128)", r.stderr)
+        self.assertNotIn(PRIVATE_WORD, r.stdout + r.stderr)
+        self.assertNotIn("forged", r.stdout + r.stderr)
+        self.assertNoLogCommand(r)
+
+    def test_git_failure_message_is_log_safe_locally(self):
+        self.write("doc.md", "clean\n")
+        bindir = Path(tempfile.mkdtemp(prefix="gatefakegit-"))
+        self.addCleanup(shutil.rmtree, bindir, True)
+        stderr = "fatal: bad path '%s'\n::error::forged ##[error]x" % PRIVATE_WORD
+        path = fake_git(bindir, "rev-list", stderr)
+        r = run_gate(self.tmp, "--history", path=path)
+        self.assertEqual(r.returncode, 3, r.stdout + r.stderr)
+        self.assertIn(PRIVATE_WORD, r.stderr)  # local: git's reason is shown
+        self.assertNoLogCommand(r)
 
     # --- tree mode reads tracked blobs by mode ----------------------------
     def test_tree_mode_does_not_follow_symlinks(self):

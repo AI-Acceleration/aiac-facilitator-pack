@@ -18,9 +18,17 @@ Modes:
               exact `Co-authored-by: Name <address>` line of a commit message.
               Historical submodule entries are reported UNSCANNABLE, as in
               --tree.
+  --ci        with any mode: CI output, see below. Also on when the
+              GITHUB_ACTIONS or CI environment variable is set.
 
 Findings never print an address: addresses are shown as `address#<8 hex>`
-(prefix of the deny-list hash) and path components holding one are redacted.
+(prefix of the deny-list hash). CI logs are public and a file or ref NAME is
+text a pull request controls, so in CI mode names are never printed at all:
+each is shown as `path#<8 hex>` (prefix of the SHA-256 of the name) and git's
+own error text is replaced by a fixed message. Locally a finding shows the
+name (address-bearing components redacted, control characters and `::` /
+`##` runs escaped) followed by the same `path#<8 hex>`, so a CI finding can be
+matched to its file.
 
 Four design choices, each answering a way this gate could have been useless:
 
@@ -46,6 +54,7 @@ import codecs
 import fnmatch
 import hashlib
 import html
+import os
 import re
 import subprocess
 import sys
@@ -94,6 +103,19 @@ IDENTITY_HEADERS = ("author ", "committer ", "tagger ")
 COAUTHOR_LINE_RE = re.compile(
     r"co-authored-by:[ \t]+[^<>\n]*[^<>\s][ \t]+<([^<>\s]+)>[ \t]*\r?",
     re.IGNORECASE)
+
+
+# Set by main(): True when output goes to a public CI log (see path_label).
+CI_MODE = False
+
+
+def ci_requested(argv, env):
+    """CI output is the default on a runner: GitHub sets GITHUB_ACTIONS=true
+    and most CI systems set CI. `--ci` forces it anywhere."""
+    def truthy(v):
+        return v.strip().lower() not in ("", "0", "false", "no")
+    return ("--ci" in argv or truthy(env.get("GITHUB_ACTIONS", "")) or
+            truthy(env.get("CI", "")))
 
 
 def die(msg):
@@ -169,22 +191,38 @@ def _escape_char(ch):
     return "\\U%08x" % o
 
 
+COMMAND_CHARS = (":", "#")
+
+
 def log_safe(text):
-    """Text from a pull request (paths, ref names, git's stderr) printed to a
-    CI log. GitHub Actions reads any output line that starts, after leading
-    whitespace, with `::` or `##[` as a workflow command, so a file named
-    `x<newline>::error::...` could forge annotations or stop command parsing.
-    Every unsafe character is printed as a visible escape (newline -> `\\x0a`),
-    so the text can never start a new line; leading whitespace and a leading
-    `:` or `#` are escaped too, so it cannot start a command even when
-    printed at the start of a line."""
-    out = [_escape_char(ch) if unicodedata.category(ch) in UNSAFE_CATEGORIES
-           else ch for ch in text]
+    """Text a pull request controls (paths, ref names, git's stderr) made safe
+    to print. GitHub Actions reads a line starting, after whitespace, with
+    `::` as a workflow command, and older runners also honour the legacy
+    `##[` anywhere in a line. So:
+    - every unsafe character is a visible escape (newline -> `\\x0a`), and
+      the text can never start a new line;
+    - leading whitespace is escaped;
+    - every `:` or `#` next to another of the same character, and a `:` or
+      `#` at either end of the text, is escaped (`::` -> `\\x3a\\x3a`,
+      `##[` -> `\\x23\\x23[`), so no command sequence survives inside the
+      text or forms where it meets the text printed around it.
+    In CI mode names are not printed at all (see path_label); this is the
+    local view, and the defence for the fixed messages that carry text."""
+    n = len(text)
+    out = []
+    for j, ch in enumerate(text):
+        if unicodedata.category(ch) in UNSAFE_CATEGORIES:
+            out.append(_escape_char(ch))
+        elif ch in COMMAND_CHARS and (j == 0 or j == n - 1 or
+                                      text[j - 1] == ch or text[j + 1] == ch):
+            out.append(_escape_char(ch))
+        else:
+            out.append(ch)
     i = 0
     while i < len(out) and len(out[i]) == 1 and out[i].isspace():
         out[i] = _escape_char(out[i])
         i += 1
-    if i < len(out) and out[i] in (":", "#"):
+    if i < len(out) and out[i] in COMMAND_CHARS:
         out[i] = _escape_char(out[i])
     return "".join(out)
 
@@ -207,9 +245,52 @@ def redact(label):
     return log_safe("/".join(parts)) + suffix
 
 
+FILE_NAME_SUFFIX = " (file name)"
+# Labels this script builds itself, never text from a pull request: object
+# kind plus a 12-hex abbreviated SHA. Printed as they are in every mode.
+SYNTHETIC_LABEL_RE = re.compile(
+    r"<commit message>|"
+    r"<(?:commit|tag) (?:header|message|decoded|message decoded)> [0-9a-f]{12}")
+
+
+def split_label(label):
+    """(name, suffix): a file-name finding carries FILE_NAME_SUFFIX."""
+    if label.endswith(FILE_NAME_SUFFIX):
+        return label[:-len(FILE_NAME_SUFFIX)], FILE_NAME_SUFFIX
+    return label, ""
+
+
+def path_id(name):
+    """An opaque, stable name for a path or ref name: `path#` + the first 8
+    hex of the SHA-256 of its exact text (undecodable bytes included)."""
+    digest = hashlib.sha256(name.encode("utf-8", "surrogateescape")).hexdigest()
+    return f"path#{digest[:8]}"
+
+
+def path_label(label):
+    """How a finding names what it found. A synthetic label (commit or tag
+    object) prints as is. A file or ref name is text a pull request controls:
+    in CI mode it is printed ONLY as its path_id, so nothing it holds (an
+    address, a private word, a forged workflow command) reaches the public
+    log. Locally it is printed redacted and log-safe (main() adds the same
+    path_id at the end of the line, so a CI finding can be matched to its
+    file)."""
+    if SYNTHETIC_LABEL_RE.fullmatch(label):
+        return label
+    name, suffix = split_label(label)
+    if CI_MODE:
+        return path_id(name) + suffix
+    return redact(label)
+
+
 def git(*args):
     r = subprocess.run(["git", *args], capture_output=True)
     if r.returncode != 0:
+        if CI_MODE:
+            # git's message can quote a path or ref name; CI logs are public.
+            die(f"git {args[0]} failed (exit {r.returncode}). Its message is "
+                f"not printed in CI because it can contain file names; run "
+                f"the gate locally to see it.")
         die(f"git {' '.join(args)} failed: {r.stderr.decode('utf-8','replace')[:200]}")
     return r.stdout
 
@@ -235,11 +316,15 @@ def self_test(deny_hashes):
     for leaky in (f"notes/{CANARY}.md", CANARY.replace("@", "\uff20")):
         if "@" in redact(leaky) or "\uff20" in redact(leaky):
             die("self-test FAILED — path redaction left an address visible")
-    for spoof in ("a\n::error::x", "::error::x", "  ##[error]x", "a\rb\x1b"):
+    for spoof in ("a\n::error::x", "::error::x", " \u2028##[error]x", "a\rb\x1b",
+                  "a ##[error]x", "a::error::x", "x:", "x#", "a\u2028::x"):
         safe = redact(spoof)
         if (any(unicodedata.category(c) in UNSAFE_CATEGORIES for c in safe) or
-                safe.lstrip().startswith(("::", "##["))):
-            die("self-test FAILED — path text can still start a log command")
+                safe.lstrip().startswith((":", "#")) or "::" in safe or
+                "##" in safe or safe.endswith((":", "#"))):
+            die("self-test FAILED — path text can still form a log command")
+        if not re.fullmatch(r"path#[0-9a-f]{8}", path_id(spoof)):
+            die("self-test FAILED — path id is not an opaque hex name")
     if "canary" in fingerprint(CANARY):
         die("self-test FAILED — address fingerprint echoes the address")
 
@@ -530,7 +615,9 @@ def scan_history_tree(tree, deny_hashes, allow, bad_base, bad_path, findings):
 
 
 def main():
+    global CI_MODE
     argv = sys.argv[1:]
+    CI_MODE = ci_requested(argv, os.environ)
     history = "--history" in argv
     tree = "--tree" in argv
     msg_file = None
@@ -632,11 +719,26 @@ def main():
 
     if findings:
         print("BLOCKED — private data in the commit:", file=sys.stderr)
-        # Paths and ref names are redacted: CI logs are public, and a finding
-        # in a file name would otherwise print the very address it caught.
-        for path, line, why in sorted(set(findings)):
-            print(f"  {redact(path)}{f':{line}' if line else ''}  [{why}]",
+        # CI logs are public: in CI mode a file or ref name prints only as
+        # its path_id; locally it is redacted, log-safe and followed by the
+        # same path_id (see path_label).
+        unique = sorted(set(findings))
+        for path, line, why in unique:
+            tail = ""
+            if not CI_MODE and not SYNTHETIC_LABEL_RE.fullmatch(path):
+                tail = f"  {path_id(split_label(path)[0])}"
+            print(f"  {path_label(path)}{f':{line}' if line else ''}  [{why}]{tail}",
                   file=sys.stderr)
+        named = {split_label(p)[0] for p, _, _ in unique
+                 if not SYNTHETIC_LABEL_RE.fullmatch(p)}
+        print(f"{len(unique)} finding(s); {len(named)} file or ref name(s).",
+              file=sys.stderr)
+        if CI_MODE and named:
+            print("File and ref names are not printed in CI: the log is public. "
+                  "Each is shown as path#<8 hex>, the start of the SHA-256 of "
+                  "the name. Run the same scan locally (python3 bin/gate_scan.py "
+                  "--tree or --history): each finding there shows its name and "
+                  "the same path#<8 hex>.", file=sys.stderr)
         sys.exit(1)
 
     mode = ("message" if msg_file is not None else
