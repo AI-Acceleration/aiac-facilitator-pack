@@ -17,7 +17,7 @@ Lee la Parte 1 antes de ejecutar nada. Te dice qué estás obteniendo de verdad 
 
 > **En cada pregunta de permiso, elige el "Yes" simple (o "No") — nunca "Yes, and don't ask again".**
 > La opción "don't ask again" guarda una regla duradera en tus ajustes que deja correr ese comando sin
-> preguntar desde entonces, y el chequeo de estado la va a reportar.
+> preguntar desde entonces, y el chequeo de estado reporta la mayoría de esas reglas, no todas.
 
 ---
 

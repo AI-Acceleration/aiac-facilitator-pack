@@ -59,7 +59,7 @@ terminal de Windows es la peor). Le entregas a Claude el archivo mismo:
 
 > **En cada pregunta de permiso, elige el "Yes" simple (o "No") — nunca "Yes, and don't ask again".**
 > La opción "don't ask again" guarda una regla duradera en tus ajustes que deja correr ese comando sin
-> preguntar desde entonces, y el chequeo de estado la va a reportar.
+> preguntar desde entonces, y el chequeo de estado reporta la mayoría de esas reglas, no todas.
 
 > **Si Claude Code te bloquea una edición de `~/.claude/settings.json` y menciona "auto mode":**
 > presiona **Shift+Tab** (cada vez que lo presionas cambia el modo que se ve en la barra inferior)

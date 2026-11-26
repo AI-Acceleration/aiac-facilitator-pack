@@ -55,7 +55,7 @@ Windows terminal is the worst offender). You hand Claude the file itself:
 
 > **On every permission prompt, choose plain "Yes" (or "No") — never "Yes, and don't ask again".**
 > The "don't ask again" option saves a lasting rule in your settings that lets that command run
-> without asking from then on, and the status check will then report it.
+> without asking from then on, and the status check reports most such rules, not all.
 
 > **If Claude Code blocks an edit to `~/.claude/settings.json` and mentions "auto mode":** press
 > **Shift+Tab** (each press switches the mode shown in the bottom bar) until it shows the normal

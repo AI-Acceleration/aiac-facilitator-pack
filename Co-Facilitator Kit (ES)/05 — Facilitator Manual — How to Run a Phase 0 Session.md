@@ -330,7 +330,7 @@ Es el bloque más grande y el corazón de la configuración. El **Doc 02** (Wind
 - **Antes del primer push**, asegúrate de que Claude se detenga y confirme con el participante el dueño, la visibilidad **Private** y la lista de archivos a subir.
 - **Espera muchas preguntas de aprobación** en los Docs 02 y 03: es la configuración estrecha de permisos funcionando.
 - **Vigila cada respuesta:** el participante elige el **Yes** simple (o No), nunca "Yes, and don't ask again".
-- **Si eligió "don't ask again"**, abre junto al participante la pantalla integrada `/permissions`, borra ahí la regla que guardó y vuelve a correr el chequeo de estado.
+- **Si eligió "don't ask again"**, abre junto al participante la pantalla integrada `/permissions`, borra ahí la regla que guardó, comprueba que la lista no tenga ninguna otra regla que no esperabas y vuelve a correr el chequeo de estado (no marca todas las reglas exactas de un solo comando).
 
 **Qué hace el participante:**
 1. Entra al *vault* y arranca Claude Code.

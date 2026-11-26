@@ -328,7 +328,7 @@ This is the biggest block and the heart of the setup. **Doc 02** (Windows: **02W
 - **Before the first push**, make sure Claude stops and confirms the owner, **Private** visibility and the staged file list with the participant.
 - **Expect many approval prompts** in Docs 02 and 03: that is the narrow permission setup working.
 - **Watch every answer:** the participant picks plain **Yes** (or No), never "Yes, and don't ask again".
-- **If they picked "don't ask again"**, open the built-in `/permissions` screen with them, delete the rule it saved there, and re-run the status check.
+- **If they picked "don't ask again"**, open the built-in `/permissions` screen with them, delete the rule it saved there, check that the list holds no other rule you did not plan, and re-run the status check (it does not flag every exact one-command rule).
 
 **What the participant does:**
 1. Enters the vault and starts Claude Code.

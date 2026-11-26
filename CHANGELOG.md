@@ -19,7 +19,8 @@ English and the Spanish kit.
   With `--details` it adds, for the participant's own eyes and under a
   do-not-share warning: `~/…` paths (vault and repository), the remote's
   host name, the domain of the git email address, where each tool is
-  installed, the list of vaults registered in Obsidian, and which settings
+  installed, the list of vaults registered in Obsidian, the number of sandbox file-access
+  entries, and which settings
   file each finding is in (by a fixed label, never the rule's text). A tool's version is
   shown only when its version command succeeds and prints exactly a version
   line; anything else reads "installed (version not read)", so a tool's own
